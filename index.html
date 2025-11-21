@@ -94,17 +94,20 @@
                 <button onclick="app.stop()" id="btn-stop" class="hidden flex items-center px-3 py-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded-md text-xs font-medium transition">
                     <svg class="w-3 h-3 mr-1.5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg> Stop
                 </button>
+                
                 <div class="mx-3 flex items-center space-x-2">
                     <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Speed</span>
                     <input type="range" min="1" max="30" value="12" class="w-20" oninput="app.updateFps(this.value)">
                     <span id="fps-display" class="text-[10px] font-mono text-zinc-400 w-4">12</span>
                 </div>
+                
                 <div class="flex items-center space-x-2 px-2 border-l border-zinc-700">
-                    <button onclick="app.toggleLoop()" id="btn-loop" class="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">Loop</button>
-                    <button onclick="app.toggleSmooth()" id="btn-smooth" class="text-xs px-2 py-0.5 rounded bg-zinc-700 text-zinc-400 border border-transparent hover:text-zinc-200">Smooth</button>
+                    <button type="button" onclick="app.toggleLoop()" id="btn-loop" class="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">Loop</button>
+                    <button type="button" onclick="app.toggleSmooth()" id="btn-smooth" class="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">Smooth</button>
                 </div>
             </div>
         </div>
+
         <div class="flex items-center space-x-3">
             <div class="flex items-center space-x-1 text-xs">
                 <button onclick="app.confirmNewProject()" class="px-3 py-1.5 hover:bg-zinc-800 text-zinc-300 rounded transition">New</button>
@@ -178,7 +181,8 @@
                         <span class="font-semibold text-zinc-300">Frame Duration</span>
                         <span id="duration-display" class="font-mono text-blue-400">1.0x</span>
                     </div>
-                    <input type="range" min="0.1" max="10.0" step="0.1" value="1.0" id="frame-duration" class="w-full accent-blue-500" oninput="app.setFrameDuration(this.value)">
+                    <!-- FIX: Added draggable="false" and stopPropagation to prevent drag-lock -->
+                    <input type="range" min="0.1" max="10.0" step="0.1" value="1.0" id="frame-duration" class="w-full accent-blue-500" draggable="false" onmousedown="event.stopPropagation()" oninput="app.setFrameDuration(this.value)">
                     <div class="flex justify-between text-[8px] text-zinc-600 mt-1 px-0.5">
                         <span>Fast</span>
                         <span>Slow</span>
@@ -253,7 +257,6 @@
                 </div>
                 
                 <div class="p-4 space-y-4 overflow-y-auto flex-1">
-                    
                     <!-- Add Tools -->
                     <div>
                         <label class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2 block">Add Segment</label>
@@ -272,38 +275,28 @@
                     <!-- Selected Properties -->
                     <div id="builder-props" class="opacity-50 pointer-events-none transition-opacity">
                         <label class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2 block">Properties</label>
-                        
                         <div class="space-y-3">
                             <div>
                                 <label class="text-[10px] text-zinc-400 flex justify-between">Thickness <span id="b-thick-val" class="text-white font-mono">14</span></label>
                                 <input type="range" min="2" max="40" value="14" id="b-thickness" class="w-full" oninput="builder.updateProp('thickness', this.value)">
                             </div>
-                            
                             <div>
                                 <label class="text-[10px] text-zinc-400 flex justify-between">Length/Radius <span id="b-len-val" class="text-white font-mono">40</span></label>
                                 <input type="range" min="0" max="200" value="40" id="b-length" class="w-full" oninput="builder.updateProp('length', this.value)">
                             </div>
-
                             <div class="flex items-center justify-between pt-1">
                                 <span class="text-[10px] text-zinc-400">Type</span>
                                 <button onclick="builder.toggleType()" class="text-[10px] bg-zinc-900 px-2 py-1 rounded border border-zinc-600 hover:border-zinc-400 text-zinc-300">Toggle Line/Circle</button>
                             </div>
                         </div>
-
-                        <button onclick="builder.deleteSegment()" class="w-full mt-4 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-2 rounded text-xs border border-red-900/50 transition">
-                            Delete Segment
-                        </button>
+                        <button onclick="builder.deleteSegment()" class="w-full mt-4 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-2 rounded text-xs border border-red-900/50 transition">Delete Segment</button>
                     </div>
                 </div>
 
                 <!-- Footer Actions -->
                 <div class="p-4 border-t border-zinc-700 bg-zinc-850">
-                    <button onclick="builder.saveAndAdd()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-bold text-sm shadow-lg shadow-blue-900/20 transition mb-2">
-                        Add to Animation
-                    </button>
-                    <button onclick="builder.close()" class="w-full bg-transparent hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 py-2 rounded text-xs transition">
-                        Cancel
-                    </button>
+                    <button onclick="builder.saveAndAdd()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-bold text-sm shadow-lg shadow-blue-900/20 transition mb-2">Add to Animation</button>
+                    <button onclick="builder.close()" class="w-full bg-transparent hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 py-2 rounded text-xs transition">Cancel</button>
                 </div>
             </div>
         </div>
@@ -342,7 +335,7 @@
                 this.angle = angle;
                 this.type = type;
                 this.radius = radius;
-                this.thickness = thickness; // New property
+                this.thickness = thickness;
                 this.x = 0;
                 this.y = 0;
             }
@@ -410,7 +403,6 @@
             open() {
                 this.isOpen = true;
                 document.getElementById('builder-modal').classList.remove('hidden');
-                // Initialize empty figure (Root only)
                 this.figure = new Figure();
                 this.figure.x = this.canvas.width / 2;
                 this.figure.y = this.canvas.height / 2;
@@ -428,12 +420,8 @@
             addSegment(type) {
                 if (!this.selectedId) return;
                 const id = Math.random().toString(36).substr(2, 9);
-                // Default pointing down
                 const angle = Math.PI / 2;
                 const length = 40;
-                // If circle, visual radius is typically roughly half length for standard looking ball joints, 
-                // but Pivot treats circle segment length as dist to center.
-                // Let's default radius 20.
                 const j = new Joint(id, this.selectedId, length, angle, type, 20, 14);
                 this.figure.joints.push(j);
                 this.selectedId = id;
@@ -443,7 +431,6 @@
 
             deleteSegment() {
                 if (!this.selectedId || this.selectedId === 'root') return;
-                // Remove selected and all children recursively
                 const toRemove = [this.selectedId];
                 const getAllChildren = (pid) => {
                     this.figure.joints.filter(j => j.parentId === pid).forEach(c => {
@@ -452,9 +439,8 @@
                     });
                 };
                 getAllChildren(this.selectedId);
-                
                 this.figure.joints = this.figure.joints.filter(j => !toRemove.includes(j.id));
-                this.selectedId = this.figure.joints[0].id; // Select root
+                this.selectedId = this.figure.joints[0].id;
                 this.updateUI();
                 this.render();
             },
@@ -467,10 +453,8 @@
                         j.thickness = parseInt(val);
                         document.getElementById('b-thick-val').innerText = j.thickness;
                     } else if (prop === 'length') {
-                        // Dragging modifies Length (for Line) or Radius (for Circle) or Both?
-                        // In Pivot, length of segment.
                         j.length = parseInt(val);
-                        if(j.type === SEGMENT_CIRCLE) j.radius = j.length / 2; // Auto scale radius for simple UX
+                        if(j.type === SEGMENT_CIRCLE) j.radius = j.length / 2;
                         document.getElementById('b-len-val').innerText = j.length;
                     }
                     this.render();
@@ -488,18 +472,14 @@
             },
 
             saveAndAdd() {
-                // Center the figure around its root before adding?
-                // It is already defined relative to root.
-                // Just clone it into main app.
                 const newFig = new Figure();
                 newFig.joints = this.figure.joints.map(j => j.clone());
-                newFig.x = 400; // Default spawn pos
+                newFig.x = 400;
                 newFig.y = 300;
                 app.addCustomFigure(newFig);
                 this.close();
             },
 
-            // Interaction
             getMousePos(e) {
                 const rect = this.canvas.getBoundingClientRect();
                 return { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -508,8 +488,7 @@
             onMouseDown(e) {
                 if (!this.isOpen) return;
                 const pos = this.getMousePos(e);
-                // Find clicked joint (reverse for z-order)
-                this.figure.updatePositions(); // Ensure coords valid
+                this.figure.updatePositions();
                 for (let i = this.figure.joints.length - 1; i >= 0; i--) {
                     const j = this.figure.joints[i];
                     if (Math.hypot(pos.x - j.x, pos.y - j.y) < 8) {
@@ -524,7 +503,7 @@
 
             onMouseMove(e) {
                 if (!this.isOpen || !this.dragTarget) return;
-                if (this.dragTarget.id === 'root') return; // Root fixed in builder
+                if (this.dragTarget.id === 'root') return;
                 
                 const pos = this.getMousePos(e);
                 const parent = this.figure.joints.find(j => j.id === this.dragTarget.parentId);
@@ -533,13 +512,10 @@
                     const dy = pos.y - parent.y;
                     this.dragTarget.angle = Math.atan2(dy, dx);
                     this.dragTarget.length = Math.hypot(dx, dy);
-                    
-                    // Auto-update slider if dragging
                     if(this.selectedId === this.dragTarget.id) {
                         document.getElementById('b-length').value = Math.round(this.dragTarget.length);
                         document.getElementById('b-len-val').innerText = Math.round(this.dragTarget.length);
                     }
-                    
                     this.render();
                 }
             },
@@ -565,10 +541,8 @@
             },
 
             render() {
-                this.ctx.fillStyle = "#e5e5e5"; // Lighter bg for builder
+                this.ctx.fillStyle = "#e5e5e5";
                 this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-                
-                // Grid
                 this.ctx.strokeStyle = "#d4d4d4";
                 this.ctx.lineWidth = 1;
                 this.ctx.beginPath();
@@ -576,35 +550,24 @@
                 for(let y=0; y<this.canvas.height; y+=20) { this.ctx.moveTo(0,y); this.ctx.lineTo(this.canvas.width, y); }
                 this.ctx.stroke();
 
-                // Draw Figure
                 this.figure.updatePositions();
-                
-                // Draw segments
                 this.figure.joints.forEach(j => {
                     if(!j.parentId) return;
                     const p = this.figure.joints.find(x => x.id === j.parentId);
                     if(!p) return;
-                    
                     this.ctx.strokeStyle = "#000";
                     this.ctx.fillStyle = "#000";
-                    this.ctx.lineWidth = j.thickness; // Use custom thickness
+                    this.ctx.lineWidth = j.thickness;
                     this.ctx.lineCap = 'round';
                     
                     if(j.type === SEGMENT_CIRCLE) {
                         const dx = j.x - p.x; const dy = j.y - p.y;
                         const angle = Math.atan2(dy, dx);
-                        const r = j.length / 2; // Builder simple mode: Length = Diameter roughly
-                        // Actually use stored radius if we separated them? 
-                        // For builder simple mode: Let's treat 'length' as distance to center of circle? 
-                        // Pivot Logic: Length is segment length. Circle draws at end.
-                        // To make a "Ball", you drag circle close to parent.
-                        
-                        // Let's use the same draw logic as main app for consistency
+                        const r = j.length / 2;
                         const cx = j.x - Math.cos(angle) * (r*0.5); 
                         const cy = j.y - Math.sin(angle) * (r*0.5);
                         const chinX = cx - Math.cos(angle) * r;
                         const chinY = cy - Math.sin(angle) * r;
-                        
                         this.ctx.beginPath(); this.ctx.moveTo(p.x, p.y); this.ctx.lineTo(chinX, chinY); this.ctx.stroke();
                         this.ctx.beginPath(); this.ctx.arc(cx, cy, r, 0, Math.PI*2); this.ctx.fill();
                     } else {
@@ -612,12 +575,11 @@
                     }
                 });
 
-                // Draw Handles
                 this.figure.joints.forEach(j => {
                     this.ctx.beginPath();
                     this.ctx.arc(j.x, j.y, 5, 0, Math.PI*2);
                     if (j.id === this.selectedId) {
-                        this.ctx.fillStyle = "#3b82f6"; // Blue selection
+                        this.ctx.fillStyle = "#3b82f6";
                         this.ctx.strokeStyle = "#fff";
                         this.ctx.lineWidth = 2;
                         this.ctx.stroke();
@@ -667,14 +629,13 @@
                 });
                 this.toggleLoop(true);
                 this.toggleSmooth(true);
-                builder.init(); // Init builder
+                builder.init();
                 this.updateTimeline();
                 this.render();
             },
 
             resizeCanvas() { },
 
-            // Builder Hook
             openBuilder() { builder.open(); },
             addCustomFigure(fig) {
                 this.figures.push(fig);
@@ -732,9 +693,29 @@
             setFrameDuration(val) {
                 const delay = parseFloat(val);
                 document.getElementById('duration-display').innerText = delay.toFixed(1) + 'x';
+                
                 if (this.frameDelays[this.currentFrameIndex] !== undefined) {
                     this.frameDelays[this.currentFrameIndex] = delay;
-                    this.updateTimeline();
+                    
+                    // OPTIMIZATION: Don't rebuild the whole timeline. Just update the current frame's thumb.
+                    const container = document.getElementById('timeline-track');
+                    if (container && container.children[this.currentFrameIndex]) {
+                        const wrapper = container.children[this.currentFrameIndex];
+                        
+                        const badge = wrapper.querySelector('.absolute.top-0.left-0');
+                        if (badge) {
+                            badge.innerText = delay.toFixed(1) + 'x';
+                            badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${delay > 1.0 ? 'bg-blue-600 text-white' : 'bg-zinc-700 text-zinc-400'}`;
+                        }
+                        
+                        const barFill = wrapper.querySelector('.absolute.bottom-0 div');
+                        if (barFill) {
+                            let widthPct = (delay / 10.0) * 100;
+                            widthPct = Math.max(5, widthPct); 
+                            barFill.style.width = widthPct + '%';
+                            barFill.className = `h-full ${delay > 1.0 ? 'bg-blue-500' : 'bg-zinc-600'}`;
+                        }
+                    }
                 }
             },
 
@@ -751,19 +732,21 @@
                 }
             },
             toggleSmooth(forceState) {
-                if (forceState !== undefined) this.isSmooth = forceState;
-                else this.isSmooth = !this.isSmooth;
+                // Explicitly handle state
+                if (forceState !== undefined) {
+                    this.isSmooth = forceState;
+                } else {
+                    this.isSmooth = !this.isSmooth;
+                }
+                
                 const btn = document.getElementById('btn-smooth');
                 if (this.isSmooth) {
-                    btn.classList.add('bg-blue-500/10', 'text-blue-400', 'border-blue-500/20');
-                    btn.classList.remove('bg-zinc-700', 'text-zinc-400', 'border-transparent');
+                    btn.className = "text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 transition-colors";
                 } else {
-                    btn.classList.remove('bg-blue-500/10', 'text-blue-400', 'border-blue-500/20');
-                    btn.classList.add('bg-zinc-700', 'text-zinc-400', 'border-transparent');
+                    btn.className = "text-xs px-2 py-0.5 rounded bg-zinc-700 text-zinc-400 border border-transparent hover:text-zinc-200 transition-colors";
                 }
             },
 
-            // Modal System
             showModal(title, msg, action) {
                 document.getElementById('confirm-title').innerText = title;
                 document.getElementById('confirm-msg').innerText = msg;
@@ -889,16 +872,27 @@
             },
 
             addFrame() {
+                // FIX: Do NOT auto-save the current frame when adding a new one.
+                // This prevents overwriting the previous pose with the new one.
+                // "Add Frame" acts as a snapshot of the CURRENT state into a NEW slot.
+                
                 const currentDelay = (this.frameDelays.length > 0 && this.frameDelays[this.currentFrameIndex] !== undefined) ? this.frameDelays[this.currentFrameIndex] : 1.0;
                 const snapshot = this.figures.map(f => f.clone());
+                
                 if (this.frames.length === 0) {
-                    this.frames.push(snapshot); this.frameDelays.push(currentDelay); this.currentFrameIndex = 0;
+                    this.frames.push(snapshot); 
+                    this.frameDelays.push(currentDelay); 
+                    this.currentFrameIndex = 0;
                 } else {
+                    // Append logic
                     this.frames.splice(this.currentFrameIndex + 1, 0, snapshot);
                     this.frameDelays.splice(this.currentFrameIndex + 1, 0, currentDelay);
                     this.currentFrameIndex++;
                 }
-                this.updateTimeline(); this.render(); this.scrollToFrame(this.currentFrameIndex);
+                
+                this.updateTimeline(); 
+                this.render(); 
+                this.scrollToFrame(this.currentFrameIndex);
             },
 
             deleteFrame() {
@@ -927,6 +921,7 @@
 
             loadFrame(index, autoSave = true) {
                 if (this.frames.length === 0) return; 
+                // Only auto-save if we are navigating away, NOT if stopping playback (to avoid saving tween states)
                 if (autoSave && this.frames[this.currentFrameIndex]) this.frames[this.currentFrameIndex] = this.figures.map(f => f.clone());
                 this.currentFrameIndex = index;
                 this.figures = this.frames[index].map(f => f.clone());
@@ -950,6 +945,7 @@
                 this.isPlaying = false;
                 document.getElementById('btn-play').classList.remove('hidden');
                 document.getElementById('btn-stop').classList.add('hidden');
+                // Load frame WITHOUT auto-saving to discard any interpolation state
                 if (this.frames.length > 0) this.loadFrame(this.currentFrameIndex, false);
             },
 
@@ -963,8 +959,15 @@
                 if (this.playbackAccumulator >= msPerFrame) {
                     this.playbackAccumulator -= msPerFrame;
                     this.currentFrameIndex++;
-                    if (this.currentFrameIndex >= this.frames.length - 1) {
-                        if (this.isLooping) this.currentFrameIndex = 0; else { this.stop(); return; }
+                    // Allow playing the last frame fully before checking loop
+                    if (this.currentFrameIndex >= this.frames.length) {
+                        if (this.isLooping) {
+                            this.currentFrameIndex = 0; 
+                        } else { 
+                            this.currentFrameIndex = this.frames.length - 1;
+                            this.stop(); 
+                            return; 
+                        }
                     }
                     this.updateTimelineUiState();
                 }
@@ -1097,13 +1100,28 @@
             render() {
                 this.ctx.fillStyle = "#ffffff"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
                 if (this.bgImage) this.ctx.drawImage(this.bgImage, 0, 0, this.canvas.width, this.canvas.height);
+                
                 this.showOnion = document.getElementById('onion-check').checked;
-                if (this.showOnion && !this.isPlaying && this.currentFrameIndex > 0) {
-                    const prevFrame = this.frames[this.currentFrameIndex - 1];
-                    this.ctx.globalAlpha = 0.3;
-                    prevFrame.forEach(fig => { fig.updatePositions(); this.drawFigure(fig, false); });
-                    this.ctx.globalAlpha = 1.0;
+                // FIX: Show onion skin if active, not playing, and there are frames.
+                if (this.showOnion && !this.isPlaying && this.frames.length > 0) {
+                    let prevFrame = null;
+                    
+                    // Logic: If we are at the END of the timeline (e.g. modifying the future frame),
+                    // show the current timeline frame as the ghost.
+                    // If we are in the middle, show the previous frame.
+                    if (this.currentFrameIndex === this.frames.length - 1) {
+                        prevFrame = this.frames[this.currentFrameIndex];
+                    } else if (this.currentFrameIndex > 0) {
+                        prevFrame = this.frames[this.currentFrameIndex - 1];
+                    }
+
+                    if (prevFrame) {
+                        this.ctx.globalAlpha = 0.3;
+                        prevFrame.forEach(fig => { fig.updatePositions(); this.drawFigure(fig, false); });
+                        this.ctx.globalAlpha = 1.0;
+                    }
                 }
+                
                 this.figures.forEach(fig => { fig.updatePositions(); this.drawFigure(fig, !this.isPlaying); });
             },
 
