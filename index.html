@@ -785,9 +785,26 @@
             showClearModal() { this.confirmClearStage(); }, confirmClear() { this.executeConfirm(); },
 
             newProject() {
-                this.frames = []; this.frameDelays = []; this.figures = []; this.currentFrameIndex = 0; this.bgImage = null;
-                document.getElementById('canvas-w').value = 800; document.getElementById('canvas-h').value = 500;
-                this.setCanvasSize(); this.addFigure(); this.render(); this.updateTimeline();
+                // Stop any ongoing playback before resetting
+                this.stop();
+                
+                this.frames = [];
+                this.frameDelays = [];
+                this.figures = [];
+                this.currentFrameIndex = 0;
+                this.bgImage = null;
+                
+                // Reset UI values
+                document.getElementById('canvas-w').value = 800;
+                document.getElementById('canvas-h').value = 500;
+                this.setCanvasSize();
+                
+                // Add default start
+                this.addFigure();
+                // REMOVED this.saveFrame(true) to keep it empty on new project
+                
+                this.render();
+                this.updateTimeline();
             },
 
             setCanvasSize() {
@@ -817,6 +834,9 @@
 
             loadProject(input) {
                 if (input.files && input.files[0]) {
+                    // Safety stop
+                    this.stop();
+                    
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         try {
@@ -897,11 +917,10 @@
             },
 
             addFrame() {
-                // RESTORED: Save current edits to the active frame before moving on
-                if (this.frames.length > 0) {
-                    this.saveFrame();
-                }
-
+                // FIX: Do NOT auto-save the current frame when adding a new one.
+                // This prevents overwriting the previous pose with the new one.
+                // "Add Frame" acts as a snapshot of the CURRENT state into a NEW slot.
+                
                 const currentDelay = (this.frameDelays.length > 0 && this.frameDelays[this.currentFrameIndex] !== undefined) ? this.frameDelays[this.currentFrameIndex] : 1.0;
                 const snapshot = this.figures.map(f => f.clone());
                 
@@ -1000,18 +1019,36 @@
 
                 if (this.isSmooth) {
                     let t = this.playbackAccumulator / msPerFrame; if (t > 1) t = 1;
-                    const frameA = this.frames[this.currentFrameIndex];
-                    const nextIdx = (this.currentFrameIndex + 1) % this.frames.length;
-                    if (!this.isLooping && this.currentFrameIndex === this.frames.length - 1) this.figures = frameA.map(f => f.clone());
-                    else this.renderInterpolated(frameA, this.frames[nextIdx], t);
+                    
+                    // SAFETY CHECK: Ensure frameA exists
+                    if (this.currentFrameIndex < this.frames.length) {
+                        const frameA = this.frames[this.currentFrameIndex];
+                        const nextIdx = (this.currentFrameIndex + 1) % this.frames.length;
+                        
+                        if (!this.isLooping && this.currentFrameIndex === this.frames.length - 1) {
+                             this.figures = frameA.map(f => f.clone());
+                        } else {
+                            // SAFETY CHECK: Ensure frameB exists
+                            if (this.frames[nextIdx]) {
+                                this.renderInterpolated(frameA, this.frames[nextIdx], t);
+                            } else {
+                                // Fallback if next frame is missing for some reason
+                                this.figures = frameA.map(f => f.clone());
+                                this.render();
+                            }
+                        }
+                    }
                 } else {
-                    this.figures = this.frames[this.currentFrameIndex].map(f => f.clone());
-                    this.render();
+                    if (this.frames[this.currentFrameIndex]) {
+                        this.figures = this.frames[this.currentFrameIndex].map(f => f.clone());
+                        this.render();
+                    }
                 }
                 requestAnimationFrame((t) => this.playTick(t));
             },
 
             renderInterpolated(frameA, frameB, t, draw = true) {
+                if (!frameA || !frameB) return; // Extra safety check
                 const interpolated = [];
                 frameA.forEach(figA => {
                     const figB = frameB.find(f => f.id === figA.id);
@@ -1394,16 +1431,24 @@
             },
             
             newProject() {
+                // Stop any ongoing playback before resetting
+                this.stop();
+                
                 this.frames = [];
                 this.frameDelays = [];
                 this.figures = [];
                 this.currentFrameIndex = 0;
                 this.bgImage = null;
+                
+                // Reset UI values
                 document.getElementById('canvas-w').value = 800;
                 document.getElementById('canvas-h').value = 500;
                 this.setCanvasSize();
+                
+                // Add default start
                 this.addFigure();
                 // REMOVED this.saveFrame(true) to keep it empty on new project
+                
                 this.render();
                 this.updateTimeline();
             },
