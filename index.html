@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>StickMotion</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
@@ -29,6 +29,7 @@
             background-color: #09090b; /* Zinc-950 */
             color: #e4e4e7; /* Zinc-200 */
             overflow: hidden;
+            touch-action: none; /* Prevent mobile scrolling globally */
         }
         
         /* Modern Scrollbar */
@@ -41,6 +42,7 @@
             background-color: #ffffff;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
             cursor: crosshair;
+            touch-action: none; /* Critical for canvas dragging */
         }
 
         /* Timeline Thumbnails */
@@ -77,17 +79,17 @@
 <body class="h-screen w-screen flex flex-col font-sans antialiased selection:bg-blue-500 selection:text-white">
 
     <!-- Top Toolbar: Global Project & Playback -->
-    <div class="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 justify-between no-select shrink-0 z-20 shadow-sm">
+    <div class="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 justify-between no-select shrink-0 z-20 shadow-sm overflow-x-auto">
         <div class="flex items-center space-x-6">
-            <div class="flex items-center space-x-2">
+            <div class="flex items-center space-x-2 shrink-0">
                 <!-- Rebranded Logo Text -->
                 <span class="text-sm font-semibold text-zinc-400 tracking-tight">Stick<span class="text-blue-500">Motion</span></span>
             </div>
             
-            <div class="h-6 w-px bg-zinc-700 mx-2"></div>
+            <div class="h-6 w-px bg-zinc-700 mx-2 shrink-0"></div>
 
             <!-- Playback Controls -->
-            <div class="flex items-center bg-zinc-800 rounded-lg p-1 border border-zinc-700">
+            <div class="flex items-center bg-zinc-800 rounded-lg p-1 border border-zinc-700 shrink-0">
                 <button onclick="app.play()" id="btn-play" class="flex items-center px-3 py-1 bg-zinc-700 hover:bg-zinc-600 text-green-400 rounded-md text-xs font-medium transition">
                     <svg class="w-3 h-3 mr-1.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Play
                 </button>
@@ -96,19 +98,19 @@
                 </button>
                 
                 <div class="mx-3 flex items-center space-x-2">
-                    <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Speed</span>
-                    <input type="range" min="1" max="30" value="12" class="w-20" oninput="app.updateFps(this.value)">
+                    <span class="text-[10px] text-zinc-500 font-bold uppercase tracking-wider hidden sm:inline">Speed</span>
+                    <input type="range" min="1" max="30" value="12" class="w-16 sm:w-20" oninput="app.updateFps(this.value)">
                     <span id="fps-display" class="text-[10px] font-mono text-zinc-400 w-4">12</span>
                 </div>
                 
                 <div class="flex items-center space-x-2 px-2 border-l border-zinc-700">
                     <button type="button" onclick="app.toggleLoop()" id="btn-loop" class="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">Loop</button>
-                    <button type="button" onclick="app.toggleSmooth()" id="btn-smooth" class="text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">Smooth</button>
+                    <button type="button" onclick="app.toggleSmooth()" id="btn-smooth" class="text-xs px-2 py-0.5 rounded bg-zinc-700 text-zinc-400 border border-transparent hover:text-zinc-200">Smooth</button>
                 </div>
             </div>
         </div>
 
-        <div class="flex items-center space-x-3">
+        <div class="flex items-center space-x-3 shrink-0 ml-4">
             <div class="flex items-center space-x-1 text-xs">
                 <button onclick="app.confirmNewProject()" class="px-3 py-1.5 hover:bg-zinc-800 text-zinc-300 rounded transition">New</button>
                 <button onclick="app.saveProject()" class="px-3 py-1.5 hover:bg-zinc-800 text-zinc-300 rounded transition">Save</button>
@@ -125,7 +127,7 @@
     <div class="flex-1 bg-zinc-950 flex relative overflow-hidden">
         
         <!-- Left Sidebar: Tools & Inspector -->
-        <div class="w-72 bg-zinc-900/50 border-r border-zinc-800 flex flex-col shrink-0 z-10 backdrop-blur-sm">
+        <div class="w-64 sm:w-72 bg-zinc-900/50 border-r border-zinc-800 flex flex-col shrink-0 z-10 backdrop-blur-sm overflow-y-auto">
             
             <!-- Figures Section -->
             <div class="p-4 border-b border-zinc-800">
@@ -181,7 +183,6 @@
                         <span class="font-semibold text-zinc-300">Frame Duration</span>
                         <span id="duration-display" class="font-mono text-blue-400">1.0x</span>
                     </div>
-                    <!-- FIX: Added draggable="false" and stopPropagation to prevent drag-lock -->
                     <input type="range" min="0.1" max="10.0" step="0.1" value="1.0" id="frame-duration" class="w-full accent-blue-500" draggable="false" onmousedown="event.stopPropagation()" oninput="app.setFrameDuration(this.value)">
                     <div class="flex justify-between text-[8px] text-zinc-600 mt-1 px-0.5">
                         <span>Fast</span>
@@ -224,8 +225,8 @@
 
         <!-- Canvas Area -->
         <div class="flex-1 flex flex-col min-w-0 bg-[#121214]">
-            <div class="flex-1 overflow-auto flex items-center justify-center p-8 relative" id="canvas-wrapper">
-                <canvas id="main-canvas" width="800" height="500" class="rounded-sm bg-white"></canvas>
+            <div class="flex-1 overflow-auto flex items-center justify-center p-4 sm:p-8 relative touch-none" id="canvas-wrapper">
+                <canvas id="main-canvas" width="800" height="500" class="rounded-sm bg-white max-w-full h-auto shadow-xl"></canvas>
             </div>
             <!-- Timeline Bottom Bar -->
             <div class="h-36 bg-zinc-900 border-t border-zinc-800 flex flex-col shrink-0 z-20">
@@ -242,18 +243,21 @@
 
     <!-- Figure Designer Modal -->
     <div id="builder-modal" class="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 hidden">
-        <div class="bg-zinc-900 border border-zinc-700 w-[800px] h-[550px] rounded-xl shadow-2xl flex overflow-hidden">
+        <div class="bg-zinc-900 border border-zinc-700 w-full h-full sm:w-[800px] sm:h-[550px] sm:rounded-xl shadow-2xl flex flex-col sm:flex-row overflow-hidden">
             <!-- Canvas Side -->
             <div class="flex-1 bg-[#e5e5e5] relative flex items-center justify-center overflow-hidden cursor-crosshair" id="builder-canvas-container">
-                <canvas id="builder-canvas" width="600" height="550"></canvas>
+                <canvas id="builder-canvas" width="600" height="550" class="max-w-full max-h-full"></canvas>
                 <div class="absolute top-4 left-4 text-zinc-500 text-xs font-bold opacity-50 pointer-events-none">DESIGNER MODE</div>
             </div>
             
             <!-- Controls Side -->
-            <div class="w-64 bg-zinc-800 border-l border-zinc-700 flex flex-col">
-                <div class="p-4 border-b border-zinc-700">
-                    <h3 class="text-sm font-bold text-white mb-1">Figure Designer</h3>
-                    <p class="text-[10px] text-zinc-400">Design your custom figure skeleton.</p>
+            <div class="w-full sm:w-64 bg-zinc-800 border-t sm:border-t-0 sm:border-l border-zinc-700 flex flex-col h-1/3 sm:h-auto">
+                <div class="p-4 border-b border-zinc-700 flex justify-between items-center">
+                    <div>
+                        <h3 class="text-sm font-bold text-white mb-1">Figure Designer</h3>
+                        <p class="text-[10px] text-zinc-400 hidden sm:block">Design your custom figure skeleton.</p>
+                    </div>
+                    <button onclick="builder.close()" class="sm:hidden text-zinc-400 p-2">✕</button>
                 </div>
                 
                 <div class="p-4 space-y-4 overflow-y-auto flex-1">
@@ -296,7 +300,7 @@
                 <!-- Footer Actions -->
                 <div class="p-4 border-t border-zinc-700 bg-zinc-850">
                     <button onclick="builder.saveAndAdd()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded font-bold text-sm shadow-lg shadow-blue-900/20 transition mb-2">Add to Animation</button>
-                    <button onclick="builder.close()" class="w-full bg-transparent hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 py-2 rounded text-xs transition">Cancel</button>
+                    <button onclick="builder.close()" class="w-full bg-transparent hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 py-2 rounded text-xs transition hidden sm:block">Cancel</button>
                 </div>
             </div>
         </div>
@@ -395,9 +399,14 @@
             init() {
                 this.canvas = document.getElementById('builder-canvas');
                 this.ctx = this.canvas.getContext('2d');
-                this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
-                window.addEventListener('mousemove', (e) => this.onMouseMove(e));
-                window.addEventListener('mouseup', (e) => this.onMouseUp(e));
+                // Add Mouse Events
+                this.canvas.addEventListener('mousedown', (e) => this.handleStart(e, false));
+                window.addEventListener('mousemove', (e) => this.handleMove(e, false));
+                window.addEventListener('mouseup', (e) => this.handleEnd(e));
+                // Add Touch Events
+                this.canvas.addEventListener('touchstart', (e) => this.handleStart(e, true), {passive: false});
+                window.addEventListener('touchmove', (e) => this.handleMove(e, true), {passive: false});
+                window.addEventListener('touchend', (e) => this.handleEnd(e));
             },
 
             open() {
@@ -480,18 +489,25 @@
                 this.close();
             },
 
-            getMousePos(e) {
+            // Unified Input Handling
+            getPos(e, isTouch) {
                 const rect = this.canvas.getBoundingClientRect();
-                return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                let clientX = isTouch ? e.touches[0].clientX : e.clientX;
+                let clientY = isTouch ? e.touches[0].clientY : e.clientY;
+                // Normalize coordinates to canvas scale
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
             },
 
-            onMouseDown(e) {
+            handleStart(e, isTouch) {
                 if (!this.isOpen) return;
-                const pos = this.getMousePos(e);
+                if (isTouch) e.preventDefault(); // Prevent scrolling
+                const pos = this.getPos(e, isTouch);
                 this.figure.updatePositions();
                 for (let i = this.figure.joints.length - 1; i >= 0; i--) {
                     const j = this.figure.joints[i];
-                    if (Math.hypot(pos.x - j.x, pos.y - j.y) < 8) {
+                    if (Math.hypot(pos.x - j.x, pos.y - j.y) < 15) { // Larger hit area for touch
                         this.selectedId = j.id;
                         this.dragTarget = j;
                         this.updateUI();
@@ -501,11 +517,12 @@
                 }
             },
 
-            onMouseMove(e) {
+            handleMove(e, isTouch) {
                 if (!this.isOpen || !this.dragTarget) return;
+                if (isTouch) e.preventDefault();
                 if (this.dragTarget.id === 'root') return;
                 
-                const pos = this.getMousePos(e);
+                const pos = this.getPos(e, isTouch);
                 const parent = this.figure.joints.find(j => j.id === this.dragTarget.parentId);
                 if (parent) {
                     const dx = pos.x - parent.x;
@@ -520,7 +537,7 @@
                 }
             },
 
-            onMouseUp(e) { this.dragTarget = null; },
+            handleEnd(e) { this.dragTarget = null; },
 
             updateUI() {
                 const props = document.getElementById('builder-props');
@@ -618,9 +635,17 @@
                 this.addFigure();
                 this.resizeCanvas();
                 window.addEventListener('resize', () => this.resizeCanvas());
-                this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
-                window.addEventListener('mousemove', (e) => this.onMouseMove(e));
-                window.addEventListener('mouseup', (e) => this.onMouseUp(e));
+                
+                // MOUSE EVENTS
+                this.canvas.addEventListener('mousedown', (e) => this.handleStart(e, false));
+                window.addEventListener('mousemove', (e) => this.handleMove(e, false));
+                window.addEventListener('mouseup', (e) => this.handleEnd(e));
+                
+                // TOUCH EVENTS
+                this.canvas.addEventListener('touchstart', (e) => this.handleStart(e, true), {passive: false});
+                window.addEventListener('touchmove', (e) => this.handleMove(e, true), {passive: false});
+                window.addEventListener('touchend', (e) => this.handleEnd(e));
+
                 window.addEventListener('keydown', (e) => {
                     if (e.code === 'Space') {
                         e.preventDefault();
@@ -872,10 +897,11 @@
             },
 
             addFrame() {
-                // FIX: Do NOT auto-save the current frame when adding a new one.
-                // This prevents overwriting the previous pose with the new one.
-                // "Add Frame" acts as a snapshot of the CURRENT state into a NEW slot.
-                
+                // RESTORED: Save current edits to the active frame before moving on
+                if (this.frames.length > 0) {
+                    this.saveFrame();
+                }
+
                 const currentDelay = (this.frameDelays.length > 0 && this.frameDelays[this.currentFrameIndex] !== undefined) ? this.frameDelays[this.currentFrameIndex] : 1.0;
                 const snapshot = this.figures.map(f => f.clone());
                 
@@ -1015,62 +1041,110 @@
                 document.getElementById('fps-display').innerText = val;
             },
 
-            getMousePos(e) {
+            // UNIFIED INPUT HANDLING
+            getPos(e, isTouch) {
                 const rect = this.canvas.getBoundingClientRect();
-                return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                // Use first touch if multiple, or mouse event
+                const clientX = isTouch ? e.touches[0].clientX : e.clientX;
+                const clientY = isTouch ? e.touches[0].clientY : e.clientY;
+                
+                // Scaling factor in case canvas is CSS-resized
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                
+                return { 
+                    x: (clientX - rect.left) * scaleX, 
+                    y: (clientY - rect.top) * scaleY 
+                };
             },
 
-            onMouseDown(e) {
+            handleStart(e, isTouch) {
                 if (this.isPlaying) return;
-                const pos = this.getMousePos(e); this.mouseX = pos.x; this.mouseY = pos.y;
+                if (isTouch) e.preventDefault();
+                
+                const pos = this.getPos(e, isTouch);
+                this.mouseX = pos.x; 
+                this.mouseY = pos.y;
+
+                // Collision detection logic
                 for (let i = this.figures.length - 1; i >= 0; i--) {
-                    const fig = this.figures[i]; fig.updatePositions(); 
+                    const fig = this.figures[i]; 
+                    fig.updatePositions(); 
+                    
                     const root = fig.joints.find(j => j.parentId === null);
-                    if (Math.hypot(pos.x - root.x, pos.y - root.y) < this.handleRadius * 2) {
+                    // Check Root
+                    if (Math.hypot(pos.x - root.x, pos.y - root.y) < (this.handleRadius + 10)) { // +10 for easier touch
                         this.dragTarget = { figure: fig, type: 'root', joint: root, offsetX: pos.x - fig.x, offsetY: pos.y - fig.y };
-                        this.selectFigure(fig); this.render(); return;
+                        this.selectFigure(fig); 
+                        this.render(); 
+                        return;
                     }
+                    
+                    // Check Joints
                     for (let j of fig.joints) {
                         if (j.parentId === null) continue; 
-                        if (Math.hypot(pos.x - j.x, pos.y - j.y) < this.handleRadius * 2) {
+                        if (Math.hypot(pos.x - j.x, pos.y - j.y) < (this.handleRadius + 10)) {
                             this.dragTarget = { figure: fig, type: 'joint', joint: j };
-                            this.selectFigure(fig); this.render(); return;
+                            this.selectFigure(fig); 
+                            this.render(); 
+                            return;
                         }
                     }
                 }
-                this.deselectAll(); this.render();
+                this.deselectAll(); 
+                this.render();
             },
 
-            onMouseMove(e) {
-                const pos = this.getMousePos(e);
-                if (!this.dragTarget && !this.isPlaying) {
+            handleMove(e, isTouch) {
+                const pos = this.getPos(e, isTouch);
+                
+                // Hover state (Mouse Only)
+                if (!isTouch && !this.dragTarget && !this.isPlaying) {
                     let hovered = false;
                     for (let fig of this.figures) {
-                        for(let j of fig.joints) { if (Math.hypot(pos.x - j.x, pos.y - j.y) < this.handleRadius * 2) { hovered = true; break; } }
+                        for(let j of fig.joints) { 
+                            if (Math.hypot(pos.x - j.x, pos.y - j.y) < this.handleRadius * 2) { 
+                                hovered = true; 
+                                break; 
+                            } 
+                        }
                     }
                     this.canvas.style.cursor = hovered ? 'pointer' : 'crosshair';
                 }
+
                 if (!this.dragTarget) return;
+                
+                // Prevent scrolling on touch move if we are dragging
+                if (isTouch && e.cancelable) e.preventDefault();
+
                 if (this.dragTarget.type === 'root') {
                     const fig = this.dragTarget.figure;
-                    fig.x = pos.x - this.dragTarget.offsetX; fig.y = pos.y - this.dragTarget.offsetY;
+                    fig.x = pos.x - this.dragTarget.offsetX; 
+                    fig.y = pos.y - this.dragTarget.offsetY;
                 } else {
-                    const joint = this.dragTarget.joint; const fig = this.dragTarget.figure;
+                    const joint = this.dragTarget.joint; 
+                    const fig = this.dragTarget.figure;
                     const parent = fig.joints.find(j => j.id === joint.parentId);
+                    
                     if (parent) {
-                        const dx = pos.x - parent.x; const dy = pos.y - parent.y;
-                        const newAngle = Math.atan2(dy, dx); const delta = newAngle - joint.angle;
-                        joint.angle = newAngle; this.rotateHierarchy(fig, joint.id, delta);
+                        const dx = pos.x - parent.x; 
+                        const dy = pos.y - parent.y;
+                        const newAngle = Math.atan2(dy, dx); 
+                        const delta = newAngle - joint.angle;
+                        joint.angle = newAngle; 
+                        this.rotateHierarchy(fig, joint.id, delta);
                     }
                 }
                 this.render();
             },
 
+            handleEnd(e) { 
+                this.dragTarget = null; 
+            },
+
             rotateHierarchy(fig, parentId, delta) {
                 fig.joints.forEach(j => { if (j.parentId === parentId) { j.angle += delta; this.rotateHierarchy(fig, j.id, delta); } });
             },
-
-            onMouseUp(e) { this.dragTarget = null; },
 
             selectFigure(fig) {
                 this.figures.forEach(f => f.selected = false); fig.selected = true;
