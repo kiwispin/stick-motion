@@ -67,16 +67,29 @@
         }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Input Range Styling */
-        input[type=range] { -webkit-appearance: none; background: transparent; }
+        /* Input Range Styling - Touch Optimized */
+        input[type=range] { 
+            -webkit-appearance: none; 
+            background: transparent; 
+            touch-action: none; /* Prevents scrolling while dragging slider */
+            height: 30px; /* Ensure hit area is large enough */
+        }
         input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 12px; width: 12px;
-            border-radius: 50%; background: #e4e4e7; margin-top: -4px; 
-            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+            -webkit-appearance: none; 
+            height: 24px; /* Increased from 12px for easier grabbing */
+            width: 24px;  /* Increased from 12px */
+            border-radius: 50%; 
+            background: #e4e4e7; 
+            margin-top: -9px; /* Centering based on new sizes: (6 - 24) / 2 */
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            cursor: pointer;
         }
         input[type=range]::-webkit-slider-runnable-track {
-            width: 100%; height: 4px; cursor: pointer;
-            background: #3f3f46; border-radius: 2px;
+            width: 100%; 
+            height: 6px; /* Increased from 4px for better visibility */
+            cursor: pointer;
+            background: #3f3f46; 
+            border-radius: 3px;
         }
     </style>
 </head>
