@@ -52,11 +52,8 @@
         /* Timeline Thumbnails */
         .frame-thumb { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .frame-thumb.active { ring-width: 2px; --tw-ring-color: #3b82f6; transform: translateY(-2px); }
-        
-        /* Thumbnail Actions Overlay */
-        .frame-actions { display: none; }
-        .frame-thumb:hover .frame-actions { display: flex; }
-        
+        .frame-thumb .delete-btn { display: none; }
+        .frame-thumb:hover .delete-btn { display: flex; }
         .frame-thumb.dragging { opacity: 0.5; transform: scale(0.95); }
 
         .no-select { user-select: none; -webkit-user-select: none; }
@@ -346,6 +343,19 @@
                                 <label class="text-[10px] text-zinc-400 flex justify-between">Length/Radius <span id="b-len-val" class="text-white font-mono">40</span></label>
                                 <input type="range" min="0" max="200" value="40" id="b-length" class="w-full" oninput="builder.updateProp('length', this.value)">
                             </div>
+                            
+                            <!-- Circle specific controls -->
+                            <div id="b-circle-controls" class="hidden space-y-3 border-t border-zinc-700 pt-3 mt-3">
+                                <div>
+                                    <label class="text-[10px] text-zinc-400 flex justify-between">Radius <span id="b-rad-val" class="text-white font-mono">20</span></label>
+                                    <input type="range" min="5" max="100" value="20" id="b-radius" class="w-full" oninput="builder.updateProp('radius', this.value)">
+                                </div>
+                                <div class="flex items-center">
+                                    <input type="checkbox" id="b-filled" class="accent-blue-500 mr-2" onchange="builder.toggleFill()">
+                                    <label for="b-filled" class="text-[10px] text-zinc-300">Filled</label>
+                                </div>
+                            </div>
+
                             <div class="flex items-center justify-between pt-1">
                                 <span class="text-[10px] text-zinc-400">Type</span>
                                 <button onclick="builder.toggleType()" class="text-[10px] bg-zinc-900 px-2 py-1 rounded border border-zinc-600 hover:border-zinc-400 text-zinc-300">Toggle Line/Circle</button>
@@ -390,7 +400,8 @@
         const SEGMENT_CIRCLE = 'circle';
 
         class Joint {
-            constructor(id, parentId, length, angle, type = SEGMENT_LINE, radius = 0, thickness = 14) {
+            // Added 'filled' parameter (default true)
+            constructor(id, parentId, length, angle, type = SEGMENT_LINE, radius = 20, thickness = 14, filled = true) {
                 this.id = id;
                 this.parentId = parentId;
                 this.length = length;
@@ -398,10 +409,12 @@
                 this.type = type;
                 this.radius = radius;
                 this.thickness = thickness;
+                this.filled = filled; // Persist fill state
                 this.x = 0;
                 this.y = 0;
             }
-            clone() { return new Joint(this.id, this.parentId, this.length, this.angle, this.type, this.radius, this.thickness); }
+            // Update clone to include filled
+            clone() { return new Joint(this.id, this.parentId, this.length, this.angle, this.type, this.radius, this.thickness, this.filled); }
         }
 
         class Figure {
@@ -490,7 +503,8 @@
                 const id = Math.random().toString(36).substr(2, 9);
                 const angle = Math.PI / 2;
                 const length = 40;
-                const j = new Joint(id, this.selectedId, length, angle, type, 20, 14);
+                // Default filled=true
+                const j = new Joint(id, this.selectedId, length, angle, type, 20, 14, true);
                 this.figure.joints.push(j);
                 this.selectedId = id;
                 this.updateUI();
@@ -522,9 +536,26 @@
                         document.getElementById('b-thick-val').innerText = j.thickness;
                     } else if (prop === 'length') {
                         j.length = parseInt(val);
-                        if(j.type === SEGMENT_CIRCLE) j.radius = j.length / 2;
+                        if(j.type === SEGMENT_CIRCLE) {
+                             // radius handled separately now
+                        } 
                         document.getElementById('b-len-val').innerText = j.length;
+                    } else if (prop === 'radius') {
+                        // Specific radius control
+                        j.radius = parseInt(val);
+                        document.getElementById('b-rad-val').innerText = j.radius;
                     }
+                    this.render();
+                }
+            },
+
+            // RESTORED: Toggle Fill Logic
+            toggleFill() {
+                if (!this.selectedId || this.selectedId === 'root') return;
+                const j = this.figure.joints.find(j => j.id === this.selectedId);
+                if(j) {
+                    j.filled = !j.filled;
+                    this.updateUI();
                     this.render();
                 }
             },
@@ -535,6 +566,7 @@
                 if(j) {
                     j.type = j.type === SEGMENT_LINE ? SEGMENT_CIRCLE : SEGMENT_LINE;
                     if(j.type === SEGMENT_CIRCLE && j.radius === 0) j.radius = 20;
+                    this.updateUI(); // Update UI to show/hide circle controls
                     this.render();
                 }
             },
@@ -560,12 +592,12 @@
 
             handleStart(e, isTouch) {
                 if (!this.isOpen) return;
-                if (isTouch) e.preventDefault(); // Prevent scrolling
+                if (isTouch) e.preventDefault();
                 const pos = this.getPos(e, isTouch);
                 this.figure.updatePositions();
                 for (let i = this.figure.joints.length - 1; i >= 0; i--) {
                     const j = this.figure.joints[i];
-                    if (Math.hypot(pos.x - j.x, pos.y - j.y) < 15) { 
+                    if (Math.hypot(pos.x - j.x, pos.y - j.y) < 15) {
                         this.selectedId = j.id;
                         this.dragTarget = j;
                         this.updateUI();
@@ -611,6 +643,17 @@
                         document.getElementById('b-thick-val').innerText = j.thickness;
                         document.getElementById('b-length').value = Math.round(j.length);
                         document.getElementById('b-len-val').innerText = Math.round(j.length);
+
+                        // Handle Circle Properties Visibility
+                        const circleControls = document.getElementById('b-circle-controls');
+                        if (j.type === SEGMENT_CIRCLE) {
+                            circleControls.classList.remove('hidden');
+                            document.getElementById('b-radius').value = j.radius;
+                            document.getElementById('b-rad-val').innerText = j.radius;
+                            document.getElementById('b-filled').checked = (j.filled !== false);
+                        } else {
+                            circleControls.classList.add('hidden');
+                        }
                     }
                 }
             },
@@ -626,10 +669,12 @@
                 this.ctx.stroke();
 
                 this.figure.updatePositions();
+                
                 this.figure.joints.forEach(j => {
                     if(!j.parentId) return;
                     const p = this.figure.joints.find(x => x.id === j.parentId);
                     if(!p) return;
+                    
                     this.ctx.strokeStyle = "#000";
                     this.ctx.fillStyle = "#000";
                     this.ctx.lineWidth = j.thickness;
@@ -638,15 +683,39 @@
                     if(j.type === SEGMENT_CIRCLE) {
                         const dx = j.x - p.x; const dy = j.y - p.y;
                         const angle = Math.atan2(dy, dx);
-                        const r = j.length / 2;
+                        // Use Stored Radius
+                        const r = j.radius; 
                         const cx = j.x - Math.cos(angle) * (r*0.5); 
                         const cy = j.y - Math.sin(angle) * (r*0.5);
                         const chinX = cx - Math.cos(angle) * r;
                         const chinY = cy - Math.sin(angle) * r;
-                        this.ctx.beginPath(); this.ctx.moveTo(p.x, p.y); this.ctx.lineTo(chinX, chinY); this.ctx.stroke();
-                        this.ctx.beginPath(); this.ctx.arc(cx, cy, r, 0, Math.PI*2); this.ctx.fill();
+                        
+                        // Draw connecting line
+                        this.ctx.beginPath(); 
+                        this.ctx.moveTo(p.x, p.y); 
+                        this.ctx.lineTo(chinX, chinY); 
+                        this.ctx.stroke();
+                        
+                        // Draw Circle
+                        this.ctx.beginPath(); 
+                        this.ctx.arc(cx, cy, r, 0, Math.PI*2); 
+                        
+                        if (j.filled !== false) {
+                            this.ctx.fill();
+                        } else {
+                            // Outline mode
+                            this.ctx.save();
+                            this.ctx.fillStyle = "rgba(255,255,255,0)"; 
+                            this.ctx.stroke();
+                            this.ctx.restore();
+                            // Restore fill for handles
+                            this.ctx.fillStyle = "#000";
+                        }
                     } else {
-                        this.ctx.beginPath(); this.ctx.moveTo(p.x, p.y); this.ctx.lineTo(j.x, j.y); this.ctx.stroke();
+                        this.ctx.beginPath(); 
+                        this.ctx.moveTo(p.x, p.y); 
+                        this.ctx.lineTo(j.x, j.y); 
+                        this.ctx.stroke();
                     }
                 });
 
@@ -708,616 +777,145 @@
 
                 window.addEventListener('keydown', (e) => {
                     if (e.target.tagName === 'INPUT') return;
-
-                    if (e.code === 'Space') {
-                        e.preventDefault();
-                        if(this.isPlaying) this.stop(); else this.addFrame();
-                    }
+                    if (e.code === 'Space') { e.preventDefault(); if(this.isPlaying) this.stop(); else this.addFrame(); }
                     if (e.key === ',' || e.key === '<') this.prevFrame();
                     if (e.key === '.' || e.key === '>') this.nextFrame();
-                    
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-                        e.preventDefault();
-                        if (e.shiftKey) this.redo(); else this.undo();
-                    }
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-                         e.preventDefault(); this.redo();
-                    }
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); if (e.shiftKey) this.redo(); else this.undo(); }
+                    if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); this.redo(); }
                 });
-                this.toggleLoop(true);
-                this.toggleSmooth(true);
-                builder.init();
-                this.updateTimeline();
-                this.render();
+                this.toggleLoop(true); this.toggleSmooth(true);
+                builder.init(); this.updateTimeline(); this.render();
             },
 
+            // ... [resize, openBuilder, addCustomFigure] ...
             resizeCanvas() { },
-
             openBuilder() { builder.open(); },
-            
-            addCustomFigure(fig) {
-                this.saveState();
-                this.figures.push(fig);
-                this.selectFigure(fig);
-                this.render();
-            },
-
+            addCustomFigure(fig) { this.saveState(); this.figures.push(fig); this.selectFigure(fig); this.render(); },
             createStickman() {
                 const f = new Figure();
                 const j = [];
-                const hip='hip', abs='abs', chest='chest', neck='neck';
-                const lShldr='lShldr', lElbow='lElbow', lHand='lHand';
-                const rShldr='rShldr', rElbow='rElbow', rHand='rHand';
-                const lKnee='lKnee', lFoot='lFoot', rKnee='rKnee', rFoot='rFoot';
-
-                j.push(new Joint(hip, null, 0, 0));
-                j.push(new Joint(abs, hip, 23, -Math.PI/2));
-                j.push(new Joint(chest, abs, 23, -Math.PI/2));
-                j.push(new Joint(neck, chest, 40, -Math.PI/2, SEGMENT_CIRCLE, 20));
+                // Classic Stickman Setup
+                j.push(new Joint('hip', null, 0, 0));
+                j.push(new Joint('abs', 'hip', 23, -Math.PI/2));
+                j.push(new Joint('chest', 'abs', 23, -Math.PI/2));
+                // Head: Length 25, Radius 20, Thick 14, Filled
+                // Adjusted neck length to 40 based on user feedback for correct proportions
+                j.push(new Joint('neck', 'chest', 40, -Math.PI/2, SEGMENT_CIRCLE, 20, 14, true));
                 
-                j.push(new Joint(lShldr, chest, 25, Math.PI - 0.2));
-                j.push(new Joint(lElbow, lShldr, 25, Math.PI - 0.5));
-                j.push(new Joint(lHand, lElbow, 20, Math.PI - 0.2));
-
-                j.push(new Joint(rShldr, chest, 25, 0.2));
-                j.push(new Joint(rElbow, rShldr, 25, 0.5));
-                j.push(new Joint(rHand, rElbow, 20, 0.2));
-
-                j.push(new Joint(lKnee, hip, 35, Math.PI/2 + 0.3));
-                j.push(new Joint(lFoot, lKnee, 35, Math.PI/2 + 0.1));
-
-                j.push(new Joint(rKnee, hip, 35, Math.PI/2 - 0.3));
-                j.push(new Joint(rFoot, rKnee, 35, Math.PI/2 - 0.1));
-
+                j.push(new Joint('lShldr', 'chest', 25, Math.PI - 0.2));
+                j.push(new Joint('lElbow', 'lShldr', 25, Math.PI - 0.5));
+                j.push(new Joint('lHand', 'lElbow', 20, Math.PI - 0.2));
+                j.push(new Joint('rShldr', 'chest', 25, 0.2));
+                j.push(new Joint('rElbow', 'rShldr', 25, 0.5));
+                j.push(new Joint('rHand', 'rElbow', 20, 0.2));
+                j.push(new Joint('lKnee', 'hip', 35, Math.PI/2 + 0.3));
+                j.push(new Joint('lFoot', 'lKnee', 35, Math.PI/2 + 0.1));
+                j.push(new Joint('rKnee', 'hip', 35, Math.PI/2 - 0.3));
+                j.push(new Joint('rFoot', 'rKnee', 35, Math.PI/2 - 0.1));
                 f.joints = j;
                 return f;
             },
+
+            // ... [saveState, undo, redo, restoreState] ...
+            saveState() { if (this.undoStack.length > 50) this.undoStack.shift(); this.undoStack.push({ frames: this.frames.map(f=>f.map(x=>x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f=>f.clone()) }); this.redoStack = []; },
+            undo() { if(this.undoStack.length===0)return; this.redoStack.push({frames: this.frames.map(f=>f.map(x=>x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f=>f.clone())}); this.restoreState(this.undoStack.pop()); },
+            redo() { if(this.redoStack.length===0)return; this.undoStack.push({frames: this.frames.map(f=>f.map(x=>x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f=>f.clone())}); this.restoreState(this.redoStack.pop()); },
+            restoreState(state) { this.frames = state.frames.map(f=>f.map(x=>x.clone())); this.frameDelays = [...state.frameDelays]; this.currentFrameIndex = state.currentFrameIndex; this.figures = state.figures.map(f=>f.clone()); const delay = this.frameDelays[this.currentFrameIndex]||1.0; document.getElementById('frame-duration').value = delay; document.getElementById('duration-display').innerText = delay.toFixed(1)+'x'; this.render(); this.updateTimeline(); },
             
-            saveState() {
-                if (this.undoStack.length > 50) this.undoStack.shift();
-                const state = {
-                    frames: this.frames.map(frame => frame.map(f => f.clone())),
-                    frameDelays: [...this.frameDelays],
-                    currentFrameIndex: this.currentFrameIndex,
-                    figures: this.figures.map(f => f.clone())
-                };
-                this.undoStack.push(state);
-                this.redoStack = [];
-            },
+            // ... [addFigure, deleteSelectedFigure, raise/lower] ...
+            addFigure() { this.saveState(); const fig = this.createStickman(); if (this.figures.length > 0) { fig.x += 20; fig.y += 20; } this.figures.push(fig); this.selectFigure(fig); this.render(); },
+            deleteSelectedFigure() { const idx = this.figures.findIndex(f=>f.selected); if(idx!==-1) { this.saveState(); this.figures.splice(idx,1); this.render(); } },
+            raiseFigure() { const idx=this.figures.findIndex(f=>f.selected); if(idx!==-1 && idx<this.figures.length-1){ this.saveState(); const t=this.figures[idx]; this.figures[idx]=this.figures[idx+1]; this.figures[idx+1]=t; this.render(); } },
+            lowerFigure() { const idx=this.figures.findIndex(f=>f.selected); if(idx>0){ this.saveState(); const t=this.figures[idx]; this.figures[idx]=this.figures[idx-1]; this.figures[idx-1]=t; this.render(); } },
+
+            // ... [prevFrame, nextFrame, setFrameDuration] ...
+            prevFrame() { if(this.frames.length>0 && this.currentFrameIndex>0) this.loadFrame(this.currentFrameIndex-1); },
+            nextFrame() { if(this.frames.length>0 && this.currentFrameIndex<this.frames.length-1) this.loadFrame(this.currentFrameIndex+1); },
+            setFrameDuration(val) { const d = parseFloat(val); document.getElementById('duration-display').innerText = d.toFixed(1)+'x'; if(this.frameDelays[this.currentFrameIndex]!==undefined) { this.frameDelays[this.currentFrameIndex] = d; this.updateTimeline(); } },
             
-            undo() {
-                if (this.undoStack.length === 0) return;
-                const current = {
-                    frames: this.frames.map(frame => frame.map(f => f.clone())),
-                    frameDelays: [...this.frameDelays],
-                    currentFrameIndex: this.currentFrameIndex,
-                    figures: this.figures.map(f => f.clone())
-                };
-                this.redoStack.push(current);
-                const state = this.undoStack.pop();
-                this.restoreState(state);
-            },
-            
-            redo() {
-                if (this.redoStack.length === 0) return;
-                const current = {
-                    frames: this.frames.map(frame => frame.map(f => f.clone())),
-                    frameDelays: [...this.frameDelays],
-                    currentFrameIndex: this.currentFrameIndex,
-                    figures: this.figures.map(f => f.clone())
-                };
-                this.undoStack.push(current);
-                const state = this.redoStack.pop();
-                this.restoreState(state);
-            },
-            
-            restoreState(state) {
-                this.frames = state.frames.map(frame => frame.map(f => f.clone()));
-                this.frameDelays = [...state.frameDelays];
-                this.currentFrameIndex = state.currentFrameIndex;
-                this.figures = state.figures.map(f => f.clone());
-                
-                const delay = this.frameDelays[this.currentFrameIndex] || 1.0;
-                document.getElementById('frame-duration').value = delay;
-                document.getElementById('duration-display').innerText = delay.toFixed(1) + 'x';
-                this.render(); this.updateTimeline();
-            },
-
-            addFigure() {
-                this.saveState();
-                const fig = this.createStickman();
-                if (this.figures.length > 0) { fig.x += 20; fig.y += 20; }
-                this.figures.push(fig);
-                this.selectFigure(fig);
-                this.render();
-            },
-
-            deleteSelectedFigure() {
-                const index = this.figures.findIndex(f => f.selected);
-                if (index !== -1) {
-                    this.saveState();
-                    this.figures.splice(index, 1);
-                    this.render();
-                }
-            },
-
-            raiseFigure() {
-                const index = this.figures.findIndex(f => f.selected);
-                if (index !== -1 && index < this.figures.length - 1) {
-                    this.saveState();
-                    const temp = this.figures[index];
-                    this.figures[index] = this.figures[index + 1];
-                    this.figures[index + 1] = temp;
-                    this.render();
-                }
-            },
-
-            lowerFigure() {
-                const index = this.figures.findIndex(f => f.selected);
-                if (index > 0) {
-                    this.saveState();
-                    const temp = this.figures[index];
-                    this.figures[index] = this.figures[index - 1];
-                    this.figures[index - 1] = temp;
-                    this.render();
-                }
-            },
-
-            prevFrame() {
-                if (this.frames.length > 0 && this.currentFrameIndex > 0) {
-                    this.loadFrame(this.currentFrameIndex - 1);
-                }
-            },
-
-            nextFrame() {
-                if (this.frames.length > 0 && this.currentFrameIndex < this.frames.length - 1) {
-                    this.loadFrame(this.currentFrameIndex + 1);
-                }
-            },
-
-            setFrameDuration(val) {
-                const delay = parseFloat(val);
-                document.getElementById('duration-display').innerText = delay.toFixed(1) + 'x';
-                if (this.frameDelays[this.currentFrameIndex] !== undefined) {
-                    this.frameDelays[this.currentFrameIndex] = delay;
-                    const container = document.getElementById('timeline-track');
-                    if (container && container.children[this.currentFrameIndex]) {
-                        const wrapper = container.children[this.currentFrameIndex];
-                        const badge = wrapper.querySelector('.absolute.top-0.left-0');
-                        if (badge) {
-                            badge.innerText = delay.toFixed(1) + 'x';
-                            badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${delay > 1.0 ? 'bg-blue-600 text-white' : 'bg-zinc-700 text-zinc-400'}`;
-                        }
-                        const barFill = wrapper.querySelector('.absolute.bottom-0 div');
-                        if (barFill) {
-                            let widthPct = (delay / 10.0) * 100; widthPct = Math.max(5, widthPct); 
-                            barFill.style.width = widthPct + '%';
-                            barFill.className = `h-full ${delay > 1.0 ? 'bg-blue-500' : 'bg-zinc-600'}`;
-                        }
-                    }
-                }
-            },
-
-            toggleLoop(forceState) {
-                if (forceState !== undefined) this.isLooping = forceState;
-                else this.isLooping = !this.isLooping;
-                const btn = document.getElementById('btn-loop');
-                if (this.isLooping) {
-                    btn.classList.add('bg-blue-500/10', 'text-blue-400', 'border-blue-500/20');
-                    btn.classList.remove('bg-zinc-700', 'text-zinc-400', 'border-transparent');
-                } else {
-                    btn.classList.remove('bg-blue-500/10', 'text-blue-400', 'border-blue-500/20');
-                    btn.classList.add('bg-zinc-700', 'text-zinc-400', 'border-transparent');
-                }
-            },
-            toggleSmooth(forceState) {
-                if (forceState !== undefined) this.isSmooth = forceState;
-                else this.isSmooth = !this.isSmooth;
-                const btn = document.getElementById('btn-smooth');
-                if (this.isSmooth) {
-                    btn.className = "text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 transition-colors";
-                } else {
-                    btn.className = "text-xs px-2 py-0.5 rounded bg-zinc-700 text-zinc-400 border border-transparent hover:text-zinc-200 transition-colors";
-                }
-            },
-
-            showModal(title, msg, action) {
-                document.getElementById('confirm-title').innerText = title;
-                document.getElementById('confirm-msg').innerText = msg;
-                this.pendingAction = action;
-                document.getElementById('confirm-modal').classList.remove('hidden');
-            },
-            closeModal() { document.getElementById('confirm-modal').classList.add('hidden'); this.pendingAction = null; },
-            executeConfirm() { if (this.pendingAction) this.pendingAction(); this.closeModal(); },
-            confirmClearStage() { this.showModal("Clear Stage?", "Remove all figures from current frame?", () => { 
-                this.saveState(); this.figures = []; this.render(); 
-            }); },
-            confirmNewProject() { this.showModal("New Project?", "Discard current animation?", () => { 
-                this.saveState(); this.newProject(); 
-            }); },
+            // ... [toggleLoop, toggleSmooth, Modal system] ...
+            toggleLoop(fs) { if(fs!==undefined) this.isLooping=fs; else this.isLooping=!this.isLooping; const btn = document.getElementById('btn-loop'); if(this.isLooping) { btn.className = "text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 transition-colors"; } else { btn.className = "text-xs px-2 py-0.5 rounded bg-zinc-700 text-zinc-400 border border-transparent hover:text-zinc-200 transition-colors"; } },
+            toggleSmooth(fs) { if(fs!==undefined) this.isSmooth=fs; else this.isSmooth=!this.isSmooth; const btn = document.getElementById('btn-smooth'); if(this.isSmooth) { btn.className = "text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 transition-colors"; } else { btn.className = "text-xs px-2 py-0.5 rounded bg-zinc-700 text-zinc-400 border border-transparent hover:text-zinc-200 transition-colors"; } },
+            showModal(t, m, a) { document.getElementById('confirm-title').innerText=t; document.getElementById('confirm-msg').innerText=m; this.pendingAction=a; document.getElementById('confirm-modal').classList.remove('hidden'); },
+            closeModal() { document.getElementById('confirm-modal').classList.add('hidden'); this.pendingAction=null; },
+            executeConfirm() { if(this.pendingAction) this.pendingAction(); this.closeModal(); },
+            confirmClearStage() { this.showModal("Clear Stage?", "Remove all figures?", ()=>{ this.saveState(); this.figures=[]; this.render(); }); },
+            confirmNewProject() { this.showModal("New Project?", "Discard animation?", ()=>{ this.saveState(); this.newProject(); }); },
             showClearModal() { this.confirmClearStage(); }, confirmClear() { this.executeConfirm(); },
+            
+            // ... [newProject, setCanvasSize, loadBackground, saveProject, loadProject, exportGif] ...
+            newProject() { this.stop(); this.frames=[]; this.frameDelays=[]; this.figures=[]; this.currentFrameIndex=0; this.bgImage=null; this.undoStack=[]; this.redoStack=[]; document.getElementById('canvas-w').value=800; document.getElementById('canvas-h').value=500; this.setCanvasSize(); this.addFigure(); this.render(); this.updateTimeline(); },
+            setCanvasSize() { const w=parseInt(document.getElementById('canvas-w').value)||800; const h=parseInt(document.getElementById('canvas-h').value)||500; this.canvas.width=w; this.canvas.height=h; this.render(); },
+            loadBackground(i) { if(i.files&&i.files[0]) { const r=new FileReader(); r.onload=(e)=>{ const img=new Image(); img.onload=()=>{this.bgImage=img; this.render();}; img.src=e.target.result; }; r.readAsDataURL(i.files[0]); } },
+            saveProject() { const d={version:2, width:this.canvas.width, height:this.canvas.height, fps:this.fps, frames:this.frames, delays:this.frameDelays}; const b=new Blob([JSON.stringify(d)], {type:'application/json'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='project.json'; a.click(); },
+            loadProject(i) { if(i.files&&i.files[0]) { this.stop(); this.saveState(); const r=new FileReader(); r.onload=(e)=>{ try{ const d=JSON.parse(e.target.result); if(d.width){document.getElementById('canvas-w').value=d.width; document.getElementById('canvas-h').value=d.height; this.setCanvasSize();} if(d.fps){this.updateFps(d.fps); document.getElementById('fps-display').innerText=d.fps;} this.frames=d.frames.map(fd=>fd.map(figd=>{ const fig=new Figure(); Object.assign(fig,figd); fig.joints=figd.joints.map(jd=>{ const j=new Joint(); Object.assign(j,jd); return j; }); return fig; })); if(d.delays) this.frameDelays=d.delays; else this.frameDelays=new Array(this.frames.length).fill(1.0); this.currentFrameIndex=0; this.loadFrame(0); this.updateTimeline(); this.undoStack=[]; this.redoStack=[]; }catch(err){alert("Error: "+err);} }; r.readAsText(i.files[0]); } },
+            async exportGif() { if(this.frames.length===0) return; document.getElementById('loading-modal').classList.remove('hidden'); try{ const res=await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js'); const blob=await res.blob(); const url=URL.createObjectURL(blob); const gif=new GIF({workers:2, quality:10, width:this.canvas.width, height:this.canvas.height, workerScript:url}); const wasPlaying=this.isPlaying; if(wasPlaying) this.stop(); const origIdx=this.currentFrameIndex; const origFigs=this.figures; const baseDelay=1000/this.fps; for(let i=0; i<this.frames.length; i++){ const dm=this.frameDelays[i]||1.0; const steps=this.isSmooth?Math.max(1, Math.round(5*dm)):1; const stepDelay=(baseDelay*dm)/steps; const fA=this.frames[i]; const nextIdx=(i+1)%this.frames.length; if(!this.isLooping && i===this.frames.length-1){ this.figures=fA.map(f=>f.clone()); this.renderFrameToCtx(); gif.addFrame(this.ctx, {copy:true, delay:baseDelay*dm}); } else { const fB=this.frames[nextIdx]; for(let s=0; s<steps; s++){ let t=s/steps; if(!this.isSmooth) t=0; this.renderInterpolated(fA, fB, t, false); this.renderFrameToCtx(false); gif.addFrame(this.ctx, {copy:true, delay:stepDelay}); if(!this.isSmooth) break; } } } gif.on('finished', (b)=>{ document.getElementById('loading-modal').classList.add('hidden'); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='animation.gif'; a.click(); this.currentFrameIndex=origIdx; this.figures=origFigs; this.render(); }); gif.render(); }catch(err){ document.getElementById('loading-modal').classList.add('hidden'); alert("GIF Error."); } },
+            renderFrameToCtx(h=false) { this.ctx.fillStyle="#ffffff"; this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height); if(this.bgImage) this.ctx.drawImage(this.bgImage,0,0,this.canvas.width,this.canvas.height); this.figures.forEach(f=>{ f.updatePositions(); this.drawFigure(f,h); }); },
 
-            newProject() {
-                this.stop();
-                this.frames = []; this.frameDelays = []; this.figures = []; this.currentFrameIndex = 0; this.bgImage = null;
-                this.undoStack = []; this.redoStack = [];
-                document.getElementById('canvas-w').value = 800; document.getElementById('canvas-h').value = 500;
-                this.setCanvasSize(); this.addFigure(); this.render(); this.updateTimeline();
-            },
-
-            setCanvasSize() {
-                const w = parseInt(document.getElementById('canvas-w').value) || 800;
-                const h = parseInt(document.getElementById('canvas-h').value) || 500;
-                this.canvas.width = w; this.canvas.height = h; this.render();
-            },
-
-            loadBackground(input) {
-                if (input.files && input.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const img = new Image();
-                        img.onload = () => { this.bgImage = img; this.render(); };
-                        img.src = e.target.result;
-                    };
-                    reader.readAsDataURL(input.files[0]);
+            // ... [Add/Delete Frame etc...] ...
+            addFrame() { const d=(this.frameDelays.length>0 && this.frameDelays[this.currentFrameIndex]!==undefined)?this.frameDelays[this.currentFrameIndex]:1.0; const snap=this.figures.map(f=>f.clone()); if(this.frames.length===0){ this.frames.push(snap); this.frameDelays.push(d); this.currentFrameIndex=0; } else { this.frames.splice(this.currentFrameIndex+1,0,snap); this.frameDelays.splice(this.currentFrameIndex+1,0,d); this.currentFrameIndex++; } this.updateTimeline(); this.render(); this.scrollToFrame(this.currentFrameIndex); },
+            duplicateCurrentFrame() { if(this.frames.length===0) return; this.duplicateFrameAtIndex(this.currentFrameIndex); },
+            duplicateFrameAtIndex(idx) { if(idx<0||idx>=this.frames.length) return; this.saveState(); const src=this.frames[idx]; const newF=src.map(f=>f.clone()); const d=this.frameDelays[idx]; this.frames.splice(idx+1,0,newF); this.frameDelays.splice(idx+1,0,d); this.currentFrameIndex=idx+1; this.loadFrame(this.currentFrameIndex); this.updateTimeline(); },
+            
+            deleteFrame() { 
+                if(this.frames.length===0) return; 
+                this.saveState(); 
+                this.frames.splice(this.currentFrameIndex,1); 
+                this.frameDelays.splice(this.currentFrameIndex,1); 
+                
+                if(this.frames.length===0) {
+                    this.currentFrameIndex=0; 
+                    this.figures = []; // FIX: Clear the stage if timeline is empty
+                    this.render();     // Force redraw to show empty white canvas
+                } else {
+                    if(this.currentFrameIndex>=this.frames.length) this.currentFrameIndex=this.frames.length-1; 
+                    this.loadFrame(this.currentFrameIndex); 
                 }
-            },
-
-            saveProject() {
-                const data = { version: 2, width: this.canvas.width, height: this.canvas.height, fps: this.fps, frames: this.frames, delays: this.frameDelays };
-                const blob = new Blob([JSON.stringify(data)], {type: 'application/json'});
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a'); a.href = url; a.download = 'project.json'; a.click();
-            },
-
-            loadProject(input) {
-                if (input.files && input.files[0]) {
-                    this.stop(); this.saveState();
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            const data = JSON.parse(e.target.result);
-                            if(data.width) { document.getElementById('canvas-w').value = data.width; document.getElementById('canvas-h').value = data.height; this.setCanvasSize(); }
-                            if(data.fps) { this.updateFps(data.fps); document.getElementById('fps-display').innerText = data.fps; }
-                            this.frames = data.frames.map(frameData => {
-                                return frameData.map(figData => {
-                                    const fig = new Figure(); Object.assign(fig, figData);
-                                    fig.joints = figData.joints.map(jData => {
-                                        const j = new Joint(); Object.assign(j, jData); return j;
-                                    });
-                                    return fig;
-                                });
-                            });
-                            if (data.delays && data.delays.length === this.frames.length) this.frameDelays = data.delays;
-                            else this.frameDelays = new Array(this.frames.length).fill(1.0);
-                            this.currentFrameIndex = 0; this.loadFrame(0); this.updateTimeline();
-                            this.undoStack = []; this.redoStack = [];
-                        } catch (err) { alert("Error loading file: " + err); }
-                    };
-                    reader.readAsText(input.files[0]);
-                }
-            },
-
-            async exportGif() {
-                if (this.frames.length === 0) return;
-                document.getElementById('loading-modal').classList.remove('hidden');
-                try {
-                    const response = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
-                    const workerBlob = await response.blob();
-                    const workerUrl = URL.createObjectURL(workerBlob);
-                    const gif = new GIF({ workers: 2, quality: 10, width: this.canvas.width, height: this.canvas.height, workerScript: workerUrl });
-                    const wasPlaying = this.isPlaying; if(wasPlaying) this.stop();
-                    const originalIndex = this.currentFrameIndex;
-                    const originalFigures = this.figures;
-                    const baseDelay = 1000 / this.fps;
-
-                    for (let i = 0; i < this.frames.length; i++) {
-                        const durationMult = this.frameDelays[i] || 1.0;
-                        const steps = this.isSmooth ? Math.max(1, Math.round(5 * durationMult)) : 1;
-                        const stepDelay = (baseDelay * durationMult) / steps;
-                        const frameA = this.frames[i];
-                        const nextIdx = (i + 1) % this.frames.length;
-                        
-                        if (!this.isLooping && i === this.frames.length - 1) {
-                             this.figures = frameA.map(f => f.clone());
-                             this.renderFrameToCtx();
-                             gif.addFrame(this.ctx, {copy: true, delay: baseDelay * durationMult});
-                        } else {
-                            const frameB = this.frames[nextIdx];
-                            for (let s = 0; s < steps; s++) {
-                                let t = s / steps; 
-                                if (!this.isSmooth) t = 0;
-                                this.renderInterpolated(frameA, frameB, t, false);
-                                this.renderFrameToCtx(false);
-                                gif.addFrame(this.ctx, {copy: true, delay: stepDelay});
-                                if (!this.isSmooth) break;
-                            }
-                        }
-                    }
-                    gif.on('finished', (blob) => {
-                        document.getElementById('loading-modal').classList.add('hidden');
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a'); a.href = url; a.download = 'animation.gif'; a.click();
-                        this.currentFrameIndex = originalIndex; this.figures = originalFigures; this.render();
-                    });
-                    gif.render();
-                } catch (err) {
-                     document.getElementById('loading-modal').classList.add('hidden'); console.error(err);
-                     alert("GIF Error. Try hosting on https or localhost.");
-                }
+                this.updateTimeline(); 
             },
             
-            renderFrameToCtx(showHandles = false) {
-                this.ctx.fillStyle = "#ffffff"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-                if (this.bgImage) this.ctx.drawImage(this.bgImage, 0, 0, this.canvas.width, this.canvas.height);
-                this.figures.forEach(fig => { fig.updatePositions(); this.drawFigure(fig, showHandles); });
-            },
-
-            addFrame() {
-                const currentDelay = (this.frameDelays.length > 0 && this.frameDelays[this.currentFrameIndex] !== undefined) ? this.frameDelays[this.currentFrameIndex] : 1.0;
-                const snapshot = this.figures.map(f => f.clone());
-                if (this.frames.length === 0) {
-                    this.frames.push(snapshot); this.frameDelays.push(currentDelay); this.currentFrameIndex = 0;
-                } else {
-                    this.frames.splice(this.currentFrameIndex + 1, 0, snapshot);
-                    this.frameDelays.splice(this.currentFrameIndex + 1, 0, currentDelay);
-                    this.currentFrameIndex++;
-                }
-                this.updateTimeline(); this.render(); this.scrollToFrame(this.currentFrameIndex);
-            },
-
-            duplicateCurrentFrame() {
-                if (this.frames.length === 0) return;
-                this.duplicateFrameAtIndex(this.currentFrameIndex);
-            },
-
-            duplicateFrameAtIndex(index) {
-                if (index < 0 || index >= this.frames.length) return;
-                this.saveState();
-                const sourceFrame = this.frames[index];
-                const newFrame = sourceFrame.map(f => f.clone());
-                const delay = this.frameDelays[index];
-                this.frames.splice(index + 1, 0, newFrame);
-                this.frameDelays.splice(index + 1, 0, delay);
-                this.currentFrameIndex = index + 1;
-                this.loadFrame(this.currentFrameIndex); this.updateTimeline();
-            },
-
-            deleteFrame() {
-                if (this.frames.length === 0) return;
-                this.saveState();
-                this.frames.splice(this.currentFrameIndex, 1); this.frameDelays.splice(this.currentFrameIndex, 1);
-                if (this.frames.length === 0) this.currentFrameIndex = 0;
-                else if (this.currentFrameIndex >= this.frames.length) this.currentFrameIndex = this.frames.length - 1;
-                this.loadFrame(this.currentFrameIndex); this.updateTimeline();
-            },
-
-            deleteFrameAtIndex(index) {
-                if (this.frames.length === 0) return;
-                this.saveState();
-                this.frames.splice(index, 1); this.frameDelays.splice(index, 1);
-                if (this.frames.length === 0) this.currentFrameIndex = 0;
-                else if (this.currentFrameIndex >= index) this.currentFrameIndex = Math.max(0, this.currentFrameIndex - 1);
-                if (this.frames.length > 0) this.loadFrame(this.currentFrameIndex);
-                this.updateTimeline();
-            },
-
-            saveFrame(isInit = false) {
-                if (this.frames.length === 0 && !isInit) return;
-                const snapshot = this.figures.map(f => f.clone());
-                if (isInit) { this.frames = [snapshot]; this.frameDelays = [1.0]; }
-                else this.frames[this.currentFrameIndex] = snapshot;
-            },
-
-            loadFrame(index, autoSave = true) {
-                if (this.frames.length === 0) return; 
-                if (autoSave && this.frames[this.currentFrameIndex]) this.frames[this.currentFrameIndex] = this.figures.map(f => f.clone());
-                this.currentFrameIndex = index;
-                this.figures = this.frames[index].map(f => f.clone());
-                const delay = this.frameDelays[index] || 1.0;
-                document.getElementById('frame-duration').value = delay;
-                document.getElementById('duration-display').innerText = delay.toFixed(1) + 'x';
-                this.render(); this.updateTimelineUiState();
-            },
-
-            play() {
-                if (this.isPlaying || this.frames.length === 0) return; 
-                this.saveFrame(); this.isPlaying = true;
-                document.getElementById('btn-play').classList.add('hidden');
-                document.getElementById('btn-stop').classList.remove('hidden');
-                this.lastTime = performance.now(); this.playbackAccumulator = 0;
-                if (this.currentFrameIndex >= this.frames.length - 1) this.currentFrameIndex = 0;
-                requestAnimationFrame((t) => this.playTick(t));
-            },
-
-            stop() {
-                this.isPlaying = false;
-                document.getElementById('btn-play').classList.remove('hidden');
-                document.getElementById('btn-stop').classList.add('hidden');
-                if (this.frames.length > 0) this.loadFrame(this.currentFrameIndex, false);
-            },
-
-            playTick(now) {
-                if (!this.isPlaying) return;
-                const dt = now - this.lastTime; this.lastTime = now;
-                const currentDelayMult = this.frameDelays[this.currentFrameIndex] || 1.0;
-                const msPerFrame = (1000 / this.fps) * currentDelayMult;
-                this.playbackAccumulator += dt;
-
-                if (this.playbackAccumulator >= msPerFrame) {
-                    this.playbackAccumulator -= msPerFrame;
-                    this.currentFrameIndex++;
-                    if (this.currentFrameIndex >= this.frames.length) {
-                        if (this.isLooping) { this.currentFrameIndex = 0; } 
-                        else { this.currentFrameIndex = this.frames.length - 1; this.stop(); return; }
-                    }
-                    this.updateTimelineUiState();
-                }
-
-                if (this.isSmooth) {
-                    let t = this.playbackAccumulator / msPerFrame; if (t > 1) t = 1;
-                    if (this.currentFrameIndex < this.frames.length) {
-                        const frameA = this.frames[this.currentFrameIndex];
-                        const nextIdx = (this.currentFrameIndex + 1) % this.frames.length;
-                        if (!this.isLooping && this.currentFrameIndex === this.frames.length - 1) this.figures = frameA.map(f => f.clone());
-                        else if (this.frames[nextIdx]) this.renderInterpolated(frameA, this.frames[nextIdx], t);
-                        else { this.figures = frameA.map(f => f.clone()); this.render(); }
-                    }
-                } else {
-                    if (this.frames[this.currentFrameIndex]) {
-                        this.figures = this.frames[this.currentFrameIndex].map(f => f.clone());
-                        this.render();
-                    }
-                }
-                requestAnimationFrame((t) => this.playTick(t));
-            },
-
-            renderInterpolated(frameA, frameB, t, draw = true) {
-                if (!frameA || !frameB) return;
-                const interpolated = [];
-                frameA.forEach(figA => {
-                    const figB = frameB.find(f => f.id === figA.id);
-                    if (figB) {
-                        const newFig = figA.clone();
-                        newFig.x = figA.x + (figB.x - figA.x) * t;
-                        newFig.y = figA.y + (figB.y - figA.y) * t;
-                        newFig.scale = figA.scale + (figB.scale - figA.scale) * t;
-                        newFig.joints.forEach(jA => {
-                            const jB = figB.joints.find(j => j.id === jA.id);
-                            if (jB) {
-                                let diff = jB.angle - jA.angle;
-                                while (diff < -Math.PI) diff += Math.PI * 2;
-                                while (diff > Math.PI) diff -= Math.PI * 2;
-                                jA.angle += diff * t;
-                            }
-                        });
-                        interpolated.push(newFig);
-                    } else { interpolated.push(figA.clone()); }
-                });
-                this.figures = interpolated;
-                if(draw) this.render();
-            },
-
-            updateFps(val) {
-                this.fps = parseInt(val);
-                document.getElementById('fps-display').innerText = val;
-            },
-
-            getPos(e, isTouch) {
-                const rect = this.canvas.getBoundingClientRect();
-                let clientX = isTouch ? e.touches[0].clientX : e.clientX;
-                let clientY = isTouch ? e.touches[0].clientY : e.clientY;
-                const scaleX = this.canvas.width / rect.width;
-                const scaleY = this.canvas.height / rect.height;
-                return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
-            },
-
-            handleStart(e, isTouch) {
-                if (this.isPlaying) return;
-                if (isTouch) e.preventDefault();
-                const pos = this.getPos(e, isTouch); this.mouseX = pos.x; this.mouseY = pos.y;
-                for (let i = this.figures.length - 1; i >= 0; i--) {
-                    const fig = this.figures[i]; fig.updatePositions(); 
-                    const root = fig.joints.find(j => j.parentId === null);
-                    if (Math.hypot(pos.x - root.x, pos.y - root.y) < (this.handleRadius + 10)) {
-                        this.saveState();
-                        this.dragTarget = { figure: fig, type: 'root', joint: root, offsetX: pos.x - fig.x, offsetY: pos.y - fig.y };
-                        this.selectFigure(fig); this.render(); return;
-                    }
-                    for (let j of fig.joints) {
-                        if (j.parentId === null) continue; 
-                        if (Math.hypot(pos.x - j.x, pos.y - j.y) < (this.handleRadius + 10)) {
-                            this.saveState();
-                            this.dragTarget = { figure: fig, type: 'joint', joint: j };
-                            this.selectFigure(fig); this.render(); return;
-                        }
-                    }
-                }
-                this.deselectAll(); this.render();
-            },
-
-            handleMove(e, isTouch) {
-                const pos = this.getPos(e, isTouch);
-                if (!isTouch && !this.dragTarget && !this.isPlaying) {
-                    let hovered = false;
-                    for (let fig of this.figures) {
-                        for(let j of fig.joints) { 
-                            if (Math.hypot(pos.x - j.x, pos.y - j.y) < this.handleRadius * 2) { hovered = true; break; } 
-                        }
-                    }
-                    this.canvas.style.cursor = hovered ? 'pointer' : 'crosshair';
-                }
-                if (!this.dragTarget) return;
-                if (isTouch && e.cancelable) e.preventDefault();
-
-                if (this.dragTarget.type === 'root') {
-                    const fig = this.dragTarget.figure;
-                    fig.x = pos.x - this.dragTarget.offsetX; fig.y = pos.y - this.dragTarget.offsetY;
-                } else {
-                    const joint = this.dragTarget.joint; const fig = this.dragTarget.figure;
-                    const parent = fig.joints.find(j => j.id === joint.parentId);
-                    if (parent) {
-                        const dx = pos.x - parent.x; const dy = pos.y - parent.y;
-                        const newAngle = Math.atan2(dy, dx); const delta = newAngle - joint.angle;
-                        joint.angle = newAngle; this.rotateHierarchy(fig, joint.id, delta);
-                    }
-                }
-                this.render();
-            },
-
-            handleEnd(e) { this.dragTarget = null; },
-
-            rotateHierarchy(fig, parentId, delta) {
-                fig.joints.forEach(j => { if (j.parentId === parentId) { j.angle += delta; this.rotateHierarchy(fig, j.id, delta); } });
-            },
-
-            selectFigure(fig) {
-                this.figures.forEach(f => f.selected = false); fig.selected = true;
-                document.getElementById('color-picker').value = fig.color;
-            },
-            deselectAll() { this.figures.forEach(f => f.selected = false); },
-
-            flipFigure() {
-                const fig = this.figures.find(f => f.selected); if (!fig) return;
-                this.saveState();
-                fig.joints.forEach(j => { if (j.parentId !== null) j.angle = Math.PI - j.angle; });
-                this.render();
-            },
-            centerFigure() {
-                const fig = this.figures.find(f => f.selected); if (!fig) return;
-                this.saveState();
-                fig.x = this.canvas.width / 2; fig.y = this.canvas.height / 2; this.render();
-            },
-            scaleFigure(factor) {
-                const fig = this.figures.find(f => f.selected); if (!fig) return;
-                this.saveState();
-                fig.scale *= factor; this.render();
-            },
-            setFigureColor(hex) {
-                const fig = this.figures.find(f => f.selected); if (!fig) return;
-                this.saveState();
-                fig.color = hex; document.getElementById('color-preview').style.backgroundColor = hex;
-                this.render();
-            },
-
-            render() {
-                this.ctx.fillStyle = "#ffffff"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-                if (this.bgImage) this.ctx.drawImage(this.bgImage, 0, 0, this.canvas.width, this.canvas.height);
+            deleteFrameAtIndex(idx) { 
+                if(this.frames.length===0) return; 
+                this.saveState(); 
+                this.frames.splice(idx,1); 
+                this.frameDelays.splice(idx,1); 
                 
-                this.showOnion = document.getElementById('onion-check').checked;
-                if (this.showOnion && !this.isPlaying && this.frames.length > 0) {
-                    let prevFrame = null;
-                    if (this.currentFrameIndex === this.frames.length - 1) prevFrame = this.frames[this.currentFrameIndex];
-                    else if (this.currentFrameIndex > 0) prevFrame = this.frames[this.currentFrameIndex - 1];
-                    if (prevFrame) {
-                        this.ctx.globalAlpha = 0.3;
-                        prevFrame.forEach(fig => { fig.updatePositions(); this.drawFigure(fig, false); });
-                        this.ctx.globalAlpha = 1.0;
-                    }
+                if(this.frames.length===0) {
+                    this.currentFrameIndex=0; 
+                    this.figures = []; // FIX: Clear the stage here too
+                    this.render();     // Force redraw
+                } else {
+                    if(this.currentFrameIndex>=idx) this.currentFrameIndex=Math.max(0, this.currentFrameIndex-1); 
+                    // Only reload frame if we still have frames
+                    this.loadFrame(this.currentFrameIndex); 
                 }
-                this.figures.forEach(fig => { fig.updatePositions(); this.drawFigure(fig, !this.isPlaying); });
+                this.updateTimeline(); 
             },
-
+            
+            saveFrame(isInit=false) { if(this.frames.length===0 && !isInit) return; const snap=this.figures.map(f=>f.clone()); if(isInit){ this.frames=[snap]; this.frameDelays=[1.0]; } else this.frames[this.currentFrameIndex]=snap; },
+            loadFrame(idx, autoSave=true) { if(this.frames.length===0) return; if(autoSave && this.frames[this.currentFrameIndex]) this.frames[this.currentFrameIndex]=this.figures.map(f=>f.clone()); this.currentFrameIndex=idx; this.figures=this.frames[idx].map(f=>f.clone()); const d=this.frameDelays[idx]||1.0; document.getElementById('frame-duration').value=d; document.getElementById('duration-display').innerText=d.toFixed(1)+'x'; this.render(); this.updateTimelineUiState(); },
+            play() { if(this.isPlaying||this.frames.length===0) return; this.saveFrame(); this.isPlaying=true; document.getElementById('btn-play').classList.add('hidden'); document.getElementById('btn-stop').classList.remove('hidden'); this.lastTime=performance.now(); this.playbackAccumulator=0; if(this.currentFrameIndex>=this.frames.length-1) this.currentFrameIndex=0; requestAnimationFrame((t)=>this.playTick(t)); },
+            stop() { this.isPlaying=false; document.getElementById('btn-play').classList.remove('hidden'); document.getElementById('btn-stop').classList.add('hidden'); if(this.frames.length>0) this.loadFrame(this.currentFrameIndex, false); },
+            
+            playTick(now) { if(!this.isPlaying) return; const dt=now-this.lastTime; this.lastTime=now; const cm=this.frameDelays[this.currentFrameIndex]||1.0; const ms=(1000/this.fps)*cm; this.playbackAccumulator+=dt; if(this.playbackAccumulator>=ms) { this.playbackAccumulator-=ms; this.currentFrameIndex++; if(this.currentFrameIndex>=this.frames.length) { if(this.isLooping) this.currentFrameIndex=0; else { this.currentFrameIndex=this.frames.length-1; this.stop(); return; } } this.updateTimelineUiState(); } if(this.isSmooth) { let t=this.playbackAccumulator/ms; if(t>1)t=1; if(this.currentFrameIndex<this.frames.length) { const fA=this.frames[this.currentFrameIndex]; const nI=(this.currentFrameIndex+1)%this.frames.length; if(!this.isLooping && this.currentFrameIndex===this.frames.length-1) this.figures=fA.map(f=>f.clone()); else if(this.frames[nI]) this.renderInterpolated(fA, this.frames[nI], t); else { this.figures=fA.map(f=>f.clone()); this.render(); } } } else { if(this.frames[this.currentFrameIndex]) { this.figures=this.frames[this.currentFrameIndex].map(f=>f.clone()); this.render(); } } requestAnimationFrame((t)=>this.playTick(t)); },
+            renderInterpolated(fA, fB, t, draw=true) { if(!fA||!fB) return; const interp=[]; fA.forEach(figA=>{ const figB=fB.find(f=>f.id===figA.id); if(figB) { const nF=figA.clone(); nF.x=figA.x+(figB.x-figA.x)*t; nF.y=figA.y+(figB.y-figA.y)*t; nF.scale=figA.scale+(figB.scale-figA.scale)*t; nF.joints.forEach(jA=>{ const jB=figB.joints.find(j=>j.id===jA.id); if(jB) { let d=jB.angle-jA.angle; while(d<-Math.PI) d+=Math.PI*2; while(d>Math.PI) d-=Math.PI*2; jA.angle+=d*t; } }); interp.push(nF); } else interp.push(figA.clone()); }); this.figures=interp; if(draw) this.render(); },
+            updateFps(v) { this.fps=parseInt(v); document.getElementById('fps-display').innerText=v; },
+            
+            // ... [Handlers & Render] ...
+            getPos(e, isTouch) { const r=this.canvas.getBoundingClientRect(); let cx=isTouch?e.touches[0].clientX:e.clientX; let cy=isTouch?e.touches[0].clientY:e.clientY; return {x:(cx-r.left)*(this.canvas.width/r.width), y:(cy-r.top)*(this.canvas.height/r.height)}; },
+            handleStart(e, isTouch) { if(this.isPlaying) return; if(isTouch) e.preventDefault(); const pos=this.getPos(e,isTouch); this.mouseX=pos.x; this.mouseY=pos.y; for(let i=this.figures.length-1; i>=0; i--) { const fig=this.figures[i]; fig.updatePositions(); const root=fig.joints.find(j=>j.parentId===null); if(Math.hypot(pos.x-root.x, pos.y-root.y)<(this.handleRadius+10)) { this.saveState(); this.dragTarget={figure:fig, type:'root', joint:root, offsetX:pos.x-fig.x, offsetY:pos.y-fig.y}; this.selectFigure(fig); this.render(); return; } for(let j of fig.joints) { if(j.parentId===null) continue; if(Math.hypot(pos.x-j.x, pos.y-j.y)<(this.handleRadius+10)) { this.saveState(); this.dragTarget={figure:fig, type:'joint', joint:j}; this.selectFigure(fig); this.render(); return; } } } this.deselectAll(); this.render(); },
+            handleMove(e, isTouch) { const pos=this.getPos(e,isTouch); if(!isTouch && !this.dragTarget && !this.isPlaying) { let h=false; for(let f of this.figures) { for(let j of f.joints) { if(Math.hypot(pos.x-j.x, pos.y-j.y)<this.handleRadius*2) { h=true; break; } } } this.canvas.style.cursor=h?'pointer':'crosshair'; } if(!this.dragTarget) return; if(isTouch && e.cancelable) e.preventDefault(); if(this.dragTarget.type==='root') { const fig=this.dragTarget.figure; fig.x=pos.x-this.dragTarget.offsetX; fig.y=pos.y-this.dragTarget.offsetY; } else { const j=this.dragTarget.joint; const fig=this.dragTarget.figure; const p=fig.joints.find(x=>x.id===j.parentId); if(p) { const dx=pos.x-p.x; const dy=pos.y-p.y; const newA=Math.atan2(dy,dx); const d=newA-j.angle; j.angle=newA; this.rotateHierarchy(fig, j.id, d); } } this.render(); },
+            handleEnd(e) { this.dragTarget=null; },
+            rotateHierarchy(fig, pid, delta) { fig.joints.forEach(j=>{ if(j.parentId===pid) { j.angle+=delta; this.rotateHierarchy(fig, j.id, delta); } }); },
+            selectFigure(fig) { this.figures.forEach(f=>f.selected=false); fig.selected=true; document.getElementById('color-picker').value=fig.color; },
+            deselectAll() { this.figures.forEach(f=>f.selected=false); },
+            flipFigure() { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.joints.forEach(j=>{ if(j.parentId!==null) j.angle=Math.PI-j.angle; }); this.render(); },
+            centerFigure() { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.x=this.canvas.width/2; fig.y=this.canvas.height/2; this.render(); },
+            scaleFigure(f) { const fig=this.figures.find(fig=>fig.selected); if(!fig) return; this.saveState(); fig.scale*=f; this.render(); },
+            setFigureColor(hex) { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.color=hex; document.getElementById('color-preview').style.backgroundColor=hex; this.render(); },
+            
+            render() { this.ctx.fillStyle="#ffffff"; this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height); if(this.bgImage) this.ctx.drawImage(this.bgImage,0,0,this.canvas.width,this.canvas.height); this.showOnion=document.getElementById('onion-check').checked; if(this.showOnion && !this.isPlaying && this.frames.length>0) { let pF=null; if(this.currentFrameIndex===this.frames.length-1) pF=this.frames[this.currentFrameIndex]; else if(this.currentFrameIndex>0) pF=this.frames[this.currentFrameIndex-1]; if(pF) { this.ctx.globalAlpha=0.3; pF.forEach(f=>{ f.updatePositions(); this.drawFigure(f,false); }); this.ctx.globalAlpha=1.0; } } this.figures.forEach(f=>{ f.updatePositions(); this.drawFigure(f, !this.isPlaying); }); },
+            
             drawFigure(fig, showHandles) {
                 this.ctx.strokeStyle = fig.color; this.ctx.fillStyle = fig.color;
                 this.ctx.lineCap = 'round'; this.ctx.lineJoin = 'round';
@@ -1330,14 +928,15 @@
                     if (j.type === SEGMENT_CIRCLE) {
                         const dx = j.x - parent.x; const dy = j.y - parent.y;
                         const angle = Math.atan2(dy, dx);
-                        const r = (j.length / 2) * fig.scale;
-                        const cx = j.x - Math.cos(angle) * (r * 0.5);
-                        const cy = j.y - Math.sin(angle) * (r * 0.5);
+                        const r = (j.radius || 20) * fig.scale; 
+                        const cx = j.x - Math.cos(angle) * (r*0.5); 
+                        const cy = j.y - Math.sin(angle) * (r*0.5);
                         const chinX = cx - Math.cos(angle) * r;
                         const chinY = cy - Math.sin(angle) * r;
 
                         this.ctx.beginPath(); this.ctx.moveTo(parent.x, parent.y); this.ctx.lineTo(chinX, chinY); this.ctx.stroke();
-                        this.ctx.beginPath(); this.ctx.arc(cx, cy, r, 0, Math.PI * 2); this.ctx.fill();
+                        this.ctx.beginPath(); this.ctx.arc(cx, cy, r, 0, Math.PI*2); 
+                        if(j.filled !== false) this.ctx.fill(); else { this.ctx.save(); this.ctx.fillStyle="rgba(255,255,255,0)"; this.ctx.stroke(); this.ctx.restore(); this.ctx.fillStyle=fig.color; }
                     } else {
                         this.ctx.beginPath(); this.ctx.moveTo(parent.x, parent.y); this.ctx.lineTo(j.x, j.y); this.ctx.stroke();
                     }
@@ -1346,10 +945,9 @@
                 if (showHandles) {
                     fig.joints.forEach(j => {
                         this.ctx.beginPath();
-                        let radius = this.handleRadius;
-                        if (j.parentId === null) { this.ctx.fillStyle = '#f97316'; radius += 2; } 
-                        else { this.ctx.fillStyle = '#ef4444'; }
-                        this.ctx.arc(j.x, j.y, radius, 0, Math.PI * 2);
+                        let r = this.handleRadius;
+                        if (j.parentId === null) { this.ctx.fillStyle = '#f97316'; r += 2; } else { this.ctx.fillStyle = '#ef4444'; }
+                        this.ctx.arc(j.x, j.y, r, 0, Math.PI * 2);
                         if (this.dragTarget && this.dragTarget.joint === j) {
                             this.ctx.fillStyle = '#3b82f6'; this.ctx.strokeStyle = '#fff'; this.ctx.lineWidth = 2; this.ctx.stroke();
                         }
@@ -1367,115 +965,12 @@
 
             handleDragStart(e, idx) { this.draggedFrameIndex = idx; e.dataTransfer.effectAllowed = 'move'; },
             handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; },
-            handleDrop(e, targetIdx) {
-                e.preventDefault();
-                const fromIdx = this.draggedFrameIndex;
-                if (fromIdx === targetIdx) return;
-                this.saveState();
-                const movingFrame = this.frames[fromIdx];
-                const movingDelay = this.frameDelays[fromIdx];
-                this.frames.splice(fromIdx, 1); this.frameDelays.splice(fromIdx, 1);
-                this.frames.splice(targetIdx, 0, movingFrame); this.frameDelays.splice(targetIdx, 0, movingDelay);
-                if (this.currentFrameIndex === fromIdx) this.currentFrameIndex = targetIdx;
-                else if (this.currentFrameIndex > fromIdx && this.currentFrameIndex <= targetIdx) this.currentFrameIndex--;
-                else if (this.currentFrameIndex < fromIdx && this.currentFrameIndex >= targetIdx) this.currentFrameIndex++;
-                this.updateTimeline(); this.loadFrame(this.currentFrameIndex);
-            },
-
-            updateTimeline() {
-                const container = document.getElementById('timeline-track');
-                container.innerHTML = '';
-                this.frames.forEach((frame, idx) => {
-                    const wrapper = document.createElement('div');
-                    wrapper.className = `frame-thumb relative min-w-[80px] h-[64px] bg-zinc-800 rounded-md border-2 cursor-pointer hover:border-zinc-500 overflow-hidden shrink-0 ${idx === this.currentFrameIndex ? 'active border-blue-500' : 'border-zinc-700'}`;
-                    wrapper.onclick = () => this.loadFrame(idx);
-                    
-                    wrapper.draggable = true;
-                    wrapper.ondragstart = (e) => app.handleDragStart(e, idx);
-                    wrapper.ondragover = (e) => app.handleDragOver(e);
-                    wrapper.ondrop = (e) => app.handleDrop(e, idx);
-
-                    // REMOVED: The messy frame-actions overlay buttons.
-                    // This keeps the timeline clean. Use the sidebar controls instead.
-                    
-                    const delay = this.frameDelays[idx] || 1.0;
-                    
-                    const badge = document.createElement('div');
-                    badge.innerText = delay.toFixed(1) + 'x';
-                    badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${delay > 1.0 ? 'bg-blue-600 text-white' : 'bg-zinc-700 text-zinc-400'}`;
-                    wrapper.appendChild(badge);
-
-                    const barContainer = document.createElement('div');
-                    barContainer.className = 'absolute bottom-0 left-0 right-0 h-1.5 bg-zinc-900 mt-px';
-                    
-                    const barFill = document.createElement('div');
-                    let widthPct = (delay / 10.0) * 100;
-                    widthPct = Math.max(5, widthPct); 
-                    
-                    barFill.style.width = widthPct + '%';
-                    barFill.className = `h-full ${delay > 1.0 ? 'bg-blue-500' : 'bg-zinc-600'}`;
-                    
-                    barContainer.appendChild(barFill);
-                    wrapper.appendChild(barContainer);
-
-                    const cv = document.createElement('canvas'); cv.width = 80; cv.height = 56;
-                    const ctx = cv.getContext('2d');
-                    const sc = Math.min(80/this.canvas.width, 56/this.canvas.height);
-                    ctx.scale(sc, sc);
-                    
-                    frame.forEach(fig => {
-                        fig.updatePositions();
-                        ctx.strokeStyle = fig.color; ctx.fillStyle = fig.color; ctx.lineWidth = 14 * fig.scale;
-                        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-                        fig.joints.forEach(j => {
-                            if (!j.parentId) return;
-                            const p = fig.joints.find(x => x.id === j.parentId);
-                            if (!p) return;
-                            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(j.x, j.y); ctx.stroke();
-                            if(j.type === SEGMENT_CIRCLE) {
-                                ctx.beginPath(); ctx.arc(j.x, j.y, j.radius*fig.scale, 0, Math.PI*2); ctx.fill();
-                            }
-                        });
-                    });
-                    
-                    wrapper.appendChild(cv);
-                    
-                    const n = document.createElement('span');
-                    n.className = "absolute bottom-2 left-1 text-[8px] font-bold text-zinc-500";
-                    n.innerText = idx + 1;
-                    wrapper.appendChild(n);
-                    
-                    container.appendChild(wrapper);
-                });
-                this.updateTimelineUiState();
-            },
-
-            updateTimelineUiState() {
-                document.getElementById('frame-counter').innerText = `${this.currentFrameIndex + 1} / ${this.frames.length}`;
-                const thumbs = document.querySelectorAll('.frame-thumb');
-                thumbs.forEach((t, i) => {
-                    if (i === this.currentFrameIndex) {
-                        t.classList.add('active', 'border-blue-500');
-                        t.classList.remove('border-zinc-700');
-                    } else {
-                        t.classList.remove('active', 'border-blue-500');
-                        t.classList.add('border-zinc-700');
-                    }
-                });
-            },
-
-            scrollToFrame(index) {
-                const thumbs = document.querySelectorAll('.frame-thumb');
-                if (thumbs[index]) thumbs[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-            },
+            handleDrop(e, targetIdx) { e.preventDefault(); const fromIdx = this.draggedFrameIndex; if (fromIdx === targetIdx) return; this.saveState(); const movingFrame = this.frames[fromIdx]; const movingDelay = this.frameDelays[fromIdx]; this.frames.splice(fromIdx, 1); this.frameDelays.splice(fromIdx, 1); this.frames.splice(targetIdx, 0, movingFrame); this.frameDelays.splice(targetIdx, 0, movingDelay); if (this.currentFrameIndex === fromIdx) this.currentFrameIndex = targetIdx; else if (this.currentFrameIndex > fromIdx && this.currentFrameIndex <= targetIdx) this.currentFrameIndex--; else if (this.currentFrameIndex < fromIdx && this.currentFrameIndex >= targetIdx) this.currentFrameIndex++; this.updateTimeline(); this.loadFrame(this.currentFrameIndex); },
             
-            newProject() {
-                this.stop();
-                this.frames = []; this.frameDelays = []; this.figures = []; this.currentFrameIndex = 0; this.bgImage = null;
-                this.undoStack = []; this.redoStack = [];
-                document.getElementById('canvas-w').value = 800; document.getElementById('canvas-h').value = 500;
-                this.setCanvasSize(); this.addFigure(); this.render(); this.updateTimeline();
-            },
+            // ... [updateTimeline, updateTimelineUiState, scrollToFrame] ...
+            updateTimeline() { const container = document.getElementById('timeline-track'); container.innerHTML = ''; this.frames.forEach((frame, idx) => { const wrapper = document.createElement('div'); wrapper.className = `frame-thumb relative min-w-[80px] h-[64px] bg-zinc-800 rounded-md border-2 cursor-pointer hover:border-zinc-500 overflow-hidden shrink-0 ${idx === this.currentFrameIndex ? 'active border-blue-500' : 'border-zinc-700'}`; wrapper.onclick = () => this.loadFrame(idx); wrapper.draggable = true; wrapper.ondragstart = (e) => app.handleDragStart(e, idx); wrapper.ondragover = (e) => app.handleDragOver(e); wrapper.ondrop = (e) => app.handleDrop(e, idx); const delay = this.frameDelays[idx] || 1.0; const badge = document.createElement('div'); badge.innerText = delay.toFixed(1) + 'x'; badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${delay > 1.0 ? 'bg-blue-600 text-white' : 'bg-zinc-700 text-zinc-400'}`; wrapper.appendChild(badge); const barContainer = document.createElement('div'); barContainer.className = 'absolute bottom-0 left-0 right-0 h-1.5 bg-zinc-900 mt-px'; const barFill = document.createElement('div'); let widthPct = (delay / 10.0) * 100; widthPct = Math.max(5, widthPct); barFill.style.width = widthPct + '%'; barFill.className = `h-full ${delay > 1.0 ? 'bg-blue-500' : 'bg-zinc-600'}`; barContainer.appendChild(barFill); wrapper.appendChild(barContainer); const cv = document.createElement('canvas'); cv.width = 80; cv.height = 56; const ctx = cv.getContext('2d'); const sc = Math.min(80/this.canvas.width, 56/this.canvas.height); ctx.scale(sc, sc); frame.forEach(fig => { fig.updatePositions(); ctx.strokeStyle = fig.color; ctx.fillStyle = fig.color; ctx.lineWidth = 14 * fig.scale; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; fig.joints.forEach(j => { if (!j.parentId) return; const p = fig.joints.find(x => x.id === j.parentId); if (!p) return; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(j.x, j.y); ctx.stroke(); if(j.type === SEGMENT_CIRCLE) { ctx.beginPath(); ctx.arc(j.x, j.y, j.radius*fig.scale, 0, Math.PI*2); if(j.filled!==false) ctx.fill(); else ctx.stroke(); } }); }); wrapper.appendChild(cv); const n = document.createElement('span'); n.className = "absolute bottom-2 left-1 text-[8px] font-bold text-zinc-500"; n.innerText = idx + 1; wrapper.appendChild(n); container.appendChild(wrapper); }); this.updateTimelineUiState(); },
+            updateTimelineUiState() { document.getElementById('frame-counter').innerText = `${this.currentFrameIndex + 1} / ${this.frames.length}`; const thumbs = document.querySelectorAll('.frame-thumb'); thumbs.forEach((t, i) => { if (i === this.currentFrameIndex) { t.classList.add('active', 'border-blue-500'); t.classList.remove('border-zinc-700'); } else { t.classList.remove('active', 'border-blue-500'); t.classList.add('border-zinc-700'); } }); },
+            scrollToFrame(index) { const thumbs = document.querySelectorAll('.frame-thumb'); if (thumbs[index]) thumbs[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); },
         };
 
         window.onload = () => app.init();
