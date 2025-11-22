@@ -52,8 +52,11 @@
         /* Timeline Thumbnails */
         .frame-thumb { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .frame-thumb.active { ring-width: 2px; --tw-ring-color: #3b82f6; transform: translateY(-2px); }
-        .frame-thumb .delete-btn { display: none; }
-        .frame-thumb:hover .delete-btn { display: flex; }
+        
+        /* Thumbnail Actions Overlay */
+        .frame-actions { display: none; }
+        .frame-thumb:hover .frame-actions { display: flex; }
+        
         .frame-thumb.dragging { opacity: 0.5; transform: scale(0.95); }
 
         .no-select { user-select: none; -webkit-user-select: none; }
@@ -230,6 +233,17 @@
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
                     Add Frame <span class="ml-1 opacity-60 font-normal text-[10px] tracking-wide">(SPACE)</span>
                 </button>
+                
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="app.duplicateCurrentFrame()" class="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 py-2 rounded font-medium text-xs border border-zinc-700 transition flex items-center justify-center">
+                        <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+                        Duplicate
+                    </button>
+                    <button onclick="app.deleteFrame()" class="bg-zinc-800 hover:bg-red-900/30 text-zinc-300 hover:text-red-200 py-2 rounded font-medium text-xs border border-zinc-700 hover:border-red-900/50 transition flex items-center justify-center">
+                        <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        Delete
+                    </button>
+                </div>
             </div>
 
             <!-- Scene Settings -->
@@ -405,7 +419,7 @@
                 f.id = this.id;
                 f.x = this.x; f.y = this.y;
                 f.scale = this.scale; f.color = this.color;
-                f.selected = this.selected; // Persist selected state
+                f.selected = this.selected;
                 f.joints = this.joints.map(j => j.clone());
                 return f;
             }
@@ -674,8 +688,6 @@
             draggedFrameIndex: null,
             handleRadius: 4,
             pendingAction: null,
-            
-            // Undo/Redo Stacks
             undoStack: [],
             redoStack: [],
 
@@ -695,26 +707,21 @@
                 window.addEventListener('touchend', (e) => this.handleEnd(e));
 
                 window.addEventListener('keydown', (e) => {
-                    // Ignore shortcuts if typing in an input
                     if (e.target.tagName === 'INPUT') return;
 
                     if (e.code === 'Space') {
                         e.preventDefault();
                         if(this.isPlaying) this.stop(); else this.addFrame();
                     }
-                    // KEYBOARD SHORTCUTS
                     if (e.key === ',' || e.key === '<') this.prevFrame();
                     if (e.key === '.' || e.key === '>') this.nextFrame();
                     
-                    // Undo/Redo
                     if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
                         e.preventDefault();
-                        if (e.shiftKey) this.redo();
-                        else this.undo();
+                        if (e.shiftKey) this.redo(); else this.undo();
                     }
                     if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
-                         e.preventDefault();
-                         this.redo();
+                         e.preventDefault(); this.redo();
                     }
                 });
                 this.toggleLoop(true);
@@ -729,7 +736,7 @@
             openBuilder() { builder.open(); },
             
             addCustomFigure(fig) {
-                this.saveState(); // Save before add
+                this.saveState();
                 this.figures.push(fig);
                 this.selectFigure(fig);
                 this.render();
@@ -766,26 +773,20 @@
                 return f;
             },
             
-            // --- STATE MANAGEMENT (Undo/Redo) ---
             saveState() {
                 if (this.undoStack.length > 50) this.undoStack.shift();
-                
-                // Deep clone current state
                 const state = {
                     frames: this.frames.map(frame => frame.map(f => f.clone())),
                     frameDelays: [...this.frameDelays],
                     currentFrameIndex: this.currentFrameIndex,
                     figures: this.figures.map(f => f.clone())
                 };
-                
                 this.undoStack.push(state);
-                this.redoStack = []; // Clear redo on new action
+                this.redoStack = [];
             },
             
             undo() {
                 if (this.undoStack.length === 0) return;
-                
-                // Save current state to redo stack
                 const current = {
                     frames: this.frames.map(frame => frame.map(f => f.clone())),
                     frameDelays: [...this.frameDelays],
@@ -793,16 +794,12 @@
                     figures: this.figures.map(f => f.clone())
                 };
                 this.redoStack.push(current);
-                
-                // Restore state
                 const state = this.undoStack.pop();
                 this.restoreState(state);
             },
             
             redo() {
                 if (this.redoStack.length === 0) return;
-                
-                // Save current to undo stack
                 const current = {
                     frames: this.frames.map(frame => frame.map(f => f.clone())),
                     frameDelays: [...this.frameDelays],
@@ -810,30 +807,24 @@
                     figures: this.figures.map(f => f.clone())
                 };
                 this.undoStack.push(current);
-                
-                // Restore
                 const state = this.redoStack.pop();
                 this.restoreState(state);
             },
             
             restoreState(state) {
-                this.frames = state.frames.map(frame => frame.map(f => f.clone())); // Re-clone to ensure isolation
+                this.frames = state.frames.map(frame => frame.map(f => f.clone()));
                 this.frameDelays = [...state.frameDelays];
                 this.currentFrameIndex = state.currentFrameIndex;
                 this.figures = state.figures.map(f => f.clone());
                 
-                // UI Updates
                 const delay = this.frameDelays[this.currentFrameIndex] || 1.0;
                 document.getElementById('frame-duration').value = delay;
                 document.getElementById('duration-display').innerText = delay.toFixed(1) + 'x';
-                
-                this.render();
-                this.updateTimeline();
+                this.render(); this.updateTimeline();
             },
 
-
             addFigure() {
-                this.saveState(); // Save before add
+                this.saveState();
                 const fig = this.createStickman();
                 if (this.figures.length > 0) { fig.x += 20; fig.y += 20; }
                 this.figures.push(fig);
@@ -844,17 +835,16 @@
             deleteSelectedFigure() {
                 const index = this.figures.findIndex(f => f.selected);
                 if (index !== -1) {
-                    this.saveState(); // Save before delete
+                    this.saveState();
                     this.figures.splice(index, 1);
                     this.render();
                 }
             },
 
-            // --- Layering Functions ---
             raiseFigure() {
                 const index = this.figures.findIndex(f => f.selected);
                 if (index !== -1 && index < this.figures.length - 1) {
-                    this.saveState(); // Save before raise
+                    this.saveState();
                     const temp = this.figures[index];
                     this.figures[index] = this.figures[index + 1];
                     this.figures[index + 1] = temp;
@@ -865,7 +855,7 @@
             lowerFigure() {
                 const index = this.figures.findIndex(f => f.selected);
                 if (index > 0) {
-                    this.saveState(); // Save before lower
+                    this.saveState();
                     const temp = this.figures[index];
                     this.figures[index] = this.figures[index - 1];
                     this.figures[index - 1] = temp;
@@ -873,7 +863,6 @@
                 }
             },
 
-            // --- Navigation Functions ---
             prevFrame() {
                 if (this.frames.length > 0 && this.currentFrameIndex > 0) {
                     this.loadFrame(this.currentFrameIndex - 1);
@@ -889,32 +878,19 @@
             setFrameDuration(val) {
                 const delay = parseFloat(val);
                 document.getElementById('duration-display').innerText = delay.toFixed(1) + 'x';
-                
                 if (this.frameDelays[this.currentFrameIndex] !== undefined) {
-                    // Save state only if value changed significantly? 
-                    // Slider drags cause many events. Saving on mouse up/change end is better but harder.
-                    // For simplicity, we won't save every tick of the slider to stack, 
-                    // or we could debounce. Or just save on change.
-                    // Let's accept that duration change is "destructive" enough to be saved if we want perfect undo.
-                    // But spamming undo stack is bad.
-                    // Compromise: Don't auto-save on slider drag for now.
                     this.frameDelays[this.currentFrameIndex] = delay;
-                    
-                    // OPTIMIZATION: Don't rebuild the whole timeline. Just update the current frame's thumb.
                     const container = document.getElementById('timeline-track');
                     if (container && container.children[this.currentFrameIndex]) {
                         const wrapper = container.children[this.currentFrameIndex];
-                        
                         const badge = wrapper.querySelector('.absolute.top-0.left-0');
                         if (badge) {
                             badge.innerText = delay.toFixed(1) + 'x';
                             badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${delay > 1.0 ? 'bg-blue-600 text-white' : 'bg-zinc-700 text-zinc-400'}`;
                         }
-                        
                         const barFill = wrapper.querySelector('.absolute.bottom-0 div');
                         if (barFill) {
-                            let widthPct = (delay / 10.0) * 100;
-                            widthPct = Math.max(5, widthPct); 
+                            let widthPct = (delay / 10.0) * 100; widthPct = Math.max(5, widthPct); 
                             barFill.style.width = widthPct + '%';
                             barFill.className = `h-full ${delay > 1.0 ? 'bg-blue-500' : 'bg-zinc-600'}`;
                         }
@@ -935,13 +911,8 @@
                 }
             },
             toggleSmooth(forceState) {
-                // Explicitly handle state
-                if (forceState !== undefined) {
-                    this.isSmooth = forceState;
-                } else {
-                    this.isSmooth = !this.isSmooth;
-                }
-                
+                if (forceState !== undefined) this.isSmooth = forceState;
+                else this.isSmooth = !this.isSmooth;
                 const btn = document.getElementById('btn-smooth');
                 if (this.isSmooth) {
                     btn.className = "text-xs px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 transition-colors";
@@ -959,39 +930,19 @@
             closeModal() { document.getElementById('confirm-modal').classList.add('hidden'); this.pendingAction = null; },
             executeConfirm() { if (this.pendingAction) this.pendingAction(); this.closeModal(); },
             confirmClearStage() { this.showModal("Clear Stage?", "Remove all figures from current frame?", () => { 
-                this.saveState(); // Save before clear
-                this.figures = []; 
-                this.render(); 
+                this.saveState(); this.figures = []; this.render(); 
             }); },
             confirmNewProject() { this.showModal("New Project?", "Discard current animation?", () => { 
-                this.saveState(); // Save before new
-                this.newProject(); 
+                this.saveState(); this.newProject(); 
             }); },
             showClearModal() { this.confirmClearStage(); }, confirmClear() { this.executeConfirm(); },
 
             newProject() {
-                // Stop any ongoing playback before resetting
                 this.stop();
-                
-                this.frames = [];
-                this.frameDelays = [];
-                this.figures = [];
-                this.currentFrameIndex = 0;
-                this.bgImage = null;
-                this.undoStack = []; // Clear stacks on new project
-                this.redoStack = [];
-                
-                // Reset UI values
-                document.getElementById('canvas-w').value = 800;
-                document.getElementById('canvas-h').value = 500;
-                this.setCanvasSize();
-                
-                // Add default start
-                this.addFigure();
-                // REMOVED this.saveFrame(true) to keep it empty on new project
-                
-                this.render();
-                this.updateTimeline();
+                this.frames = []; this.frameDelays = []; this.figures = []; this.currentFrameIndex = 0; this.bgImage = null;
+                this.undoStack = []; this.redoStack = [];
+                document.getElementById('canvas-w').value = 800; document.getElementById('canvas-h').value = 500;
+                this.setCanvasSize(); this.addFigure(); this.render(); this.updateTimeline();
             },
 
             setCanvasSize() {
@@ -1021,10 +972,7 @@
 
             loadProject(input) {
                 if (input.files && input.files[0]) {
-                    // Safety stop
-                    this.stop();
-                    this.saveState(); // Save before load
-                    
+                    this.stop(); this.saveState();
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         try {
@@ -1043,7 +991,7 @@
                             if (data.delays && data.delays.length === this.frames.length) this.frameDelays = data.delays;
                             else this.frameDelays = new Array(this.frames.length).fill(1.0);
                             this.currentFrameIndex = 0; this.loadFrame(0); this.updateTimeline();
-                            this.undoStack = []; this.redoStack = []; // Clear history on load? Or keep it? Usually clear.
+                            this.undoStack = []; this.redoStack = [];
                         } catch (err) { alert("Error loading file: " + err); }
                     };
                     reader.readAsText(input.files[0]);
@@ -1106,34 +1054,38 @@
             },
 
             addFrame() {
-                this.saveState(); // Save before add frame
-
-                // FIX: Do NOT auto-save the current frame when adding a new one.
-                // This prevents overwriting the previous pose with the new one.
-                // "Add Frame" acts as a snapshot of the CURRENT state into a NEW slot.
-                
                 const currentDelay = (this.frameDelays.length > 0 && this.frameDelays[this.currentFrameIndex] !== undefined) ? this.frameDelays[this.currentFrameIndex] : 1.0;
                 const snapshot = this.figures.map(f => f.clone());
-                
                 if (this.frames.length === 0) {
-                    this.frames.push(snapshot); 
-                    this.frameDelays.push(currentDelay); 
-                    this.currentFrameIndex = 0;
+                    this.frames.push(snapshot); this.frameDelays.push(currentDelay); this.currentFrameIndex = 0;
                 } else {
-                    // Append logic
                     this.frames.splice(this.currentFrameIndex + 1, 0, snapshot);
                     this.frameDelays.splice(this.currentFrameIndex + 1, 0, currentDelay);
                     this.currentFrameIndex++;
                 }
-                
-                this.updateTimeline(); 
-                this.render(); 
-                this.scrollToFrame(this.currentFrameIndex);
+                this.updateTimeline(); this.render(); this.scrollToFrame(this.currentFrameIndex);
+            },
+
+            duplicateCurrentFrame() {
+                if (this.frames.length === 0) return;
+                this.duplicateFrameAtIndex(this.currentFrameIndex);
+            },
+
+            duplicateFrameAtIndex(index) {
+                if (index < 0 || index >= this.frames.length) return;
+                this.saveState();
+                const sourceFrame = this.frames[index];
+                const newFrame = sourceFrame.map(f => f.clone());
+                const delay = this.frameDelays[index];
+                this.frames.splice(index + 1, 0, newFrame);
+                this.frameDelays.splice(index + 1, 0, delay);
+                this.currentFrameIndex = index + 1;
+                this.loadFrame(this.currentFrameIndex); this.updateTimeline();
             },
 
             deleteFrame() {
                 if (this.frames.length === 0) return;
-                this.saveState(); // Save before delete
+                this.saveState();
                 this.frames.splice(this.currentFrameIndex, 1); this.frameDelays.splice(this.currentFrameIndex, 1);
                 if (this.frames.length === 0) this.currentFrameIndex = 0;
                 else if (this.currentFrameIndex >= this.frames.length) this.currentFrameIndex = this.frames.length - 1;
@@ -1142,7 +1094,7 @@
 
             deleteFrameAtIndex(index) {
                 if (this.frames.length === 0) return;
-                this.saveState(); // Save before delete specific
+                this.saveState();
                 this.frames.splice(index, 1); this.frameDelays.splice(index, 1);
                 if (this.frames.length === 0) this.currentFrameIndex = 0;
                 else if (this.currentFrameIndex >= index) this.currentFrameIndex = Math.max(0, this.currentFrameIndex - 1);
@@ -1159,7 +1111,6 @@
 
             loadFrame(index, autoSave = true) {
                 if (this.frames.length === 0) return; 
-                // Only auto-save if we are navigating away, NOT if stopping playback (to avoid saving tween states)
                 if (autoSave && this.frames[this.currentFrameIndex]) this.frames[this.currentFrameIndex] = this.figures.map(f => f.clone());
                 this.currentFrameIndex = index;
                 this.figures = this.frames[index].map(f => f.clone());
@@ -1183,7 +1134,6 @@
                 this.isPlaying = false;
                 document.getElementById('btn-play').classList.remove('hidden');
                 document.getElementById('btn-stop').classList.add('hidden');
-                // Load frame WITHOUT auto-saving to discard any interpolation state
                 if (this.frames.length > 0) this.loadFrame(this.currentFrameIndex, false);
             },
 
@@ -1197,39 +1147,21 @@
                 if (this.playbackAccumulator >= msPerFrame) {
                     this.playbackAccumulator -= msPerFrame;
                     this.currentFrameIndex++;
-                    // Allow playing the last frame fully before checking loop
                     if (this.currentFrameIndex >= this.frames.length) {
-                        if (this.isLooping) {
-                            this.currentFrameIndex = 0; 
-                        } else { 
-                            this.currentFrameIndex = this.frames.length - 1;
-                            this.stop(); 
-                            return; 
-                        }
+                        if (this.isLooping) { this.currentFrameIndex = 0; } 
+                        else { this.currentFrameIndex = this.frames.length - 1; this.stop(); return; }
                     }
                     this.updateTimelineUiState();
                 }
 
                 if (this.isSmooth) {
                     let t = this.playbackAccumulator / msPerFrame; if (t > 1) t = 1;
-                    
-                    // SAFETY CHECK: Ensure frameA exists
                     if (this.currentFrameIndex < this.frames.length) {
                         const frameA = this.frames[this.currentFrameIndex];
                         const nextIdx = (this.currentFrameIndex + 1) % this.frames.length;
-                        
-                        if (!this.isLooping && this.currentFrameIndex === this.frames.length - 1) {
-                             this.figures = frameA.map(f => f.clone());
-                        } else {
-                            // SAFETY CHECK: Ensure frameB exists
-                            if (this.frames[nextIdx]) {
-                                this.renderInterpolated(frameA, this.frames[nextIdx], t);
-                            } else {
-                                // Fallback if next frame is missing for some reason
-                                this.figures = frameA.map(f => f.clone());
-                                this.render();
-                            }
-                        }
+                        if (!this.isLooping && this.currentFrameIndex === this.frames.length - 1) this.figures = frameA.map(f => f.clone());
+                        else if (this.frames[nextIdx]) this.renderInterpolated(frameA, this.frames[nextIdx], t);
+                        else { this.figures = frameA.map(f => f.clone()); this.render(); }
                     }
                 } else {
                     if (this.frames[this.currentFrameIndex]) {
@@ -1241,7 +1173,7 @@
             },
 
             renderInterpolated(frameA, frameB, t, draw = true) {
-                if (!frameA || !frameB) return; // Extra safety check
+                if (!frameA || !frameB) return;
                 const interpolated = [];
                 frameA.forEach(figA => {
                     const figB = frameB.find(f => f.id === figA.id);
@@ -1271,108 +1203,69 @@
                 document.getElementById('fps-display').innerText = val;
             },
 
-            // UNIFIED INPUT HANDLING
             getPos(e, isTouch) {
                 const rect = this.canvas.getBoundingClientRect();
-                // Use first touch if multiple, or mouse event
-                const clientX = isTouch ? e.touches[0].clientX : e.clientX;
-                const clientY = isTouch ? e.touches[0].clientY : e.clientY;
-                
-                // Scaling factor in case canvas is CSS-resized
+                let clientX = isTouch ? e.touches[0].clientX : e.clientX;
+                let clientY = isTouch ? e.touches[0].clientY : e.clientY;
                 const scaleX = this.canvas.width / rect.width;
                 const scaleY = this.canvas.height / rect.height;
-                
-                return { 
-                    x: (clientX - rect.left) * scaleX, 
-                    y: (clientY - rect.top) * scaleY 
-                };
+                return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
             },
 
             handleStart(e, isTouch) {
                 if (this.isPlaying) return;
                 if (isTouch) e.preventDefault();
-                
-                const pos = this.getPos(e, isTouch);
-                this.mouseX = pos.x; 
-                this.mouseY = pos.y;
-
-                // Collision detection logic
+                const pos = this.getPos(e, isTouch); this.mouseX = pos.x; this.mouseY = pos.y;
                 for (let i = this.figures.length - 1; i >= 0; i--) {
-                    const fig = this.figures[i]; 
-                    fig.updatePositions(); 
-                    
+                    const fig = this.figures[i]; fig.updatePositions(); 
                     const root = fig.joints.find(j => j.parentId === null);
-                    // Check Root
-                    if (Math.hypot(pos.x - root.x, pos.y - root.y) < (this.handleRadius + 10)) { // +10 for easier touch
-                        this.saveState(); // Save before drag starts
+                    if (Math.hypot(pos.x - root.x, pos.y - root.y) < (this.handleRadius + 10)) {
+                        this.saveState();
                         this.dragTarget = { figure: fig, type: 'root', joint: root, offsetX: pos.x - fig.x, offsetY: pos.y - fig.y };
-                        this.selectFigure(fig); 
-                        this.render(); 
-                        return;
+                        this.selectFigure(fig); this.render(); return;
                     }
-                    
-                    // Check Joints
                     for (let j of fig.joints) {
                         if (j.parentId === null) continue; 
                         if (Math.hypot(pos.x - j.x, pos.y - j.y) < (this.handleRadius + 10)) {
-                            this.saveState(); // Save before rotate starts
+                            this.saveState();
                             this.dragTarget = { figure: fig, type: 'joint', joint: j };
-                            this.selectFigure(fig); 
-                            this.render(); 
-                            return;
+                            this.selectFigure(fig); this.render(); return;
                         }
                     }
                 }
-                this.deselectAll(); 
-                this.render();
+                this.deselectAll(); this.render();
             },
 
             handleMove(e, isTouch) {
                 const pos = this.getPos(e, isTouch);
-                
-                // Hover state (Mouse Only)
                 if (!isTouch && !this.dragTarget && !this.isPlaying) {
                     let hovered = false;
                     for (let fig of this.figures) {
                         for(let j of fig.joints) { 
-                            if (Math.hypot(pos.x - j.x, pos.y - j.y) < this.handleRadius * 2) { 
-                                hovered = true; 
-                                break; 
-                            } 
+                            if (Math.hypot(pos.x - j.x, pos.y - j.y) < this.handleRadius * 2) { hovered = true; break; } 
                         }
                     }
                     this.canvas.style.cursor = hovered ? 'pointer' : 'crosshair';
                 }
-
                 if (!this.dragTarget) return;
-                
-                // Prevent scrolling on touch move if we are dragging
                 if (isTouch && e.cancelable) e.preventDefault();
 
                 if (this.dragTarget.type === 'root') {
                     const fig = this.dragTarget.figure;
-                    fig.x = pos.x - this.dragTarget.offsetX; 
-                    fig.y = pos.y - this.dragTarget.offsetY;
+                    fig.x = pos.x - this.dragTarget.offsetX; fig.y = pos.y - this.dragTarget.offsetY;
                 } else {
-                    const joint = this.dragTarget.joint; 
-                    const fig = this.dragTarget.figure;
+                    const joint = this.dragTarget.joint; const fig = this.dragTarget.figure;
                     const parent = fig.joints.find(j => j.id === joint.parentId);
-                    
                     if (parent) {
-                        const dx = pos.x - parent.x; 
-                        const dy = pos.y - parent.y;
-                        const newAngle = Math.atan2(dy, dx); 
-                        const delta = newAngle - joint.angle;
-                        joint.angle = newAngle; 
-                        this.rotateHierarchy(fig, joint.id, delta);
+                        const dx = pos.x - parent.x; const dy = pos.y - parent.y;
+                        const newAngle = Math.atan2(dy, dx); const delta = newAngle - joint.angle;
+                        joint.angle = newAngle; this.rotateHierarchy(fig, joint.id, delta);
                     }
                 }
                 this.render();
             },
 
-            handleEnd(e) { 
-                this.dragTarget = null; 
-            },
+            handleEnd(e) { this.dragTarget = null; },
 
             rotateHierarchy(fig, parentId, delta) {
                 fig.joints.forEach(j => { if (j.parentId === parentId) { j.angle += delta; this.rotateHierarchy(fig, j.id, delta); } });
@@ -1386,23 +1279,23 @@
 
             flipFigure() {
                 const fig = this.figures.find(f => f.selected); if (!fig) return;
-                this.saveState(); // Save before flip
+                this.saveState();
                 fig.joints.forEach(j => { if (j.parentId !== null) j.angle = Math.PI - j.angle; });
                 this.render();
             },
             centerFigure() {
                 const fig = this.figures.find(f => f.selected); if (!fig) return;
-                this.saveState(); // Save before center
+                this.saveState();
                 fig.x = this.canvas.width / 2; fig.y = this.canvas.height / 2; this.render();
             },
             scaleFigure(factor) {
                 const fig = this.figures.find(f => f.selected); if (!fig) return;
-                this.saveState(); // Save before scale
+                this.saveState();
                 fig.scale *= factor; this.render();
             },
             setFigureColor(hex) {
                 const fig = this.figures.find(f => f.selected); if (!fig) return;
-                this.saveState(); // Save before color
+                this.saveState();
                 fig.color = hex; document.getElementById('color-preview').style.backgroundColor = hex;
                 this.render();
             },
@@ -1412,26 +1305,16 @@
                 if (this.bgImage) this.ctx.drawImage(this.bgImage, 0, 0, this.canvas.width, this.canvas.height);
                 
                 this.showOnion = document.getElementById('onion-check').checked;
-                // FIX: Show onion skin if active, not playing, and there are frames.
                 if (this.showOnion && !this.isPlaying && this.frames.length > 0) {
                     let prevFrame = null;
-                    
-                    // Logic: If we are at the END of the timeline (e.g. modifying the future frame),
-                    // show the current timeline frame as the ghost.
-                    // If we are in the middle, show the previous frame.
-                    if (this.currentFrameIndex === this.frames.length - 1) {
-                        prevFrame = this.frames[this.currentFrameIndex];
-                    } else if (this.currentFrameIndex > 0) {
-                        prevFrame = this.frames[this.currentFrameIndex - 1];
-                    }
-
+                    if (this.currentFrameIndex === this.frames.length - 1) prevFrame = this.frames[this.currentFrameIndex];
+                    else if (this.currentFrameIndex > 0) prevFrame = this.frames[this.currentFrameIndex - 1];
                     if (prevFrame) {
                         this.ctx.globalAlpha = 0.3;
                         prevFrame.forEach(fig => { fig.updatePositions(); this.drawFigure(fig, false); });
                         this.ctx.globalAlpha = 1.0;
                     }
                 }
-                
                 this.figures.forEach(fig => { fig.updatePositions(); this.drawFigure(fig, !this.isPlaying); });
             },
 
@@ -1443,69 +1326,40 @@
                     if (j.parentId === null) return;
                     const parent = fig.joints.find(p => p.id === j.parentId);
                     if (!parent) return;
-                    this.ctx.lineWidth = (j.thickness || 14) * fig.scale; // USE CUSTOM THICKNESS
+                    this.ctx.lineWidth = (j.thickness || 14) * fig.scale;
                     if (j.type === SEGMENT_CIRCLE) {
                         const dx = j.x - parent.x; const dy = j.y - parent.y;
                         const angle = Math.atan2(dy, dx);
-                        const r = (j.length / 2) * fig.scale; // Radius scaled
-                        // For circle segment: length is essentially diameter in typical usage, or user drags length.
-                        // Let's place circle at midpoint? No, Pivot circle segment ends at the joint.
-                        // Let's use the same logic: Joint is the end/handle.
-                        // Draw line to base of circle.
+                        const r = (j.length / 2) * fig.scale;
                         const cx = j.x - Math.cos(angle) * (r * 0.5);
                         const cy = j.y - Math.sin(angle) * (r * 0.5);
                         const chinX = cx - Math.cos(angle) * r;
                         const chinY = cy - Math.sin(angle) * r;
 
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(parent.x, parent.y);
-                        this.ctx.lineTo(chinX, chinY);
-                        this.ctx.stroke();
-                        
-                        this.ctx.beginPath();
-                        this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
-                        this.ctx.fill();
+                        this.ctx.beginPath(); this.ctx.moveTo(parent.x, parent.y); this.ctx.lineTo(chinX, chinY); this.ctx.stroke();
+                        this.ctx.beginPath(); this.ctx.arc(cx, cy, r, 0, Math.PI * 2); this.ctx.fill();
                     } else {
-                        this.ctx.beginPath();
-                        this.ctx.moveTo(parent.x, parent.y);
-                        this.ctx.lineTo(j.x, j.y);
-                        this.ctx.stroke();
+                        this.ctx.beginPath(); this.ctx.moveTo(parent.x, parent.y); this.ctx.lineTo(j.x, j.y); this.ctx.stroke();
                     }
                 });
 
                 if (showHandles) {
                     fig.joints.forEach(j => {
                         this.ctx.beginPath();
-                        
                         let radius = this.handleRadius;
-                        
-                        if (j.parentId === null) {
-                            this.ctx.fillStyle = '#f97316'; 
-                            radius += 2; 
-                        } else {
-                            this.ctx.fillStyle = '#ef4444'; 
-                        }
-                        
+                        if (j.parentId === null) { this.ctx.fillStyle = '#f97316'; radius += 2; } 
+                        else { this.ctx.fillStyle = '#ef4444'; }
                         this.ctx.arc(j.x, j.y, radius, 0, Math.PI * 2);
-                        
                         if (this.dragTarget && this.dragTarget.joint === j) {
-                            this.ctx.fillStyle = '#3b82f6'; 
-                            this.ctx.strokeStyle = '#fff';
-                            this.ctx.lineWidth = 2;
-                            this.ctx.stroke();
+                            this.ctx.fillStyle = '#3b82f6'; this.ctx.strokeStyle = '#fff'; this.ctx.lineWidth = 2; this.ctx.stroke();
                         }
-                        
                         this.ctx.fill();
                     });
-                    
                     if (fig.selected) {
                          const root = fig.joints.find(j => j.parentId === null);
                          if(root) {
-                             this.ctx.beginPath();
-                             this.ctx.arc(root.x, root.y, this.handleRadius + 4, 0, Math.PI*2);
-                             this.ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
-                             this.ctx.lineWidth = 2;
-                             this.ctx.stroke();
+                             this.ctx.beginPath(); this.ctx.arc(root.x, root.y, this.handleRadius + 4, 0, Math.PI*2);
+                             this.ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)'; this.ctx.lineWidth = 2; this.ctx.stroke();
                          }
                     }
                 }
@@ -1517,22 +1371,14 @@
                 e.preventDefault();
                 const fromIdx = this.draggedFrameIndex;
                 if (fromIdx === targetIdx) return;
-                
-                this.saveState(); // Save before reorder
-
+                this.saveState();
                 const movingFrame = this.frames[fromIdx];
                 const movingDelay = this.frameDelays[fromIdx];
-                
-                this.frames.splice(fromIdx, 1);
-                this.frameDelays.splice(fromIdx, 1);
-                
-                this.frames.splice(targetIdx, 0, movingFrame);
-                this.frameDelays.splice(targetIdx, 0, movingDelay);
-                
+                this.frames.splice(fromIdx, 1); this.frameDelays.splice(fromIdx, 1);
+                this.frames.splice(targetIdx, 0, movingFrame); this.frameDelays.splice(targetIdx, 0, movingDelay);
                 if (this.currentFrameIndex === fromIdx) this.currentFrameIndex = targetIdx;
                 else if (this.currentFrameIndex > fromIdx && this.currentFrameIndex <= targetIdx) this.currentFrameIndex--;
                 else if (this.currentFrameIndex < fromIdx && this.currentFrameIndex >= targetIdx) this.currentFrameIndex++;
-                
                 this.updateTimeline(); this.loadFrame(this.currentFrameIndex);
             },
 
@@ -1549,13 +1395,8 @@
                     wrapper.ondragover = (e) => app.handleDragOver(e);
                     wrapper.ondrop = (e) => app.handleDrop(e, idx);
 
-                    if (this.frames.length > 1) {
-                        const del = document.createElement('div');
-                        del.innerHTML = '×';
-                        del.className = 'delete-btn absolute top-0 right-0 bg-red-600 text-white w-4 h-4 text-[10px] items-center justify-center font-bold z-10 rounded-bl shadow-sm';
-                        del.onclick = (e) => { e.stopPropagation(); app.deleteFrameAtIndex(idx); };
-                        wrapper.appendChild(del);
-                    }
+                    // REMOVED: The messy frame-actions overlay buttons.
+                    // This keeps the timeline clean. Use the sidebar controls instead.
                     
                     const delay = this.frameDelays[idx] || 1.0;
                     
@@ -1611,7 +1452,6 @@
 
             updateTimelineUiState() {
                 document.getElementById('frame-counter').innerText = `${this.currentFrameIndex + 1} / ${this.frames.length}`;
-                
                 const thumbs = document.querySelectorAll('.frame-thumb');
                 thumbs.forEach((t, i) => {
                     if (i === this.currentFrameIndex) {
@@ -1626,34 +1466,15 @@
 
             scrollToFrame(index) {
                 const thumbs = document.querySelectorAll('.frame-thumb');
-                if (thumbs[index]) {
-                    thumbs[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-                }
+                if (thumbs[index]) thumbs[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
             },
             
             newProject() {
-                // Stop any ongoing playback before resetting
                 this.stop();
-                
-                this.frames = [];
-                this.frameDelays = [];
-                this.figures = [];
-                this.currentFrameIndex = 0;
-                this.bgImage = null;
-                this.undoStack = []; // Clear stacks on new project
-                this.redoStack = [];
-                
-                // Reset UI values
-                document.getElementById('canvas-w').value = 800;
-                document.getElementById('canvas-h').value = 500;
-                this.setCanvasSize();
-                
-                // Add default start
-                this.addFigure();
-                // REMOVED this.saveFrame(true) to keep it empty on new project
-                
-                this.render();
-                this.updateTimeline();
+                this.frames = []; this.frameDelays = []; this.figures = []; this.currentFrameIndex = 0; this.bgImage = null;
+                this.undoStack = []; this.redoStack = [];
+                document.getElementById('canvas-w').value = 800; document.getElementById('canvas-h').value = 500;
+                this.setCanvasSize(); this.addFigure(); this.render(); this.updateTimeline();
             },
         };
 
