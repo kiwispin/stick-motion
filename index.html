@@ -128,7 +128,7 @@
                         <button onclick="app.scaleFigure(0.9)" class="flex items-center justify-center px-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded text-xs transition border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600">Scale -</button>
                     </div>
 
-                    <!-- New Rotation Controls -->
+                    <!-- Rotation Controls -->
                     <div class="flex items-center space-x-1 bg-gray-100 dark:bg-zinc-800 p-1 rounded border border-gray-200 dark:border-zinc-700">
                         <button onclick="app.rotateSelectedFigure(-Math.PI/2)" class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition" title="Rotate Left 90°">↺ 90°</button>
                         <button onclick="app.rotateSelectedFigure(-Math.PI/12)" class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition" title="Rotate Left 15°">↺ 15°</button>
@@ -234,6 +234,10 @@
                 <div class="h-12 flex items-center px-4 justify-between border-b border-gray-100 dark:border-zinc-800">
                     <div class="flex items-center space-x-4">
                         <div class="flex items-center space-x-1">
+                            <!-- Go to Start Button -->
+                            <button onclick="app.goToFirstFrame()" class="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white transition border border-gray-200 dark:border-zinc-700 shadow-sm" title="Go to Start">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path></svg>
+                            </button>
                             <button onclick="app.prevFrame()" class="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white transition border border-gray-200 dark:border-zinc-700 shadow-sm" title="Previous Frame (<)">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
                             </button>
@@ -477,6 +481,15 @@
             lowerFigure() { const idx=this.figures.findIndex(f=>f.selected); if(idx>0){ this.saveState(); const t=this.figures[idx]; this.figures[idx]=this.figures[idx-1]; this.figures[idx-1]=t; this.render(); } },
             prevFrame() { if(this.frames.length>0 && this.currentFrameIndex>0) this.loadFrame(this.currentFrameIndex-1); },
             nextFrame() { if(this.frames.length>0 && this.currentFrameIndex<this.frames.length-1) this.loadFrame(this.currentFrameIndex+1); },
+            
+            // --- NEW: Go to Start Function ---
+            goToFirstFrame() {
+                if (this.frames.length > 0) {
+                    this.loadFrame(0);
+                    this.scrollToFrame(0);
+                }
+            },
+            
             setFrameDuration(val) { const d = parseFloat(val); document.getElementById('duration-display').innerText = d.toFixed(1)+'x'; if(this.frameDelays[this.currentFrameIndex]!==undefined) { this.frameDelays[this.currentFrameIndex] = d; const container = document.getElementById('timeline-track'); if(container && container.children[this.currentFrameIndex]) { const wrapper = container.children[this.currentFrameIndex]; const badge = wrapper.querySelector('.absolute.top-0.left-0'); if(badge) { badge.innerText = d.toFixed(1)+'x'; badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${d>1.0?'bg-blue-600 text-white':'bg-zinc-700 text-zinc-400'}`; } const barFill = wrapper.querySelector('.absolute.bottom-0 div'); if(barFill) { let w = (d/10.0)*100; w=Math.max(5,w); barFill.style.width=w+'%'; barFill.className=`h-full ${d>1.0?'bg-blue-500':'bg-zinc-600'}`; } } } },
             moveFrame(direction) {
                 if (this.frames.length < 2) return;
