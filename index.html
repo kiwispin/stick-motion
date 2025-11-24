@@ -109,6 +109,9 @@
                         <button onclick="app.openBuilder()" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-200 px-2 py-1 rounded border border-gray-300 dark:border-zinc-700 transition flex items-center" title="Open Figure Designer">
                             <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>Create
                         </button>
+                        <button onclick="app.openLibrary()" class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-200 px-2 py-1 rounded border dark:border-purple-800/50 transition flex items-center" title="Library">
+                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>Models
+                        </button>
                         <button onclick="app.addFigure()" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-200 px-2 py-1 rounded border dark:border-blue-800/50 transition flex items-center">
                             <span class="mr-1 text-lg leading-none align-middle">+</span> Stick
                         </button>
@@ -335,6 +338,43 @@
         </div>
     </div>
 
+    <!-- Library Modal -->
+    <div id="library-modal" class="fixed inset-0 bg-black/50 dark:bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div class="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 w-full max-w-md rounded-xl shadow-2xl flex flex-col overflow-hidden p-6 transition-colors duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Model Library</h3>
+                <button onclick="app.closeLibrary()" class="text-gray-500 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-white">✕</button>
+            </div>
+            <div class="grid grid-cols-3 gap-3">
+                <!-- Library Items -->
+                <button onclick="app.addFromLibrary('stickman')" class="flex flex-col items-center justify-center p-3 bg-gray-100 hover:bg-blue-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded border border-gray-200 dark:border-zinc-700 hover:border-blue-300 transition">
+                    <div class="w-10 h-10 mb-2 flex items-center justify-center text-2xl">🏃</div>
+                    <span class="text-xs font-medium text-gray-700 dark:text-zinc-300">Stickman</span>
+                </button>
+                <button onclick="app.addFromLibrary('sword')" class="flex flex-col items-center justify-center p-3 bg-gray-100 hover:bg-blue-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded border border-gray-200 dark:border-zinc-700 hover:border-blue-300 transition">
+                    <div class="w-10 h-10 mb-2 flex items-center justify-center text-2xl">⚔️</div>
+                    <span class="text-xs font-medium text-gray-700 dark:text-zinc-300">Sword</span>
+                </button>
+                <button onclick="app.addFromLibrary('ball')" class="flex flex-col items-center justify-center p-3 bg-gray-100 hover:bg-blue-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded border border-gray-200 dark:border-zinc-700 hover:border-blue-300 transition">
+                    <div class="w-10 h-10 mb-2 flex items-center justify-center text-2xl">⚽</div>
+                    <span class="text-xs font-medium text-gray-700 dark:text-zinc-300">Ball</span>
+                </button>
+                <button onclick="app.addFromLibrary('racket')" class="flex flex-col items-center justify-center p-3 bg-gray-100 hover:bg-blue-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded border border-gray-200 dark:border-zinc-700 hover:border-blue-300 transition">
+                    <div class="w-10 h-10 mb-2 flex items-center justify-center text-2xl">🎾</div>
+                    <span class="text-xs font-medium text-gray-700 dark:text-zinc-300">Racket</span>
+                </button>
+                <button onclick="app.addFromLibrary('bike')" class="flex flex-col items-center justify-center p-3 bg-gray-100 hover:bg-blue-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded border border-gray-200 dark:border-zinc-700 hover:border-blue-300 transition">
+                    <div class="w-10 h-10 mb-2 flex items-center justify-center text-2xl">🚲</div>
+                    <span class="text-xs font-medium text-gray-700 dark:text-zinc-300">Bike</span>
+                </button>
+                <button onclick="app.addFromLibrary('car')" class="flex flex-col items-center justify-center p-3 bg-gray-100 hover:bg-blue-50 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded border border-gray-200 dark:border-zinc-700 hover:border-blue-300 transition">
+                    <div class="w-10 h-10 mb-2 flex items-center justify-center text-2xl">🚗</div>
+                    <span class="text-xs font-medium text-gray-700 dark:text-zinc-300">Car</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Modals -->
     <div id="loading-modal" class="fixed inset-0 bg-white/80 dark:bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 hidden">
         <div class="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 p-8 rounded-xl shadow-2xl flex flex-col items-center">
@@ -545,6 +585,99 @@
             },
             // --- PERSISTENCE LOGIC END ---
 
+            // --- LIBRARY FUNCTIONS START ---
+            openLibrary() { document.getElementById('library-modal').classList.remove('hidden'); },
+            closeLibrary() { document.getElementById('library-modal').classList.add('hidden'); },
+            addFromLibrary(type) {
+                this.saveState();
+                let fig;
+                switch(type) {
+                    case 'stickman': fig = this.createStickman(); break;
+                    case 'sword': fig = this.createSword(); break;
+                    case 'ball': fig = this.createBall(); break;
+                    case 'racket': fig = this.createRacket(); break;
+                    case 'bike': fig = this.createBike(); break;
+                    case 'car': fig = this.createCar(); break;
+                }
+                
+                // Offset slightly so they don't stack perfectly on top
+                if (this.figures.length > 0) {
+                    fig.x += 30; fig.y += 30;
+                }
+                
+                this.figures.push(fig);
+                this.selectFigure(fig);
+                this.render();
+                this.saveLocal();
+                this.closeLibrary();
+            },
+            
+            createSword() {
+                const f = new Figure(); f.color = '#555';
+                const j = [];
+                j.push(new Joint('root', null, 0, 0)); // Handle base
+                j.push(new Joint('handle', 'root', 25, -Math.PI/2, SEGMENT_LINE, 20, 8)); // Handle
+                j.push(new Joint('guardL', 'handle', 20, Math.PI, SEGMENT_LINE, 20, 6)); // Guard Left
+                j.push(new Joint('guardR', 'handle', 20, 0, SEGMENT_LINE, 20, 6)); // Guard Right
+                j.push(new Joint('blade', 'handle', 90, -Math.PI/2, SEGMENT_LINE, 20, 10)); // Blade
+                f.joints = j;
+                return f;
+            },
+            
+            createBall() {
+                const f = new Figure(); f.color = '#ff6b6b';
+                const j = [];
+                j.push(new Joint('root', null, 0, 0));
+                j.push(new Joint('ball', 'root', 25, 0, SEGMENT_CIRCLE, 25, 14, true));
+                f.joints = j;
+                return f;
+            },
+            
+            createRacket() {
+                const f = new Figure(); f.color = '#22c55e';
+                const j = [];
+                j.push(new Joint('root', null, 0, 0));
+                j.push(new Joint('handle', 'root', 40, -Math.PI/2, SEGMENT_LINE, 20, 8));
+                j.push(new Joint('head', 'handle', 60, -Math.PI/2, SEGMENT_CIRCLE, 30, 4, false)); // Wireframe circle
+                f.joints = j;
+                return f;
+            },
+            
+            createBike() {
+                const f = new Figure(); f.color = '#3b82f6';
+                const j = [];
+                // Root is the crank/pedal area
+                j.push(new Joint('root', null, 0, 0));
+                j.push(new Joint('backStay', 'root', 50, Math.PI - 0.3, SEGMENT_LINE, 20, 6));
+                j.push(new Joint('backWheel', 'backStay', 30, 0, SEGMENT_CIRCLE, 30, 4, false));
+                j.push(new Joint('seatTube', 'root', 55, -Math.PI/2 + 0.2, SEGMENT_LINE, 20, 6));
+                j.push(new Joint('seat', 'seatTube', 15, Math.PI, SEGMENT_LINE, 20, 10));
+                j.push(new Joint('topTube', 'seatTube', 55, 0.1, SEGMENT_LINE, 20, 6));
+                j.push(new Joint('downTube', 'root', 58, -Math.PI/4 - 0.3, SEGMENT_LINE, 20, 6));
+                // connect front fork roughly
+                j.push(new Joint('headTube', 'topTube', 15, -Math.PI/2 + 0.3, SEGMENT_LINE, 20, 8)); 
+                j.push(new Joint('bars', 'headTube', 20, Math.PI - 0.5, SEGMENT_LINE, 20, 6));
+                j.push(new Joint('fork', 'headTube', 45, Math.PI/2 + 0.3, SEGMENT_LINE, 20, 6));
+                j.push(new Joint('frontWheel', 'fork', 30, 0, SEGMENT_CIRCLE, 30, 4, false));
+                f.joints = j;
+                return f;
+            },
+
+            createCar() {
+                const f = new Figure(); f.color = '#eab308'; // Yellow car
+                const j = [];
+                j.push(new Joint('root', null, 0, 0)); // Center chassis
+                j.push(new Joint('chassisF', 'root', 50, 0, SEGMENT_LINE, 20, 10));
+                j.push(new Joint('chassisB', 'root', 50, Math.PI, SEGMENT_LINE, 20, 10));
+                j.push(new Joint('roofF', 'root', 35, -Math.PI/3, SEGMENT_LINE, 20, 6));
+                j.push(new Joint('roofTop', 'roofF', 40, 0, SEGMENT_LINE, 20, 6));
+                j.push(new Joint('wheelF', 'chassisF', 20, Math.PI/2, SEGMENT_CIRCLE, 20, 6, false));
+                j.push(new Joint('wheelB', 'chassisB', 20, Math.PI/2, SEGMENT_CIRCLE, 20, 6, false));
+                f.joints = j;
+                return f;
+            },
+            // --- LIBRARY FUNCTIONS END ---
+
             resizeCanvas() { },
             openBuilder() { builder.open(); },
             addCustomFigure(fig) { this.saveState(); this.figures.push(fig); this.selectFigure(fig); this.render(); this.saveLocal(); },
@@ -651,7 +784,82 @@
             renderInterpolated(fA, fB, t, draw=true) { if(!fA||!fB) return; const interp=[]; fA.forEach(figA=>{ const figB=fB.find(f=>f.id===figA.id); if(figB) { const nF=figA.clone(); nF.x=figA.x+(figB.x-figA.x)*t; nF.y=figA.y+(figB.y-figA.y)*t; nF.scale=figA.scale+(figB.scale-figA.scale)*t; nF.joints.forEach(jA=>{ const jB=figB.joints.find(j=>j.id===jA.id); if(jB) { let d=jB.angle-jA.angle; while(d<-Math.PI) d+=Math.PI*2; while(d>Math.PI) d-=Math.PI*2; jA.angle+=d*t; } }); interp.push(nF); } else interp.push(figA.clone()); }); this.figures=interp; if(draw) this.render(); },
             updateFps(v) { this.fps=parseInt(v); document.getElementById('fps-display').innerText=v; this.saveLocal(); },
             getPos(e, isTouch) { const r=this.canvas.getBoundingClientRect(); let cx=isTouch?e.touches[0].clientX:e.clientX; let cy=isTouch?e.touches[0].clientY:e.clientY; return {x:(cx-r.left)*(this.canvas.width/r.width), y:(cy-r.top)*(this.canvas.height/r.height)}; },
-            handleStart(e, isTouch) { if(this.isPlaying) return; if(isTouch) e.preventDefault(); const pos=this.getPos(e,isTouch); this.mouseX=pos.x; this.mouseY=pos.y; for(let i=this.figures.length-1; i>=0; i--) { const fig=this.figures[i]; fig.updatePositions(); const root=fig.joints.find(j=>j.parentId===null); if(Math.hypot(pos.x-root.x, pos.y-root.y)<(this.handleRadius+10)) { this.saveState(); this.dragTarget={figure:fig, type:'root', joint:root, offsetX:pos.x-fig.x, offsetY:pos.y-fig.y}; this.selectFigure(fig); this.render(); return; } for(let j of fig.joints) { if(j.parentId===null) continue; if(Math.hypot(pos.x-j.x, pos.y-j.y)<(this.handleRadius+10)) { this.saveState(); this.dragTarget={figure:fig, type:'joint', joint:j}; this.selectFigure(fig); this.render(); return; } } } this.deselectAll(); this.render(); },
+            
+            // --- UPDATED: Hit Testing Helper ---
+            distToSegment(p, v, w) {
+                const l2 = Math.pow(v.x - w.x, 2) + Math.pow(v.y - w.y, 2);
+                if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+                let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+                t = Math.max(0, Math.min(1, t));
+                return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+            },
+
+            // --- UPDATED: Handle Start to Check Segments for Selection ---
+            handleStart(e, isTouch) { 
+                if(this.isPlaying) return; 
+                if(isTouch) e.preventDefault(); 
+                const pos=this.getPos(e,isTouch); 
+                this.mouseX=pos.x; this.mouseY=pos.y; 
+                
+                // 1. Check for Handles (Pivot Points) - Priority 1
+                for(let i=this.figures.length-1; i>=0; i--) { 
+                    const fig=this.figures[i]; 
+                    fig.updatePositions(); 
+                    // Root Handle
+                    const root=fig.joints.find(j=>j.parentId===null); 
+                    if(Math.hypot(pos.x-root.x, pos.y-root.y)<(this.handleRadius+10)) { 
+                        this.saveState(); 
+                        this.dragTarget={figure:fig, type:'root', joint:root, offsetX:pos.x-fig.x, offsetY:pos.y-fig.y}; 
+                        this.selectFigure(fig); 
+                        this.render(); 
+                        return; 
+                    } 
+                    // Joint Handles
+                    for(let j of fig.joints) { 
+                        if(j.parentId===null) continue; 
+                        if(Math.hypot(pos.x-j.x, pos.y-j.y)<(this.handleRadius+10)) { 
+                            this.saveState(); 
+                            this.dragTarget={figure:fig, type:'joint', joint:j}; 
+                            this.selectFigure(fig); 
+                            this.render(); 
+                            return; 
+                        } 
+                    } 
+                } 
+
+                // 2. Check for Segments (Body) - Priority 2 (Selection Only)
+                for(let i=this.figures.length-1; i>=0; i--) {
+                    const fig=this.figures[i];
+                    // Check distance to lines
+                    for(let j of fig.joints) {
+                        if(!j.parentId) continue;
+                        const parent = fig.joints.find(p => p.id === j.parentId);
+                        if(!parent) continue;
+                        
+                        // Calculate if click is on this segment
+                        const dist = this.distToSegment(pos, {x:parent.x, y:parent.y}, {x:j.x, y:j.y});
+                        const thickness = (j.thickness || 14) * fig.scale;
+                        
+                        if (dist < thickness/2 + 5) {
+                            this.saveState();
+                            // Select the figure
+                            this.selectFigure(fig);
+                            
+                            // Start dragging the whole figure as if by root
+                            const root=fig.joints.find(x=>x.parentId===null);
+                            this.dragTarget={figure:fig, type:'root', joint:root, offsetX:pos.x-fig.x, offsetY:pos.y-fig.y};
+                            
+                            this.render();
+                            return;
+                        }
+                    }
+                }
+
+                this.deselectAll(); 
+                this.render(); 
+            },
+            // --- END UPDATE ---
+
             handleMove(e, isTouch) { const pos=this.getPos(e,isTouch); if(!isTouch && !this.dragTarget && !this.isPlaying) { let h=false; for(let f of this.figures) { for(let j of f.joints) { if(Math.hypot(pos.x-j.x, pos.y-j.y)<this.handleRadius*2) { h=true; break; } } } this.canvas.style.cursor=h?'pointer':'crosshair'; } if(!this.dragTarget) return; if(isTouch && e.cancelable) e.preventDefault(); if(this.dragTarget.type==='root') { const fig=this.dragTarget.figure; fig.x=pos.x-this.dragTarget.offsetX; fig.y=pos.y-this.dragTarget.offsetY; } else { const joint=this.dragTarget.joint; const fig=this.dragTarget.figure; const parent=fig.joints.find(j=>j.id===joint.parentId); if(parent) { const dx=pos.x-parent.x; const dy=pos.y-parent.y; const newA=Math.atan2(dy,dx); const delta=newA-joint.angle; joint.angle=newA; this.rotateHierarchy(fig, joint.id, delta); } } this.render(); },
             handleEnd(e) { this.dragTarget=null; this.saveLocal(); },
             rotateHierarchy(fig, pid, delta) { fig.joints.forEach(j=>{ if(j.parentId===pid) { j.angle+=delta; this.rotateHierarchy(fig, j.id, delta); } }); },
