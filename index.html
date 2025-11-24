@@ -435,7 +435,17 @@
             toggleTheme() { const root = document.getElementById('html-root'); root.classList.toggle('dark'); },
 
             init() {
-                this.addFigure(); this.resizeCanvas(); window.addEventListener('resize', () => this.resizeCanvas());
+                // Check if we have saved data
+                builder.init();
+                
+                if (!this.loadFromLocal()) {
+                    // No saved data, initialize defaults
+                    this.addFigure();
+                }
+                
+                this.resizeCanvas(); 
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
                 this.canvas.addEventListener('mousedown', (e) => this.handleStart(e, false)); window.addEventListener('mousemove', (e) => this.handleMove(e, false)); window.addEventListener('mouseup', (e) => this.handleEnd(e));
                 this.canvas.addEventListener('touchstart', (e) => this.handleStart(e, true), {passive: false}); window.addEventListener('touchmove', (e) => this.handleMove(e, true), {passive: false}); window.addEventListener('touchend', (e) => this.handleEnd(e));
                 
@@ -449,12 +459,95 @@
                     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); if (e.shiftKey) this.redo(); else this.undo(); }
                     if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); this.redo(); }
                 });
-                this.toggleLoop(true); this.toggleSmooth(true); builder.init(); this.updateTimeline(); this.render();
+                this.toggleLoop(true); this.toggleSmooth(true); 
+                
+                // Initial render call if loadFromLocal didn't trigger one
+                if (this.frames.length === 0) this.render();
             },
             
+            // --- PERSISTENCE LOGIC START ---
+            saveLocal() {
+                const d = {
+                    version: 2,
+                    width: this.canvas.width,
+                    height: this.canvas.height,
+                    fps: this.fps,
+                    frames: this.frames,
+                    delays: this.frameDelays,
+                    figures: this.figures,
+                    currentFrameIndex: this.currentFrameIndex
+                };
+                try {
+                    localStorage.setItem('stickmotion_data', JSON.stringify(d));
+                } catch(e) {
+                    console.error("Storage full or error", e);
+                }
+            },
+            
+            loadFromLocal() {
+                try {
+                    const data = localStorage.getItem('stickmotion_data');
+                    if (!data) return false;
+                    const d = JSON.parse(data);
+                    
+                    if (d.width) {
+                        document.getElementById('canvas-w').value = d.width;
+                        document.getElementById('canvas-h').value = d.height;
+                        this.canvas.width = d.width;
+                        this.canvas.height = d.height;
+                    }
+                    if (d.fps) {
+                        this.updateFps(d.fps);
+                        document.getElementById('frame-duration').value = d.fps;
+                    }
+                    
+                    // Helper to reconstitute classes from JSON
+                    const reconstructFigures = (figsData) => {
+                        return figsData.map(figd => {
+                            const fig = new Figure();
+                            Object.assign(fig, figd);
+                            fig.joints = figd.joints.map(jd => {
+                                const j = new Joint();
+                                Object.assign(j, jd);
+                                return j;
+                            });
+                            return fig;
+                        });
+                    };
+
+                    if (d.frames) {
+                        this.frames = d.frames.map(frameData => reconstructFigures(frameData));
+                    }
+                    
+                    if (d.figures) {
+                        this.figures = reconstructFigures(d.figures);
+                    }
+
+                    if (d.delays) this.frameDelays = d.delays;
+                    else this.frameDelays = new Array(this.frames.length).fill(1.0);
+
+                    this.currentFrameIndex = d.currentFrameIndex || 0;
+                    
+                    // Bounds check
+                    if (this.currentFrameIndex >= this.frames.length) this.currentFrameIndex = Math.max(0, this.frames.length - 1);
+                    
+                    // Force a load of the current frame
+                    if (this.frames.length > 0) {
+                        this.loadFrame(this.currentFrameIndex, false);
+                    }
+                    
+                    this.updateTimeline();
+                    return true;
+                } catch (e) {
+                    console.error("Load error", e);
+                    return false;
+                }
+            },
+            // --- PERSISTENCE LOGIC END ---
+
             resizeCanvas() { },
             openBuilder() { builder.open(); },
-            addCustomFigure(fig) { this.saveState(); this.figures.push(fig); this.selectFigure(fig); this.render(); },
+            addCustomFigure(fig) { this.saveState(); this.figures.push(fig); this.selectFigure(fig); this.render(); this.saveLocal(); },
             
             addText() {
                 this.saveState();
@@ -463,26 +556,26 @@
                 fig.scale = 1.0; fig.color = "#000000";
                 fig.joints = [ new Joint('root', null, 0, 0), new Joint('handle', 'root', 20, 0) ];
                 this.figures.push(fig); this.selectFigure(fig); this.render();
+                this.saveLocal();
             },
             
             updateText(val) {
                 const fig = this.figures.find(f => f.selected);
-                if (fig && fig.type === 'text') { fig.text = val; this.render(); }
+                if (fig && fig.type === 'text') { fig.text = val; this.render(); this.saveLocal(); }
             },
             
             createStickman() { const f=new Figure(); const j=[]; j.push(new Joint('hip',null,0,0)); j.push(new Joint('abs','hip',23,-Math.PI/2)); j.push(new Joint('chest','abs',23,-Math.PI/2)); j.push(new Joint('neck','chest',40,-Math.PI/2,SEGMENT_CIRCLE,20,14,true)); j.push(new Joint('lShldr','chest',25,Math.PI-0.2)); j.push(new Joint('lElbow','lShldr',25,Math.PI-0.5)); j.push(new Joint('lHand','lElbow',20,Math.PI-0.2)); j.push(new Joint('rShldr','chest',25,0.2)); j.push(new Joint('rElbow','rShldr',25,0.5)); j.push(new Joint('rHand','rElbow',20,0.2)); j.push(new Joint('lKnee','hip',35,Math.PI/2+0.3)); j.push(new Joint('lFoot','lKnee',35,Math.PI/2+0.1)); j.push(new Joint('rKnee','hip',35,Math.PI/2-0.3)); j.push(new Joint('rFoot','rKnee',35,Math.PI/2-0.1)); f.joints=j; return f; },
             saveState() { if (this.undoStack.length > 50) this.undoStack.shift(); this.undoStack.push({ frames: this.frames.map(f=>f.map(x=>x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f=>f.clone()) }); this.redoStack = []; },
             undo() { if(this.undoStack.length===0)return; this.redoStack.push({frames: this.frames.map(f=>f.map(x=>x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f=>f.clone())}); this.restoreState(this.undoStack.pop()); },
             redo() { if(this.redoStack.length===0)return; this.undoStack.push({frames: this.frames.map(f=>f.map(x=>x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f=>f.clone())}); this.restoreState(this.redoStack.pop()); },
-            restoreState(state) { this.frames = state.frames.map(f=>f.map(x=>x.clone())); this.frameDelays = [...state.frameDelays]; this.currentFrameIndex = state.currentFrameIndex; this.figures = state.figures.map(f=>f.clone()); const delay = this.frameDelays[this.currentFrameIndex]||1.0; document.getElementById('frame-duration').value = delay; document.getElementById('duration-display').innerText = delay.toFixed(1)+'x'; this.render(); this.updateTimeline(); },
-            addFigure() { this.saveState(); const fig = this.createStickman(); if (this.figures.length > 0) { fig.x += 20; fig.y += 20; } this.figures.push(fig); this.selectFigure(fig); this.render(); },
-            deleteSelectedFigure() { const idx = this.figures.findIndex(f=>f.selected); if(idx!==-1) { this.saveState(); this.figures.splice(idx,1); this.render(); } },
-            raiseFigure() { const idx=this.figures.findIndex(f=>f.selected); if(idx!==-1 && idx<this.figures.length-1){ this.saveState(); const t=this.figures[idx]; this.figures[idx]=this.figures[idx+1]; this.figures[idx+1]=t; this.render(); } },
-            lowerFigure() { const idx=this.figures.findIndex(f=>f.selected); if(idx>0){ this.saveState(); const t=this.figures[idx]; this.figures[idx]=this.figures[idx-1]; this.figures[idx-1]=t; this.render(); } },
+            restoreState(state) { this.frames = state.frames.map(f=>f.map(x=>x.clone())); this.frameDelays = [...state.frameDelays]; this.currentFrameIndex = state.currentFrameIndex; this.figures = state.figures.map(f=>f.clone()); const delay = this.frameDelays[this.currentFrameIndex]||1.0; document.getElementById('frame-duration').value = delay; document.getElementById('duration-display').innerText = delay.toFixed(1)+'x'; this.render(); this.updateTimeline(); this.saveLocal(); },
+            addFigure() { this.saveState(); const fig = this.createStickman(); if (this.figures.length > 0) { fig.x += 20; fig.y += 20; } this.figures.push(fig); this.selectFigure(fig); this.render(); this.saveLocal(); },
+            deleteSelectedFigure() { const idx = this.figures.findIndex(f=>f.selected); if(idx!==-1) { this.saveState(); this.figures.splice(idx,1); this.render(); this.saveLocal(); } },
+            raiseFigure() { const idx=this.figures.findIndex(f=>f.selected); if(idx!==-1 && idx<this.figures.length-1){ this.saveState(); const t=this.figures[idx]; this.figures[idx]=this.figures[idx+1]; this.figures[idx+1]=t; this.render(); this.saveLocal(); } },
+            lowerFigure() { const idx=this.figures.findIndex(f=>f.selected); if(idx>0){ this.saveState(); const t=this.figures[idx]; this.figures[idx]=this.figures[idx-1]; this.figures[idx-1]=t; this.render(); this.saveLocal(); } },
             prevFrame() { if(this.frames.length>0 && this.currentFrameIndex>0) this.loadFrame(this.currentFrameIndex-1); },
             nextFrame() { if(this.frames.length>0 && this.currentFrameIndex<this.frames.length-1) this.loadFrame(this.currentFrameIndex+1); },
             
-            // --- NEW: Go to Start Function ---
             goToFirstFrame() {
                 if (this.frames.length > 0) {
                     this.loadFrame(0);
@@ -490,7 +583,7 @@
                 }
             },
             
-            setFrameDuration(val) { const d = parseFloat(val); document.getElementById('duration-display').innerText = d.toFixed(1)+'x'; if(this.frameDelays[this.currentFrameIndex]!==undefined) { this.frameDelays[this.currentFrameIndex] = d; const container = document.getElementById('timeline-track'); if(container && container.children[this.currentFrameIndex]) { const wrapper = container.children[this.currentFrameIndex]; const badge = wrapper.querySelector('.absolute.top-0.left-0'); if(badge) { badge.innerText = d.toFixed(1)+'x'; badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${d>1.0?'bg-blue-600 text-white':'bg-zinc-700 text-zinc-400'}`; } const barFill = wrapper.querySelector('.absolute.bottom-0 div'); if(barFill) { let w = (d/10.0)*100; w=Math.max(5,w); barFill.style.width=w+'%'; barFill.className=`h-full ${d>1.0?'bg-blue-500':'bg-zinc-600'}`; } } } },
+            setFrameDuration(val) { const d = parseFloat(val); document.getElementById('duration-display').innerText = d.toFixed(1)+'x'; if(this.frameDelays[this.currentFrameIndex]!==undefined) { this.frameDelays[this.currentFrameIndex] = d; const container = document.getElementById('timeline-track'); if(container && container.children[this.currentFrameIndex]) { const wrapper = container.children[this.currentFrameIndex]; const badge = wrapper.querySelector('.absolute.top-0.left-0'); if(badge) { badge.innerText = d.toFixed(1)+'x'; badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${d>1.0?'bg-blue-600 text-white':'bg-zinc-700 text-zinc-400'}`; } const barFill = wrapper.querySelector('.absolute.bottom-0 div'); if(barFill) { let w = (d/10.0)*100; w=Math.max(5,w); barFill.style.width=w+'%'; barFill.className=`h-full ${d>1.0?'bg-blue-500':'bg-zinc-600'}`; } } this.saveLocal(); } },
             moveFrame(direction) {
                 if (this.frames.length < 2) return;
                 const newIndex = this.currentFrameIndex + direction;
@@ -499,24 +592,25 @@
                 const tempFrame = this.frames[this.currentFrameIndex]; this.frames[this.currentFrameIndex] = this.frames[newIndex]; this.frames[newIndex] = tempFrame;
                 const tempDelay = this.frameDelays[this.currentFrameIndex]; this.frameDelays[this.currentFrameIndex] = this.frameDelays[newIndex]; this.frameDelays[newIndex] = tempDelay;
                 this.currentFrameIndex = newIndex; this.updateTimeline(); this.loadFrame(this.currentFrameIndex); this.scrollToFrame(this.currentFrameIndex);
+                this.saveLocal();
             },
             toggleLoop(fs) { if(fs!==undefined) this.isLooping=fs; else this.isLooping=!this.isLooping; const btn = document.getElementById('btn-loop-btm'); if(this.isLooping) { btn.className = "text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium"; } else { btn.className = "text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium"; } },
             toggleSmooth(fs) { if(fs!==undefined) this.isSmooth=fs; else this.isSmooth=!this.isSmooth; const btn = document.getElementById('btn-smooth-btm'); if(this.isSmooth) { btn.className = "text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium"; } else { btn.className = "text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium"; } },
             showModal(t, m, a) { document.getElementById('confirm-title').innerText=t; document.getElementById('confirm-msg').innerText=m; this.pendingAction=a; document.getElementById('confirm-modal').classList.remove('hidden'); },
             closeModal() { document.getElementById('confirm-modal').classList.add('hidden'); this.pendingAction=null; },
             executeConfirm() { if(this.pendingAction) this.pendingAction(); this.closeModal(); },
-            confirmClearStage() { this.showModal("Clear Stage?", "Remove all figures?", ()=>{ this.saveState(); this.figures=[]; this.render(); }); },
+            confirmClearStage() { this.showModal("Clear Stage?", "Remove all figures?", ()=>{ this.saveState(); this.figures=[]; this.render(); this.saveLocal(); }); },
             confirmNewProject() { this.showModal("New Project?", "Discard animation?", ()=>{ this.saveState(); this.newProject(); }); },
-            newProject() { this.stop(); this.frames=[]; this.frameDelays=[]; this.figures=[]; this.currentFrameIndex=0; this.bgImage=null; this.undoStack=[]; this.redoStack=[]; document.getElementById('canvas-w').value=800; document.getElementById('canvas-h').value=500; this.setCanvasSize(); this.addFigure(); this.render(); this.updateTimeline(); },
-            setCanvasSize() { const w=parseInt(document.getElementById('canvas-w').value)||800; const h=parseInt(document.getElementById('canvas-h').value)||500; this.canvas.width=w; this.canvas.height=h; this.render(); },
+            newProject() { this.stop(); this.frames=[]; this.frameDelays=[]; this.figures=[]; this.currentFrameIndex=0; this.bgImage=null; this.undoStack=[]; this.redoStack=[]; document.getElementById('canvas-w').value=800; document.getElementById('canvas-h').value=500; this.setCanvasSize(); this.addFigure(); this.render(); this.updateTimeline(); this.saveLocal(); },
+            setCanvasSize() { const w=parseInt(document.getElementById('canvas-w').value)||800; const h=parseInt(document.getElementById('canvas-h').value)||500; this.canvas.width=w; this.canvas.height=h; this.render(); this.saveLocal(); },
             loadBackground(i) { if(i.files&&i.files[0]) { const r=new FileReader(); r.onload=(e)=>{ const img=new Image(); img.onload=()=>{this.bgImage=img; this.render();}; img.src=e.target.result; }; r.readAsDataURL(i.files[0]); } },
             saveProject() { const d={version:2, width:this.canvas.width, height:this.canvas.height, fps:this.fps, frames:this.frames, delays:this.frameDelays}; const b=new Blob([JSON.stringify(d)], {type:'application/json'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='project.json'; a.click(); },
-            loadProject(i) { if(i.files&&i.files[0]) { this.stop(); this.saveState(); const r=new FileReader(); r.onload=(e)=>{ try{ const d=JSON.parse(e.target.result); if(d.width){document.getElementById('canvas-w').value=d.width; document.getElementById('canvas-h').value=d.height; this.setCanvasSize();} if(d.fps){this.updateFps(d.fps); document.getElementById('fps-display').innerText=d.fps;} this.frames=d.frames.map(fd=>fd.map(figd=>{ const fig=new Figure(); Object.assign(fig,figd); fig.joints=figd.joints.map(jd=>{ const j=new Joint(); Object.assign(j,jd); return j; }); return fig; })); if(d.delays) this.frameDelays=d.delays; else this.frameDelays=new Array(this.frames.length).fill(1.0); this.currentFrameIndex=0; this.loadFrame(0); this.updateTimeline(); this.undoStack=[]; this.redoStack=[]; }catch(err){alert("Error: "+err);} }; r.readAsText(i.files[0]); } },
+            loadProject(i) { if(i.files&&i.files[0]) { this.stop(); this.saveState(); const r=new FileReader(); r.onload=(e)=>{ try{ const d=JSON.parse(e.target.result); if(d.width){document.getElementById('canvas-w').value=d.width; document.getElementById('canvas-h').value=d.height; this.setCanvasSize();} if(d.fps){this.updateFps(d.fps); document.getElementById('fps-display').innerText=d.fps;} this.frames=d.frames.map(fd=>fd.map(figd=>{ const fig=new Figure(); Object.assign(fig,figd); fig.joints=figd.joints.map(jd=>{ const j=new Joint(); Object.assign(j,jd); return j; }); return fig; })); if(d.delays) this.frameDelays=d.delays; else this.frameDelays=new Array(this.frames.length).fill(1.0); this.currentFrameIndex=0; this.loadFrame(0); this.updateTimeline(); this.undoStack=[]; this.redoStack=[]; this.saveLocal(); }catch(err){alert("Error: "+err);} }; r.readAsText(i.files[0]); } },
             async exportGif() { if(this.frames.length===0) return; document.getElementById('loading-modal').classList.remove('hidden'); try{ const res=await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js'); const blob=await res.blob(); const url=URL.createObjectURL(blob); const gif=new GIF({workers:2, quality:10, width:this.canvas.width, height:this.canvas.height, workerScript:url}); const wasPlaying=this.isPlaying; if(wasPlaying) this.stop(); const origIdx=this.currentFrameIndex; const origFigs=this.figures; const baseDelay=1000/this.fps; for(let i=0; i<this.frames.length; i++){ const dm=this.frameDelays[i]||1.0; const steps=this.isSmooth?Math.max(1, Math.round(5*dm)):1; const stepDelay=(baseDelay*dm)/steps; const fA=this.frames[i]; const nextIdx=(i+1)%this.frames.length; if(!this.isLooping && i===this.frames.length-1){ this.figures=fA.map(f=>f.clone()); this.renderFrameToCtx(); gif.addFrame(this.ctx, {copy:true, delay:baseDelay*dm}); } else { const fB=this.frames[nextIdx]; for(let s=0; s<steps; s++){ let t=s/steps; if(!this.isSmooth) t=0; this.renderInterpolated(fA, fB, t, false); this.renderFrameToCtx(false); gif.addFrame(this.ctx, {copy:true, delay:stepDelay}); if(!this.isSmooth) break; } } } gif.on('finished', (b)=>{ document.getElementById('loading-modal').classList.add('hidden'); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='animation.gif'; a.click(); this.currentFrameIndex=origIdx; this.figures=origFigs; this.render(); }); gif.render(); }catch(err){ document.getElementById('loading-modal').classList.add('hidden'); alert("GIF Error."); } },
             renderFrameToCtx(h=false) { this.ctx.fillStyle="#ffffff"; this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height); if(this.bgImage) this.ctx.drawImage(this.bgImage,0,0,this.canvas.width,this.canvas.height); this.figures.forEach(f=>{ f.updatePositions(); this.drawFigure(f,h); }); },
-            addFrame() { const d=(this.frameDelays.length>0 && this.frameDelays[this.currentFrameIndex]!==undefined)?this.frameDelays[this.currentFrameIndex]:1.0; const snap=this.figures.map(f=>f.clone()); if(this.frames.length===0){ this.frames.push(snap); this.frameDelays.push(d); this.currentFrameIndex=0; } else { this.frames.splice(this.currentFrameIndex+1,0,snap); this.frameDelays.splice(this.currentFrameIndex+1,0,d); this.currentFrameIndex++; } this.updateTimeline(); this.render(); this.scrollToFrame(this.currentFrameIndex); },
+            addFrame() { const d=(this.frameDelays.length>0 && this.frameDelays[this.currentFrameIndex]!==undefined)?this.frameDelays[this.currentFrameIndex]:1.0; const snap=this.figures.map(f=>f.clone()); if(this.frames.length===0){ this.frames.push(snap); this.frameDelays.push(d); this.currentFrameIndex=0; } else { this.frames.splice(this.currentFrameIndex+1,0,snap); this.frameDelays.splice(this.currentFrameIndex+1,0,d); this.currentFrameIndex++; } this.updateTimeline(); this.render(); this.scrollToFrame(this.currentFrameIndex); this.saveLocal(); },
             duplicateCurrentFrame() { if(this.frames.length===0) return; this.duplicateFrameAtIndex(this.currentFrameIndex); },
-            duplicateFrameAtIndex(idx) { if(idx<0||idx>=this.frames.length) return; this.saveState(); const src=this.frames[idx]; const newF=src.map(f=>f.clone()); const d=this.frameDelays[idx]; this.frames.splice(idx+1,0,newF); this.frameDelays.splice(idx+1,0,d); this.currentFrameIndex=idx+1; this.loadFrame(this.currentFrameIndex); this.updateTimeline(); },
+            duplicateFrameAtIndex(idx) { if(idx<0||idx>=this.frames.length) return; this.saveState(); const src=this.frames[idx]; const newF=src.map(f=>f.clone()); const d=this.frameDelays[idx]; this.frames.splice(idx+1,0,newF); this.frameDelays.splice(idx+1,0,d); this.currentFrameIndex=idx+1; this.loadFrame(this.currentFrameIndex); this.updateTimeline(); this.saveLocal(); },
             
             deleteFrameAtIndex(idx) {
                 if(this.frames.length === 0) return;
@@ -541,6 +635,7 @@
                 // Pass false to prevent overwriting the new current frame with the deleted frame's canvas data
                 this.loadFrame(this.currentFrameIndex, false);
                 this.updateTimeline();
+                this.saveLocal();
             },
 
             deleteFrame() { 
@@ -554,11 +649,11 @@
             stop() { this.isPlaying=false; document.getElementById('btn-play-btm').classList.remove('hidden'); document.getElementById('btn-stop-btm').classList.add('hidden'); if(this.frames.length>0) this.loadFrame(this.currentFrameIndex, false); },
             playTick(now) { if(!this.isPlaying) return; const dt=now-this.lastTime; this.lastTime=now; const cm=this.frameDelays[this.currentFrameIndex]||1.0; const ms=(1000/this.fps)*cm; this.playbackAccumulator+=dt; if(this.playbackAccumulator>=ms) { this.playbackAccumulator-=ms; this.currentFrameIndex++; if(this.currentFrameIndex>=this.frames.length) { if(this.isLooping) this.currentFrameIndex=0; else { this.currentFrameIndex=this.frames.length-1; this.stop(); return; } } this.updateTimelineUiState(); } if(this.isSmooth) { let t=this.playbackAccumulator/ms; if(t>1)t=1; if(this.currentFrameIndex<this.frames.length) { const fA=this.frames[this.currentFrameIndex]; const nI=(this.currentFrameIndex+1)%this.frames.length; if(!this.isLooping && this.currentFrameIndex===this.frames.length-1) this.figures=fA.map(f=>f.clone()); else if(this.frames[nI]) this.renderInterpolated(fA, this.frames[nI], t); else { this.figures=fA.map(f=>f.clone()); this.render(); } } } else { if(this.frames[this.currentFrameIndex]) { this.figures=this.frames[this.currentFrameIndex].map(f=>f.clone()); this.render(); } } requestAnimationFrame((t)=>this.playTick(t)); },
             renderInterpolated(fA, fB, t, draw=true) { if(!fA||!fB) return; const interp=[]; fA.forEach(figA=>{ const figB=fB.find(f=>f.id===figA.id); if(figB) { const nF=figA.clone(); nF.x=figA.x+(figB.x-figA.x)*t; nF.y=figA.y+(figB.y-figA.y)*t; nF.scale=figA.scale+(figB.scale-figA.scale)*t; nF.joints.forEach(jA=>{ const jB=figB.joints.find(j=>j.id===jA.id); if(jB) { let d=jB.angle-jA.angle; while(d<-Math.PI) d+=Math.PI*2; while(d>Math.PI) d-=Math.PI*2; jA.angle+=d*t; } }); interp.push(nF); } else interp.push(figA.clone()); }); this.figures=interp; if(draw) this.render(); },
-            updateFps(v) { this.fps=parseInt(v); document.getElementById('fps-display').innerText=v; },
+            updateFps(v) { this.fps=parseInt(v); document.getElementById('fps-display').innerText=v; this.saveLocal(); },
             getPos(e, isTouch) { const r=this.canvas.getBoundingClientRect(); let cx=isTouch?e.touches[0].clientX:e.clientX; let cy=isTouch?e.touches[0].clientY:e.clientY; return {x:(cx-r.left)*(this.canvas.width/r.width), y:(cy-r.top)*(this.canvas.height/r.height)}; },
             handleStart(e, isTouch) { if(this.isPlaying) return; if(isTouch) e.preventDefault(); const pos=this.getPos(e,isTouch); this.mouseX=pos.x; this.mouseY=pos.y; for(let i=this.figures.length-1; i>=0; i--) { const fig=this.figures[i]; fig.updatePositions(); const root=fig.joints.find(j=>j.parentId===null); if(Math.hypot(pos.x-root.x, pos.y-root.y)<(this.handleRadius+10)) { this.saveState(); this.dragTarget={figure:fig, type:'root', joint:root, offsetX:pos.x-fig.x, offsetY:pos.y-fig.y}; this.selectFigure(fig); this.render(); return; } for(let j of fig.joints) { if(j.parentId===null) continue; if(Math.hypot(pos.x-j.x, pos.y-j.y)<(this.handleRadius+10)) { this.saveState(); this.dragTarget={figure:fig, type:'joint', joint:j}; this.selectFigure(fig); this.render(); return; } } } this.deselectAll(); this.render(); },
             handleMove(e, isTouch) { const pos=this.getPos(e,isTouch); if(!isTouch && !this.dragTarget && !this.isPlaying) { let h=false; for(let f of this.figures) { for(let j of f.joints) { if(Math.hypot(pos.x-j.x, pos.y-j.y)<this.handleRadius*2) { h=true; break; } } } this.canvas.style.cursor=h?'pointer':'crosshair'; } if(!this.dragTarget) return; if(isTouch && e.cancelable) e.preventDefault(); if(this.dragTarget.type==='root') { const fig=this.dragTarget.figure; fig.x=pos.x-this.dragTarget.offsetX; fig.y=pos.y-this.dragTarget.offsetY; } else { const joint=this.dragTarget.joint; const fig=this.dragTarget.figure; const parent=fig.joints.find(j=>j.id===joint.parentId); if(parent) { const dx=pos.x-parent.x; const dy=pos.y-parent.y; const newA=Math.atan2(dy,dx); const delta=newA-joint.angle; joint.angle=newA; this.rotateHierarchy(fig, joint.id, delta); } } this.render(); },
-            handleEnd(e) { this.dragTarget=null; },
+            handleEnd(e) { this.dragTarget=null; this.saveLocal(); },
             rotateHierarchy(fig, pid, delta) { fig.joints.forEach(j=>{ if(j.parentId===pid) { j.angle+=delta; this.rotateHierarchy(fig, j.id, delta); } }); },
             selectFigure(fig) { 
                 this.figures.forEach(f=>f.selected=false); fig.selected=true; 
@@ -567,11 +662,11 @@
                 if(fig.type === 'text') { textPanel.classList.remove('hidden'); document.getElementById('text-figure-input').value = fig.text; } else { textPanel.classList.add('hidden'); }
             },
             deselectAll() { this.figures.forEach(f=>f.selected=false); document.getElementById('text-editor-panel').classList.add('hidden'); },
-            flipFigure() { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.joints.forEach(j=>{ if(j.parentId!==null) j.angle=Math.PI-j.angle; }); this.render(); },
-            centerFigure() { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.x=this.canvas.width/2; fig.y=this.canvas.height/2; this.render(); },
-            scaleFigure(f) { const fig=this.figures.find(fig=>fig.selected); if(!fig) return; this.saveState(); fig.scale*=f; this.render(); },
-            rotateSelectedFigure(delta) { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.joints.forEach(j=>{ if(j.parentId!==null) j.angle += delta; }); this.render(); },
-            setFigureColor(hex) { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.color=hex; document.getElementById('color-preview').style.backgroundColor=hex; this.render(); },
+            flipFigure() { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.joints.forEach(j=>{ if(j.parentId!==null) j.angle=Math.PI-j.angle; }); this.render(); this.saveLocal(); },
+            centerFigure() { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.x=this.canvas.width/2; fig.y=this.canvas.height/2; this.render(); this.saveLocal(); },
+            scaleFigure(f) { const fig=this.figures.find(fig=>fig.selected); if(!fig) return; this.saveState(); fig.scale*=f; this.render(); this.saveLocal(); },
+            rotateSelectedFigure(delta) { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.joints.forEach(j=>{ if(j.parentId!==null) j.angle += delta; }); this.render(); this.saveLocal(); },
+            setFigureColor(hex) { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.color=hex; document.getElementById('color-preview').style.backgroundColor=hex; this.render(); this.saveLocal(); },
             render() { this.ctx.fillStyle="#ffffff"; this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height); if(this.bgImage) this.ctx.drawImage(this.bgImage,0,0,this.canvas.width,this.canvas.height); this.showOnion=document.getElementById('onion-check').checked; if(this.showOnion && !this.isPlaying && this.frames.length>0) { let pF=null; if(this.currentFrameIndex===this.frames.length-1) pF=this.frames[this.currentFrameIndex]; else if(this.currentFrameIndex>0) pF=this.frames[this.currentFrameIndex-1]; if(pF) { this.ctx.globalAlpha=0.3; pF.forEach(f=>{ f.updatePositions(); this.drawFigure(f,false); }); this.ctx.globalAlpha=1.0; } } this.figures.forEach(f=>{ f.updatePositions(); this.drawFigure(f, !this.isPlaying); }); },
             drawFigure(fig, showHandles) {
                 this.ctx.strokeStyle = fig.color; this.ctx.fillStyle = fig.color;
