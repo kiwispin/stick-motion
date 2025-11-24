@@ -43,6 +43,10 @@
         canvas { background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); cursor: crosshair; touch-action: none; }
         .frame-thumb { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .frame-thumb.active { ring-width: 2px; --tw-ring-color: #3b82f6; transform: translateY(-2px); }
+        /* Show buttons on hover */
+        .frame-thumb .frame-actions { opacity: 0; transition: opacity 0.2s; }
+        .frame-thumb:hover .frame-actions { opacity: 1; }
+        
         .no-select { user-select: none; -webkit-user-select: none; }
         .loader { border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #3b82f6; border-radius: 50%; width: 24px; height: 24px; animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -492,7 +496,44 @@
             addFrame() { const d=(this.frameDelays.length>0 && this.frameDelays[this.currentFrameIndex]!==undefined)?this.frameDelays[this.currentFrameIndex]:1.0; const snap=this.figures.map(f=>f.clone()); if(this.frames.length===0){ this.frames.push(snap); this.frameDelays.push(d); this.currentFrameIndex=0; } else { this.frames.splice(this.currentFrameIndex+1,0,snap); this.frameDelays.splice(this.currentFrameIndex+1,0,d); this.currentFrameIndex++; } this.updateTimeline(); this.render(); this.scrollToFrame(this.currentFrameIndex); },
             duplicateCurrentFrame() { if(this.frames.length===0) return; this.duplicateFrameAtIndex(this.currentFrameIndex); },
             duplicateFrameAtIndex(idx) { if(idx<0||idx>=this.frames.length) return; this.saveState(); const src=this.frames[idx]; const newF=src.map(f=>f.clone()); const d=this.frameDelays[idx]; this.frames.splice(idx+1,0,newF); this.frameDelays.splice(idx+1,0,d); this.currentFrameIndex=idx+1; this.loadFrame(this.currentFrameIndex); this.updateTimeline(); },
-            deleteFrame() { if(this.frames.length===0) return; this.saveState(); this.frames.splice(this.currentFrameIndex,1); this.frameDelays.splice(this.currentFrameIndex,1); if(this.frames.length===0) { this.currentFrameIndex=0; this.figures=[]; this.addFigure(); this.render(); } else { if(this.currentFrameIndex>=this.frames.length) this.currentFrameIndex=this.frames.length-1; this.loadFrame(this.currentFrameIndex); } this.updateTimeline(); },
+            
+            // --- FIX START: New deleteFrameAtIndex logic ---
+            deleteFrameAtIndex(idx) {
+                if(this.frames.length === 0) return;
+                this.saveState();
+                
+                // If it's the only frame, just reset essentially
+                if (this.frames.length === 1) {
+                    this.newProject(); 
+                    return;
+                }
+
+                this.frames.splice(idx, 1);
+                this.frameDelays.splice(idx, 1);
+
+                // Smartly adjust currentFrameIndex
+                if (this.currentFrameIndex === idx) {
+                    // We deleted the frame we were looking at.
+                    // If we deleted the last frame, step back one.
+                    if (this.currentFrameIndex >= this.frames.length) {
+                        this.currentFrameIndex = this.frames.length - 1;
+                    }
+                } else if (this.currentFrameIndex > idx) {
+                    // We deleted a frame BEFORE the current one, so our index shifts left
+                    this.currentFrameIndex--;
+                }
+                
+                this.loadFrame(this.currentFrameIndex);
+                this.updateTimeline();
+            },
+
+            // Updated main deleteFrame to use the indexed version on the current selection
+            deleteFrame() { 
+                if(this.frames.length===0) return; 
+                this.deleteFrameAtIndex(this.currentFrameIndex);
+            },
+            // --- FIX END ---
+
             saveFrame(isInit=false) { if(this.frames.length===0 && !isInit) return; const snap=this.figures.map(f=>f.clone()); if(isInit){ this.frames=[snap]; this.frameDelays=[1.0]; } else this.frames[this.currentFrameIndex]=snap; },
             loadFrame(idx, autoSave=true) { if(this.frames.length===0) return; if(autoSave && this.frames[this.currentFrameIndex]) this.frames[this.currentFrameIndex]=this.figures.map(f=>f.clone()); this.currentFrameIndex=idx; this.figures=this.frames[idx].map(f=>f.clone()); const d=this.frameDelays[idx]||1.0; document.getElementById('frame-duration').value=d; document.getElementById('duration-display').innerText=d.toFixed(1)+'x'; this.render(); this.updateTimelineUiState(); },
             play() { if(this.isPlaying||this.frames.length===0) return; this.saveFrame(); this.isPlaying=true; document.getElementById('btn-play-btm').classList.add('hidden'); document.getElementById('btn-stop-btm').classList.remove('hidden'); this.lastTime=performance.now(); this.playbackAccumulator=0; if(this.currentFrameIndex>=this.frames.length-1) this.currentFrameIndex=0; requestAnimationFrame((t)=>this.playTick(t)); },
@@ -586,7 +627,94 @@
             handleDragStart(e, idx) { this.draggedFrameIndex = idx; e.dataTransfer.effectAllowed = 'move'; },
             handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; },
             handleDrop(e, targetIdx) { e.preventDefault(); const fromIdx = this.draggedFrameIndex; if (fromIdx === targetIdx) return; this.saveState(); const movingFrame = this.frames[fromIdx]; const movingDelay = this.frameDelays[fromIdx]; this.frames.splice(fromIdx, 1); this.frameDelays.splice(fromIdx, 1); this.frames.splice(targetIdx, 0, movingFrame); this.frameDelays.splice(targetIdx, 0, movingDelay); if (this.currentFrameIndex === fromIdx) this.currentFrameIndex = targetIdx; else if (this.currentFrameIndex > fromIdx && this.currentFrameIndex <= targetIdx) this.currentFrameIndex--; else if (this.currentFrameIndex < fromIdx && this.currentFrameIndex >= targetIdx) this.currentFrameIndex++; this.updateTimeline(); this.loadFrame(this.currentFrameIndex); },
-            updateTimeline() { const container = document.getElementById('timeline-track'); container.innerHTML = ''; this.frames.forEach((frame, idx) => { const wrapper = document.createElement('div'); wrapper.className = `frame-thumb relative min-w-[80px] h-[64px] bg-gray-100 dark:bg-zinc-800 rounded-md border-2 cursor-pointer hover:border-gray-400 dark:hover:border-zinc-500 overflow-hidden shrink-0 ${idx === this.currentFrameIndex ? 'active border-blue-500' : 'border-gray-300 dark:border-zinc-700'}`; wrapper.onclick = () => this.loadFrame(idx); wrapper.draggable = true; wrapper.ondragstart = (e) => app.handleDragStart(e, idx); wrapper.ondragover = (e) => app.handleDragOver(e); wrapper.ondrop = (e) => app.handleDrop(e, idx); const delay = this.frameDelays[idx] || 1.0; const badge = document.createElement('div'); badge.innerText = delay.toFixed(1) + 'x'; badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${delay > 1.0 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-700 dark:bg-zinc-700 dark:text-zinc-400'}`; wrapper.appendChild(badge); const barContainer = document.createElement('div'); barContainer.className = 'absolute bottom-0 left-0 right-0 h-1.5 bg-gray-200 dark:bg-zinc-900 mt-px'; const barFill = document.createElement('div'); let widthPct = (delay / 10.0) * 100; widthPct = Math.max(5, widthPct); barFill.style.width = widthPct + '%'; barFill.className = `h-full ${delay > 1.0 ? 'bg-blue-500' : 'bg-gray-400 dark:bg-zinc-600'}`; barContainer.appendChild(barFill); wrapper.appendChild(barContainer); const cv = document.createElement('canvas'); cv.width = 80; cv.height = 56; const ctx = cv.getContext('2d'); const sc = Math.min(80/this.canvas.width, 56/this.canvas.height); ctx.scale(sc, sc); frame.forEach(fig => { fig.updatePositions(); ctx.strokeStyle = fig.color; ctx.fillStyle = fig.color; ctx.lineWidth = 14 * fig.scale; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; fig.joints.forEach(j => { if (!j.parentId) return; const p = fig.joints.find(x => x.id === j.parentId); if (!p) return; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(j.x, j.y); ctx.stroke(); if(j.type === SEGMENT_CIRCLE) { ctx.beginPath(); ctx.arc(j.x, j.y, j.radius*fig.scale, 0, Math.PI*2); if(j.filled!==false) ctx.fill(); else ctx.stroke(); } }); }); wrapper.appendChild(cv); const n = document.createElement('span'); n.className = "absolute bottom-2 left-1 text-[8px] font-bold text-gray-500 dark:text-zinc-500"; n.innerText = idx + 1; wrapper.appendChild(n); container.appendChild(wrapper); }); this.updateTimelineUiState(); },
+            updateTimeline() { 
+                const container = document.getElementById('timeline-track'); 
+                container.innerHTML = ''; 
+                this.frames.forEach((frame, idx) => { 
+                    const wrapper = document.createElement('div'); 
+                    wrapper.className = `frame-thumb relative min-w-[80px] h-[64px] bg-gray-100 dark:bg-zinc-800 rounded-md border-2 cursor-pointer hover:border-gray-400 dark:hover:border-zinc-500 overflow-hidden shrink-0 group ${idx === this.currentFrameIndex ? 'active border-blue-500' : 'border-gray-300 dark:border-zinc-700'}`; 
+                    wrapper.onclick = () => this.loadFrame(idx); 
+                    wrapper.draggable = true; 
+                    wrapper.ondragstart = (e) => app.handleDragStart(e, idx); 
+                    wrapper.ondragover = (e) => app.handleDragOver(e); 
+                    wrapper.ondrop = (e) => app.handleDrop(e, idx); 
+                    
+                    const delay = this.frameDelays[idx] || 1.0; 
+                    const badge = document.createElement('div'); 
+                    badge.innerText = delay.toFixed(1) + 'x'; 
+                    badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${delay > 1.0 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-700 dark:bg-zinc-700 dark:text-zinc-400'}`; 
+                    wrapper.appendChild(badge); 
+                    
+                    // --- NEW BUTTONS CONTAINER START ---
+                    const btnContainer = document.createElement('div');
+                    btnContainer.className = "frame-actions absolute top-1 right-1 flex space-x-1 z-20";
+                    
+                    // Duplicate Button
+                    const dupBtn = document.createElement('button');
+                    dupBtn.className = "p-1 rounded bg-gray-200 hover:bg-white text-gray-600 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-zinc-300 shadow-sm border border-black/10 dark:border-white/10";
+                    dupBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>`;
+                    dupBtn.title = "Duplicate";
+                    dupBtn.onclick = (e) => { e.stopPropagation(); app.duplicateFrameAtIndex(idx); };
+                    btnContainer.appendChild(dupBtn);
+
+                    // Delete Button
+                    const delBtn = document.createElement('button');
+                    delBtn.className = "p-1 rounded bg-gray-200 hover:bg-red-500 hover:text-white text-gray-600 dark:bg-zinc-700 dark:hover:bg-red-500 dark:text-zinc-300 dark:hover:text-white shadow-sm border border-black/10 dark:border-white/10 transition-colors";
+                    delBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+                    delBtn.title = "Delete";
+                    delBtn.onclick = (e) => { e.stopPropagation(); app.deleteFrameAtIndex(idx); };
+                    btnContainer.appendChild(delBtn);
+
+                    wrapper.appendChild(btnContainer);
+                    // --- NEW BUTTONS CONTAINER END ---
+
+                    const barContainer = document.createElement('div'); 
+                    barContainer.className = 'absolute bottom-0 left-0 right-0 h-1.5 bg-gray-200 dark:bg-zinc-900 mt-px'; 
+                    const barFill = document.createElement('div'); 
+                    let widthPct = (delay / 10.0) * 100; 
+                    widthPct = Math.max(5, widthPct); 
+                    barFill.style.width = widthPct + '%'; 
+                    barFill.className = `h-full ${delay > 1.0 ? 'bg-blue-500' : 'bg-gray-400 dark:bg-zinc-600'}`; 
+                    barContainer.appendChild(barFill); 
+                    wrapper.appendChild(barContainer); 
+                    
+                    const cv = document.createElement('canvas'); 
+                    cv.width = 80; 
+                    cv.height = 56; 
+                    const ctx = cv.getContext('2d'); 
+                    const sc = Math.min(80/this.canvas.width, 56/this.canvas.height); 
+                    ctx.scale(sc, sc); 
+                    frame.forEach(fig => { 
+                        fig.updatePositions(); 
+                        ctx.strokeStyle = fig.color; 
+                        ctx.fillStyle = fig.color; 
+                        ctx.lineWidth = 14 * fig.scale; 
+                        ctx.lineCap = 'round'; 
+                        ctx.lineJoin = 'round'; 
+                        fig.joints.forEach(j => { 
+                            if (!j.parentId) return; 
+                            const p = fig.joints.find(x => x.id === j.parentId); 
+                            if (!p) return; 
+                            ctx.beginPath(); 
+                            ctx.moveTo(p.x, p.y); 
+                            ctx.lineTo(j.x, j.y); 
+                            ctx.stroke(); 
+                            if(j.type === SEGMENT_CIRCLE) { 
+                                ctx.beginPath(); 
+                                ctx.arc(j.x, j.y, j.radius*fig.scale, 0, Math.PI*2); 
+                                if(j.filled!==false) ctx.fill(); else ctx.stroke(); 
+                            } 
+                        }); 
+                    }); 
+                    wrapper.appendChild(cv); 
+                    const n = document.createElement('span'); 
+                    n.className = "absolute bottom-2 left-1 text-[8px] font-bold text-gray-500 dark:text-zinc-500"; 
+                    n.innerText = idx + 1; 
+                    wrapper.appendChild(n); 
+                    container.appendChild(wrapper); 
+                }); 
+                this.updateTimelineUiState(); 
+            },
             updateTimelineUiState() { document.getElementById('frame-counter').innerText = `${this.currentFrameIndex + 1} / ${this.frames.length}`; const thumbs = document.querySelectorAll('.frame-thumb'); thumbs.forEach((t, i) => { if (i === this.currentFrameIndex) { t.classList.add('active', 'border-blue-500'); t.classList.remove('border-gray-300', 'dark:border-zinc-700'); } else { t.classList.remove('active', 'border-blue-500'); t.classList.add('border-gray-300', 'dark:border-zinc-700'); } }); },
             scrollToFrame(index) { const thumbs = document.querySelectorAll('.frame-thumb'); if (thumbs[index]) thumbs[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); },
         };
