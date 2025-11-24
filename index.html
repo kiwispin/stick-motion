@@ -128,6 +128,14 @@
                         <button onclick="app.scaleFigure(0.9)" class="flex items-center justify-center px-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded text-xs transition border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600">Scale -</button>
                     </div>
 
+                    <!-- New Rotation Controls -->
+                    <div class="flex items-center space-x-1 bg-gray-100 dark:bg-zinc-800 p-1 rounded border border-gray-200 dark:border-zinc-700">
+                        <button onclick="app.rotateSelectedFigure(-Math.PI/2)" class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition" title="Rotate Left 90°">↺ 90°</button>
+                        <button onclick="app.rotateSelectedFigure(-Math.PI/12)" class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition" title="Rotate Left 15°">↺ 15°</button>
+                        <button onclick="app.rotateSelectedFigure(Math.PI/12)" class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition" title="Rotate Right 15°">15° ↻</button>
+                        <button onclick="app.rotateSelectedFigure(Math.PI/2)" class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition" title="Rotate Right 90°">90° ↻</button>
+                    </div>
+
                     <div class="flex items-center space-x-2">
                         <div class="relative flex-1 group">
                             <input type="color" id="color-picker" class="absolute opacity-0 w-full h-full cursor-pointer" onchange="app.setFigureColor(this.value)">
@@ -549,6 +557,7 @@
             flipFigure() { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.joints.forEach(j=>{ if(j.parentId!==null) j.angle=Math.PI-j.angle; }); this.render(); },
             centerFigure() { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.x=this.canvas.width/2; fig.y=this.canvas.height/2; this.render(); },
             scaleFigure(f) { const fig=this.figures.find(fig=>fig.selected); if(!fig) return; this.saveState(); fig.scale*=f; this.render(); },
+            rotateSelectedFigure(delta) { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.joints.forEach(j=>{ if(j.parentId!==null) j.angle += delta; }); this.render(); },
             setFigureColor(hex) { const fig=this.figures.find(f=>f.selected); if(!fig) return; this.saveState(); fig.color=hex; document.getElementById('color-preview').style.backgroundColor=hex; this.render(); },
             render() { this.ctx.fillStyle="#ffffff"; this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height); if(this.bgImage) this.ctx.drawImage(this.bgImage,0,0,this.canvas.width,this.canvas.height); this.showOnion=document.getElementById('onion-check').checked; if(this.showOnion && !this.isPlaying && this.frames.length>0) { let pF=null; if(this.currentFrameIndex===this.frames.length-1) pF=this.frames[this.currentFrameIndex]; else if(this.currentFrameIndex>0) pF=this.frames[this.currentFrameIndex-1]; if(pF) { this.ctx.globalAlpha=0.3; pF.forEach(f=>{ f.updatePositions(); this.drawFigure(f,false); }); this.ctx.globalAlpha=1.0; } } this.figures.forEach(f=>{ f.updatePositions(); this.drawFigure(f, !this.isPlaying); }); },
             drawFigure(fig, showHandles) {
