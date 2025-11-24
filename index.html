@@ -497,12 +497,10 @@
             duplicateCurrentFrame() { if(this.frames.length===0) return; this.duplicateFrameAtIndex(this.currentFrameIndex); },
             duplicateFrameAtIndex(idx) { if(idx<0||idx>=this.frames.length) return; this.saveState(); const src=this.frames[idx]; const newF=src.map(f=>f.clone()); const d=this.frameDelays[idx]; this.frames.splice(idx+1,0,newF); this.frameDelays.splice(idx+1,0,d); this.currentFrameIndex=idx+1; this.loadFrame(this.currentFrameIndex); this.updateTimeline(); },
             
-            // --- FIX START: New deleteFrameAtIndex logic ---
             deleteFrameAtIndex(idx) {
                 if(this.frames.length === 0) return;
                 this.saveState();
                 
-                // If it's the only frame, just reset essentially
                 if (this.frames.length === 1) {
                     this.newProject(); 
                     return;
@@ -511,28 +509,23 @@
                 this.frames.splice(idx, 1);
                 this.frameDelays.splice(idx, 1);
 
-                // Smartly adjust currentFrameIndex
                 if (this.currentFrameIndex === idx) {
-                    // We deleted the frame we were looking at.
-                    // If we deleted the last frame, step back one.
                     if (this.currentFrameIndex >= this.frames.length) {
                         this.currentFrameIndex = this.frames.length - 1;
                     }
                 } else if (this.currentFrameIndex > idx) {
-                    // We deleted a frame BEFORE the current one, so our index shifts left
                     this.currentFrameIndex--;
                 }
                 
-                this.loadFrame(this.currentFrameIndex);
+                // Pass false to prevent overwriting the new current frame with the deleted frame's canvas data
+                this.loadFrame(this.currentFrameIndex, false);
                 this.updateTimeline();
             },
 
-            // Updated main deleteFrame to use the indexed version on the current selection
             deleteFrame() { 
                 if(this.frames.length===0) return; 
                 this.deleteFrameAtIndex(this.currentFrameIndex);
             },
-            // --- FIX END ---
 
             saveFrame(isInit=false) { if(this.frames.length===0 && !isInit) return; const snap=this.figures.map(f=>f.clone()); if(isInit){ this.frames=[snap]; this.frameDelays=[1.0]; } else this.frames[this.currentFrameIndex]=snap; },
             loadFrame(idx, autoSave=true) { if(this.frames.length===0) return; if(autoSave && this.frames[this.currentFrameIndex]) this.frames[this.currentFrameIndex]=this.figures.map(f=>f.clone()); this.currentFrameIndex=idx; this.figures=this.frames[idx].map(f=>f.clone()); const d=this.frameDelays[idx]||1.0; document.getElementById('frame-duration').value=d; document.getElementById('duration-display').innerText=d.toFixed(1)+'x'; this.render(); this.updateTimelineUiState(); },
