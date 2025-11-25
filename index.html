@@ -40,7 +40,17 @@
         .dark .timeline-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
         .timeline-scroll::-webkit-scrollbar-thumb { background: #a1a1aa; border-radius: 6px; border: 3px solid transparent; background-clip: content-box; }
         .dark .timeline-scroll::-webkit-scrollbar-thumb { background: #52525b; }
-        canvas { background-color: #ffffff; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); cursor: crosshair; touch-action: none; }
+        
+        /* Allow canvas to overflow container when zoomed */
+        #canvas-wrapper { overflow: auto; }
+        canvas { 
+            background-color: #ffffff; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+            cursor: crosshair; 
+            touch-action: none; 
+            transform-origin: top left; /* Ensure scaling feels natural if we used transform, but we use width/height */
+        }
+        
         .frame-thumb { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .frame-thumb.active { ring-width: 2px; --tw-ring-color: #3b82f6; transform: translateY(-2px); }
         /* Show buttons on hover */
@@ -76,6 +86,13 @@
         </div>
 
         <div class="flex items-center space-x-3 shrink-0 ml-4">
+            <!-- Zoom Control -->
+            <div class="flex items-center space-x-2 bg-gray-100 dark:bg-zinc-800 rounded-full px-2 py-1 border border-gray-200 dark:border-zinc-700">
+                <button onclick="app.changeZoom(-0.1)" class="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 font-bold text-sm">-</button>
+                <span id="zoom-display" class="text-xs font-mono w-10 text-center text-gray-700 dark:text-zinc-300">100%</span>
+                <button onclick="app.changeZoom(0.1)" class="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 font-bold text-sm">+</button>
+            </div>
+
             <button onclick="app.toggleTheme()" class="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400 dark:text-zinc-400 transition" title="Toggle Dark Mode">
                 <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                 <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
@@ -479,6 +496,9 @@
         const app = {
             canvas: document.getElementById('main-canvas'), ctx: document.getElementById('main-canvas').getContext('2d'), frames: [], frameDelays: [], currentFrameIndex: 0, figures: [], bgImage: null, fps: 12, isPlaying: false, lastTime: 0, playbackAccumulator: 0, isLooping: true, isSmooth: true, showOnion: true, dragTarget: null, mouseX: 0, mouseY: 0, draggedFrameIndex: null, handleRadius: 4, pendingAction: null, undoStack: [], redoStack: [],
             
+            // --- ZOOM STATE ---
+            zoomLevel: 1.0,
+
             toggleTheme() { const root = document.getElementById('html-root'); root.classList.toggle('dark'); },
 
             init() {
@@ -508,10 +528,30 @@
                 });
                 this.toggleLoop(true); this.toggleSmooth(true); 
                 
+                // Set Initial Zoom Display
+                this.updateZoomDisplay();
+
                 // Initial render call if loadFromLocal didn't trigger one
                 if (this.frames.length === 0) this.render();
             },
             
+            // --- ZOOM LOGIC START ---
+            changeZoom(delta) {
+                this.zoomLevel += delta;
+                // Clamp zoom level
+                if (this.zoomLevel < 0.1) this.zoomLevel = 0.1;
+                if (this.zoomLevel > 5.0) this.zoomLevel = 5.0;
+                
+                this.updateZoomDisplay();
+                this.setCanvasSize(); // Re-apply styles
+            },
+
+            updateZoomDisplay() {
+                const pct = Math.round(this.zoomLevel * 100);
+                document.getElementById('zoom-display').innerText = `${pct}%`;
+            },
+            // --- ZOOM LOGIC END ---
+
             // --- PERSISTENCE LOGIC START ---
             saveLocal() {
                 const d = {
@@ -723,26 +763,23 @@
                 }
             },
             
-            setFrameDuration(val) { const d = parseFloat(val); document.getElementById('duration-display').innerText = d.toFixed(1)+'x'; if(this.frameDelays[this.currentFrameIndex]!==undefined) { this.frameDelays[this.currentFrameIndex] = d; const container = document.getElementById('timeline-track'); if(container && container.children[this.currentFrameIndex]) { const wrapper = container.children[this.currentFrameIndex]; const badge = wrapper.querySelector('.absolute.top-0.left-0'); if(badge) { badge.innerText = d.toFixed(1)+'x'; badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${d>1.0?'bg-blue-600 text-white':'bg-zinc-700 text-zinc-400'}`; } const barFill = wrapper.querySelector('.absolute.bottom-0 div'); if(barFill) { let w = (d/10.0)*100; w=Math.max(5,w); barFill.style.width=w+'%'; barFill.className=`h-full ${d>1.0?'bg-blue-500':'bg-zinc-600'}`; } } this.saveLocal(); } },
-            moveFrame(direction) {
-                if (this.frames.length < 2) return;
-                const newIndex = this.currentFrameIndex + direction;
-                if (newIndex < 0 || newIndex >= this.frames.length) return;
-                this.saveState();
-                const tempFrame = this.frames[this.currentFrameIndex]; this.frames[this.currentFrameIndex] = this.frames[newIndex]; this.frames[newIndex] = tempFrame;
-                const tempDelay = this.frameDelays[this.currentFrameIndex]; this.frameDelays[this.currentFrameIndex] = this.frameDelays[newIndex]; this.frameDelays[newIndex] = tempDelay;
-                this.currentFrameIndex = newIndex; this.updateTimeline(); this.loadFrame(this.currentFrameIndex); this.scrollToFrame(this.currentFrameIndex);
-                this.saveLocal();
+            // --- UPDATED: setCanvasSize to respect zoom ---
+            setCanvasSize() { 
+                const w = parseInt(document.getElementById('canvas-w').value) || 800; 
+                const h = parseInt(document.getElementById('canvas-h').value) || 500; 
+                this.canvas.width = w; 
+                this.canvas.height = h; 
+                
+                // Apply zoom scaling to CSS dimensions
+                this.canvas.style.width = (w * this.zoomLevel) + 'px';
+                this.canvas.style.height = (h * this.zoomLevel) + 'px';
+                this.canvas.style.maxWidth = 'none'; // Allow overflow for zooming in
+                
+                this.render(); 
+                this.saveLocal(); 
             },
-            toggleLoop(fs) { if(fs!==undefined) this.isLooping=fs; else this.isLooping=!this.isLooping; const btn = document.getElementById('btn-loop-btm'); if(this.isLooping) { btn.className = "text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium"; } else { btn.className = "text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium"; } },
-            toggleSmooth(fs) { if(fs!==undefined) this.isSmooth=fs; else this.isSmooth=!this.isSmooth; const btn = document.getElementById('btn-smooth-btm'); if(this.isSmooth) { btn.className = "text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium"; } else { btn.className = "text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium"; } },
-            showModal(t, m, a) { document.getElementById('confirm-title').innerText=t; document.getElementById('confirm-msg').innerText=m; this.pendingAction=a; document.getElementById('confirm-modal').classList.remove('hidden'); },
-            closeModal() { document.getElementById('confirm-modal').classList.add('hidden'); this.pendingAction=null; },
-            executeConfirm() { if(this.pendingAction) this.pendingAction(); this.closeModal(); },
-            confirmClearStage() { this.showModal("Clear Stage?", "Remove all figures?", ()=>{ this.saveState(); this.figures=[]; this.render(); this.saveLocal(); }); },
-            confirmNewProject() { this.showModal("New Project?", "Discard animation?", ()=>{ this.saveState(); this.newProject(); }); },
-            newProject() { this.stop(); this.frames=[]; this.frameDelays=[]; this.figures=[]; this.currentFrameIndex=0; this.bgImage=null; this.undoStack=[]; this.redoStack=[]; document.getElementById('canvas-w').value=800; document.getElementById('canvas-h').value=500; this.setCanvasSize(); this.addFigure(); this.render(); this.updateTimeline(); this.saveLocal(); },
-            setCanvasSize() { const w=parseInt(document.getElementById('canvas-w').value)||800; const h=parseInt(document.getElementById('canvas-h').value)||500; this.canvas.width=w; this.canvas.height=h; this.render(); this.saveLocal(); },
+            // --- END UPDATE ---
+
             loadBackground(i) { if(i.files&&i.files[0]) { const r=new FileReader(); r.onload=(e)=>{ const img=new Image(); img.onload=()=>{this.bgImage=img; this.render();}; img.src=e.target.result; }; r.readAsDataURL(i.files[0]); } },
             saveProject() { const d={version:2, width:this.canvas.width, height:this.canvas.height, fps:this.fps, frames:this.frames, delays:this.frameDelays}; const b=new Blob([JSON.stringify(d)], {type:'application/json'}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download='project.json'; a.click(); },
             loadProject(i) { if(i.files&&i.files[0]) { this.stop(); this.saveState(); const r=new FileReader(); r.onload=(e)=>{ try{ const d=JSON.parse(e.target.result); if(d.width){document.getElementById('canvas-w').value=d.width; document.getElementById('canvas-h').value=d.height; this.setCanvasSize();} if(d.fps){this.updateFps(d.fps); document.getElementById('fps-display').innerText=d.fps;} this.frames=d.frames.map(fd=>fd.map(figd=>{ const fig=new Figure(); Object.assign(fig,figd); fig.joints=figd.joints.map(jd=>{ const j=new Joint(); Object.assign(j,jd); return j; }); return fig; })); if(d.delays) this.frameDelays=d.delays; else this.frameDelays=new Array(this.frames.length).fill(1.0); this.currentFrameIndex=0; this.loadFrame(0); this.updateTimeline(); this.undoStack=[]; this.redoStack=[]; this.saveLocal(); }catch(err){alert("Error: "+err);} }; r.readAsText(i.files[0]); } },
