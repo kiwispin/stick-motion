@@ -48,7 +48,7 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
             cursor: crosshair; 
             touch-action: none; 
-            transform-origin: top left; /* Ensure scaling feels natural if we used transform, but we use width/height */
+            transform-origin: top left; 
         }
         
         .frame-thumb { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
@@ -494,11 +494,31 @@
         };
 
         const app = {
-            canvas: document.getElementById('main-canvas'), ctx: document.getElementById('main-canvas').getContext('2d'), frames: [], frameDelays: [], currentFrameIndex: 0, figures: [], bgImage: null, fps: 12, isPlaying: false, lastTime: 0, playbackAccumulator: 0, isLooping: true, isSmooth: true, showOnion: true, dragTarget: null, mouseX: 0, mouseY: 0, draggedFrameIndex: null, handleRadius: 4, pendingAction: null, undoStack: [], redoStack: [],
-            
-            // --- ZOOM STATE ---
+            // State
             zoomLevel: 1.0,
-
+            canvas: document.getElementById('main-canvas'), 
+            ctx: document.getElementById('main-canvas').getContext('2d'), 
+            frames: [], 
+            frameDelays: [], 
+            currentFrameIndex: 0, 
+            figures: [], 
+            bgImage: null, 
+            fps: 12, 
+            isPlaying: false, 
+            lastTime: 0, 
+            playbackAccumulator: 0, 
+            isLooping: true, 
+            isSmooth: true, 
+            showOnion: true, 
+            dragTarget: null, 
+            mouseX: 0, 
+            mouseY: 0, 
+            draggedFrameIndex: null, 
+            handleRadius: 4, 
+            pendingAction: null, 
+            undoStack: [], 
+            redoStack: [],
+            
             toggleTheme() { const root = document.getElementById('html-root'); root.classList.toggle('dark'); },
 
             init() {
@@ -526,7 +546,6 @@
                     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); if (e.shiftKey) this.redo(); else this.undo(); }
                     if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); this.redo(); }
                 });
-                this.toggleLoop(true); this.toggleSmooth(true); 
                 
                 // Set Initial Zoom Display
                 this.updateZoomDisplay();
@@ -534,7 +553,36 @@
                 // Initial render call if loadFromLocal didn't trigger one
                 if (this.frames.length === 0) this.render();
             },
+
+            // --- CORE UTILS & MODALS (Moved Up for Safety) ---
+            toggleLoop(fs) { if(fs!==undefined) this.isLooping=fs; else this.isLooping=!this.isLooping; const btn = document.getElementById('btn-loop-btm'); if(this.isLooping) { btn.className = "text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium"; } else { btn.className = "text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium"; } },
+            toggleSmooth(fs) { if(fs!==undefined) this.isSmooth=fs; else this.isSmooth=!this.isSmooth; const btn = document.getElementById('btn-smooth-btm'); if(this.isSmooth) { btn.className = "text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium"; } else { btn.className = "text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium"; } },
             
+            showModal(t, m, a) { document.getElementById('confirm-title').innerText=t; document.getElementById('confirm-msg').innerText=m; this.pendingAction=a; document.getElementById('confirm-modal').classList.remove('hidden'); },
+            closeModal() { document.getElementById('confirm-modal').classList.add('hidden'); this.pendingAction=null; },
+            executeConfirm() { if(this.pendingAction) this.pendingAction(); this.closeModal(); },
+            
+            confirmClearStage() { this.showModal("Clear Stage?", "Remove all figures?", ()=>{ this.saveState(); this.figures=[]; this.render(); this.saveLocal(); }); },
+            confirmNewProject() { this.showModal("New Project?", "Discard animation?", ()=>{ this.saveState(); this.newProject(); }); },
+            
+            newProject() { 
+                this.stop(); 
+                this.frames=[]; 
+                this.frameDelays=[]; 
+                this.figures=[]; 
+                this.currentFrameIndex=0; 
+                this.bgImage=null; 
+                this.undoStack=[]; 
+                this.redoStack=[]; 
+                document.getElementById('canvas-w').value=800; 
+                document.getElementById('canvas-h').value=500; 
+                this.setCanvasSize(); 
+                this.addFigure(); 
+                this.render(); 
+                this.updateTimeline(); 
+                this.saveLocal(); 
+            },
+
             // --- ZOOM LOGIC START ---
             changeZoom(delta) {
                 this.zoomLevel += delta;
