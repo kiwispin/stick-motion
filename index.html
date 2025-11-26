@@ -811,6 +811,33 @@
                 }
             },
             
+            // --- RESTORED FUNCTION ---
+            setFrameDuration(val) { 
+                const d = parseFloat(val); 
+                document.getElementById('duration-display').innerText = d.toFixed(1)+'x'; 
+                if(this.frameDelays[this.currentFrameIndex]!==undefined) { 
+                    this.frameDelays[this.currentFrameIndex] = d; 
+                    const container = document.getElementById('timeline-track'); 
+                    if(container && container.children[this.currentFrameIndex]) { 
+                        const wrapper = container.children[this.currentFrameIndex]; 
+                        const badge = wrapper.querySelector('.absolute.top-0.left-0'); 
+                        if(badge) { 
+                            badge.innerText = d.toFixed(1)+'x'; 
+                            badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${d>1.0?'bg-blue-600 text-white':'bg-zinc-700 text-zinc-400'}`; 
+                        } 
+                        const barFill = wrapper.querySelector('.absolute.bottom-0 div'); 
+                        if(barFill) { 
+                            let w = (d/10.0)*100; 
+                            w=Math.max(5,w); 
+                            barFill.style.width=w+'%'; 
+                            barFill.className=`h-full ${d>1.0?'bg-blue-500':'bg-zinc-600'}`; 
+                        } 
+                    } 
+                    this.saveLocal(); 
+                } 
+            },
+            // -------------------------
+
             // --- UPDATED: setCanvasSize to respect zoom ---
             setCanvasSize() { 
                 const w = parseInt(document.getElementById('canvas-w').value) || 800; 
