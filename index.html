@@ -208,6 +208,20 @@
                     class="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-blue-600 dark:text-zinc-400 dark:hover:text-blue-400 font-bold text-sm">+</button>
             </div>
 
+            <!-- Settings Button -->
+            <button onclick="app.openSettings()"
+                class="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400 dark:text-zinc-400 transition"
+                title="Settings">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                    </path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z">
+                    </path>
+                </svg>
+            </button>
+
             <button onclick="app.toggleTheme()"
                 class="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-zinc-800 text-gray-400 dark:text-zinc-400 transition"
                 title="Toggle Dark Mode">
@@ -239,338 +253,311 @@
     </div>
 
     <!-- Main Workspace -->
-    <div class="flex-1 bg-gray-100 dark:bg-zinc-950 flex relative overflow-hidden transition-colors duration-300">
+    <div
+        class="flex-1 bg-gray-100 dark:bg-zinc-950 flex flex-col relative overflow-hidden transition-colors duration-300">
 
-        <!-- Left Sidebar: Tools & Inspector -->
-        <div
-            class="w-64 sm:w-72 bg-white/80 dark:bg-zinc-900/50 border-r border-gray-200 dark:border-zinc-800 flex flex-col shrink-0 z-10 backdrop-blur-sm overflow-y-auto transition-colors duration-300">
+        <!-- Top Section: Sidebar + Canvas -->
+        <div class="flex-1 flex relative overflow-hidden min-h-0">
+            <!-- Left Sidebar: Tools & Inspector -->
+            <div
+                class="w-64 sm:w-72 bg-white/80 dark:bg-zinc-900/50 border-r border-gray-200 dark:border-zinc-800 flex flex-col shrink-0 z-10 backdrop-blur-sm overflow-y-auto transition-colors duration-300">
 
-            <!-- Figures Section -->
-            <div class="p-4 border-b border-gray-200 dark:border-zinc-800">
-                <h3 class="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase tracking-wider mb-3">Figures
-                </h3>
+                <!-- Figures Section -->
+                <div class="p-4 border-b border-gray-200 dark:border-zinc-800">
+                    <h3 class="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase tracking-wider mb-3">Figures
+                    </h3>
 
-                <!-- Main Action Buttons: Grid Layout -->
-                <div class="grid grid-cols-2 gap-2 mb-4">
-                    <!-- 1. Stick -->
-                    <button onclick="app.addFigure()"
-                        class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-200 px-2 py-2 rounded border dark:border-blue-800/50 transition flex items-center justify-center font-medium">
-                        <span class="mr-1 text-lg leading-none align-middle">+</span> Stick
-                    </button>
+                    <!-- Main Action Buttons: Grid Layout -->
+                    <div class="grid grid-cols-2 gap-2 mb-4">
+                        <!-- 1. Stick -->
+                        <button onclick="app.addFigure()"
+                            class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-200 px-2 py-2 rounded border dark:border-blue-800/50 transition flex items-center justify-center font-medium">
+                            <span class="mr-1 text-lg leading-none align-middle">+</span> Stick
+                        </button>
 
-                    <!-- 2. Models -->
-                    <button onclick="app.openLibrary()"
-                        class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-200 px-2 py-2 rounded border dark:border-purple-800/50 transition flex items-center justify-center font-medium"
-                        title="Library">
-                        <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
-                            </path>
-                        </svg>Models
-                    </button>
+                        <!-- 2. Models -->
+                        <button onclick="app.openLibrary()"
+                            class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-200 px-2 py-2 rounded border dark:border-purple-800/50 transition flex items-center justify-center font-medium"
+                            title="Library">
+                            <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z">
+                                </path>
+                            </svg>Models
+                        </button>
 
-                    <!-- 3. Create -->
-                    <button onclick="app.openBuilder()"
-                        class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-200 px-2 py-2 rounded border border-gray-300 dark:border-zinc-700 transition flex items-center justify-center font-medium"
-                        title="Open Figure Designer">
-                        <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4">
-                            </path>
-                        </svg>Create
-                    </button>
+                        <!-- 3. Create -->
+                        <button onclick="app.openBuilder()"
+                            class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-200 px-2 py-2 rounded border border-gray-300 dark:border-zinc-700 transition flex items-center justify-center font-medium"
+                            title="Open Figure Designer">
+                            <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4">
+                                </path>
+                            </svg>Create
+                        </button>
 
-                    <!-- 4. Text -->
-                    <button onclick="app.addText()"
-                        class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-200 px-2 py-2 rounded border border-gray-300 dark:border-zinc-700 transition flex items-center justify-center font-medium"
-                        title="Add Text">
-                        <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
-                            </path>
-                        </svg>Text
-                    </button>
-                </div>
-
-                <div id="text-editor-panel"
-                    class="hidden mb-4 bg-gray-50 dark:bg-zinc-900/50 p-3 rounded border border-gray-200 dark:border-zinc-700">
-                    <label
-                        class="text-[10px] font-bold text-gray-500 dark:text-zinc-500 uppercase tracking-wider mb-1 block">Edit
-                        Text</label>
-                    <textarea id="text-figure-input" rows="2"
-                        class="w-full bg-white dark:bg-zinc-950 border border-gray-300 dark:border-zinc-700 rounded p-2 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
-                        oninput="app.updateText(this.value)"></textarea>
-                </div>
-
-                <div class="space-y-3">
-                    <div class="grid grid-cols-2 gap-2">
-                        <button onclick="app.flipFigure()"
-                            class="flex items-center justify-center px-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded text-xs transition border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600">Flip
-                            X</button>
-                        <button onclick="app.centerFigure()"
-                            class="flex items-center justify-center px-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded text-xs transition border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600">Center</button>
-                        <button onclick="app.scaleFigure(1.1)"
-                            class="flex items-center justify-center px-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded text-xs transition border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600">Scale
-                            +</button>
-                        <button onclick="app.scaleFigure(0.9)"
-                            class="flex items-center justify-center px-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded text-xs transition border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600">Scale
-                            -</button>
+                        <!-- 4. Text -->
+                        <button onclick="app.addText()"
+                            class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-200 px-2 py-2 rounded border border-gray-300 dark:border-zinc-700 transition flex items-center justify-center font-medium"
+                            title="Add Text">
+                            <svg class="w-3 h-3 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                                </path>
+                            </svg>Text
+                        </button>
                     </div>
 
-                    <!-- Rotation Controls -->
-                    <div
-                        class="flex items-center space-x-1 bg-gray-100 dark:bg-zinc-800 p-1 rounded border border-gray-200 dark:border-zinc-700">
-                        <button onclick="app.rotateSelectedFigure(-Math.PI/2)"
-                            class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition"
-                            title="Rotate Left 90°">↺ 90°</button>
-                        <button onclick="app.rotateSelectedFigure(-Math.PI/12)"
-                            class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition"
-                            title="Rotate Left 15°">↺ 15°</button>
-                        <button onclick="app.rotateSelectedFigure(Math.PI/12)"
-                            class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition"
-                            title="Rotate Right 15°">15° ↻</button>
-                        <button onclick="app.rotateSelectedFigure(Math.PI/2)"
-                            class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition"
-                            title="Rotate Right 90°">90° ↻</button>
+                    <div id="text-editor-panel"
+                        class="hidden mb-4 bg-gray-50 dark:bg-zinc-900/50 p-3 rounded border border-gray-200 dark:border-zinc-700">
+                        <label
+                            class="text-[10px] font-bold text-gray-500 dark:text-zinc-500 uppercase tracking-wider mb-1 block">Edit
+                            Text</label>
+                        <textarea id="text-figure-input" rows="2"
+                            class="w-full bg-white dark:bg-zinc-950 border border-gray-300 dark:border-zinc-700 rounded p-2 text-xs text-gray-900 dark:text-white focus:outline-none focus:border-blue-500"
+                            oninput="app.updateText(this.value)"></textarea>
                     </div>
 
-                    <div class="flex items-center space-x-2">
-                        <div class="relative flex-1 group">
-                            <input type="color" id="color-picker"
-                                class="absolute opacity-0 w-full h-full cursor-pointer"
-                                onchange="app.setFigureColor(this.value)">
-                            <div
-                                class="w-full h-8 bg-gray-100 dark:bg-zinc-800 rounded border border-gray-200 dark:border-zinc-700 flex items-center justify-center text-xs text-gray-600 dark:text-zinc-400 group-hover:bg-gray-200 dark:group-hover:bg-zinc-700 group-hover:border-gray-300 dark:group-hover:border-zinc-600 transition">
-                                <div id="color-preview"
-                                    class="w-4 h-4 rounded-full bg-black mr-2 border border-black/10 dark:border-white/10">
-                                </div>Color
-                            </div>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="app.flipFigure()"
+                                class="flex items-center justify-center px-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded text-xs transition border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600">Flip
+                                X</button>
+                            <button onclick="app.centerFigure()"
+                                class="flex items-center justify-center px-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded text-xs transition border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600">Center</button>
+                            <button onclick="app.scaleFigure(1.1)"
+                                class="flex items-center justify-center px-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded text-xs transition border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600">Scale
+                                +</button>
+                            <button onclick="app.scaleFigure(0.9)"
+                                class="flex items-center justify-center px-2 py-2 bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded text-xs transition border border-gray-200 dark:border-zinc-800 hover:border-gray-300 dark:hover:border-zinc-600">Scale
+                                -</button>
                         </div>
-                        <button onclick="app.raiseFigure()"
-                            class="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded border border-gray-200 dark:border-zinc-700 transition"
-                            title="Bring Forward">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7">
-                                </path>
-                            </svg>
-                        </button>
-                        <button onclick="app.lowerFigure()"
-                            class="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded border border-gray-200 dark:border-zinc-700 transition"
-                            title="Send Backward">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 9l-7 7-7-7"></path>
-                            </svg>
-                        </button>
-                        <button onclick="app.deleteSelectedFigure()"
-                            class="w-8 h-8 flex items-center justify-center bg-red-100 hover:bg-red-200 text-red-600 dark:bg-red-500/10 dark:hover:bg-red-500/20 dark:text-red-500 rounded border border-red-200 dark:border-red-500/20 transition"
-                            title="Delete Figure">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                                </path>
-                            </svg>
-                        </button>
+
+                        <!-- Rotation Controls -->
+                        <div
+                            class="flex items-center space-x-1 bg-gray-100 dark:bg-zinc-800 p-1 rounded border border-gray-200 dark:border-zinc-700">
+                            <button onclick="app.rotateSelectedFigure(-Math.PI/2)"
+                                class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition"
+                                title="Rotate Left 90°">↺ 90°</button>
+                            <button onclick="app.rotateSelectedFigure(-Math.PI/12)"
+                                class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition"
+                                title="Rotate Left 15°">↺ 15°</button>
+                            <button onclick="app.rotateSelectedFigure(Math.PI/12)"
+                                class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition"
+                                title="Rotate Right 15°">15° ↻</button>
+                            <button onclick="app.rotateSelectedFigure(Math.PI/2)"
+                                class="flex-1 py-1 hover:bg-white dark:hover:bg-zinc-600 rounded text-[10px] font-medium text-gray-600 dark:text-zinc-300 transition"
+                                title="Rotate Right 90°">90° ↻</button>
+                        </div>
+
+                        <div class="flex items-center space-x-2">
+                            <div class="relative flex-1 group">
+                                <input type="color" id="color-picker"
+                                    class="absolute opacity-0 w-full h-full cursor-pointer"
+                                    onchange="app.setFigureColor(this.value)">
+                                <div
+                                    class="w-full h-8 bg-gray-100 dark:bg-zinc-800 rounded border border-gray-200 dark:border-zinc-700 flex items-center justify-center text-xs text-gray-600 dark:text-zinc-400 group-hover:bg-gray-200 dark:group-hover:bg-zinc-700 group-hover:border-gray-300 dark:group-hover:border-zinc-600 transition">
+                                    <div id="color-preview"
+                                        class="w-4 h-4 rounded-full bg-black mr-2 border border-black/10 dark:border-white/10">
+                                    </div>Color
+                                </div>
+                            </div>
+                            <button onclick="app.raiseFigure()"
+                                class="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded border border-gray-200 dark:border-zinc-700 transition"
+                                title="Bring Forward">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 15l7-7 7 7">
+                                    </path>
+                                </svg>
+                            </button>
+                            <button onclick="app.lowerFigure()"
+                                class="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-400 dark:hover:text-white rounded border border-gray-200 dark:border-zinc-700 transition"
+                                title="Send Backward">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <button onclick="app.deleteSelectedFigure()"
+                                class="w-8 h-8 flex items-center justify-center bg-red-100 hover:bg-red-200 text-red-600 dark:bg-red-500/10 dark:hover:bg-red-500/20 dark:text-red-500 rounded border border-red-200 dark:border-red-500/20 transition"
+                                title="Delete Figure">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                    </path>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
+
+                <!-- Frame Settings -->
+                <div class="p-4 border-b border-gray-200 dark:border-zinc-800">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Frame
+                            Settings</h3>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="onion-check" checked class="accent-blue-500 mr-1.5"
+                                onchange="app.render()">
+                            <label for="onion-check"
+                                class="text-xs text-gray-600 dark:text-zinc-400 cursor-pointer select-none">Onion
+                                Skin</label>
+                        </div>
+                    </div>
+                    <div
+                        class="mb-3 bg-gray-100 dark:bg-zinc-900 p-2 rounded border border-gray-200 dark:border-zinc-800 transition-colors duration-300">
+                        <div class="flex justify-between text-[10px] text-gray-500 dark:text-zinc-400 mb-2">
+                            <span class="font-semibold text-gray-700 dark:text-zinc-300">Frame Duration</span>
+                            <span id="duration-display" class="font-mono text-blue-600 dark:text-blue-400">1.0x</span>
+                        </div>
+                        <input type="range" min="0.1" max="10.0" step="0.1" value="1.0" id="frame-duration"
+                            class="w-full accent-blue-500" draggable="false" onmousedown="event.stopPropagation()"
+                            oninput="app.setFrameDuration(this.value)">
+                        <div class="flex justify-between text-[8px] text-gray-400 dark:text-zinc-600 mt-1 px-0.5">
+                            <span>Fast</span><span>Slow</span>
+                        </div>
+                    </div>
+
+                    <!-- Frame Controls Removed (Moved to Timeline) -->
+                </div>
+
+
             </div>
 
-            <!-- Frame Settings -->
-            <div class="p-4 border-b border-gray-200 dark:border-zinc-800">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase tracking-wider">Frame
-                        Settings</h3>
-                    <div class="flex items-center">
-                        <input type="checkbox" id="onion-check" checked class="accent-blue-500 mr-1.5"
-                            onchange="app.render()">
-                        <label for="onion-check"
-                            class="text-xs text-gray-600 dark:text-zinc-400 cursor-pointer select-none">Onion
-                            Skin</label>
-                    </div>
-                </div>
-                <div
-                    class="mb-3 bg-gray-100 dark:bg-zinc-900 p-2 rounded border border-gray-200 dark:border-zinc-800 transition-colors duration-300">
-                    <div class="flex justify-between text-[10px] text-gray-500 dark:text-zinc-400 mb-2">
-                        <span class="font-semibold text-gray-700 dark:text-zinc-300">Frame Duration</span>
-                        <span id="duration-display" class="font-mono text-blue-600 dark:text-blue-400">1.0x</span>
-                    </div>
-                    <input type="range" min="0.1" max="10.0" step="0.1" value="1.0" id="frame-duration"
-                        class="w-full accent-blue-500" draggable="false" onmousedown="event.stopPropagation()"
-                        oninput="app.setFrameDuration(this.value)">
-                    <div class="flex justify-between text-[8px] text-gray-400 dark:text-zinc-600 mt-1 px-0.5">
-                        <span>Fast</span><span>Slow</span>
-                    </div>
-                </div>
-
-                <!-- Frame Controls Removed (Moved to Timeline) -->
-            </div>
-
-            <!-- Scene Settings -->
-            <div class="p-4">
-                <h3 class="text-xs font-bold text-gray-500 dark:text-zinc-500 uppercase tracking-wider mb-3">Scene</h3>
-                <div class="grid grid-cols-2 gap-3 mb-3">
-                    <div>
-                        <label class="text-[10px] text-gray-500 dark:text-zinc-500 font-bold block mb-1">WIDTH</label>
-                        <input type="number" id="canvas-w" value="800"
-                            class="w-full bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-300 text-xs p-2 rounded border border-gray-200 dark:border-zinc-800 focus:border-blue-500 focus:outline-none transition font-mono"
-                            onchange="app.setCanvasSize()">
-                    </div>
-                    <div>
-                        <label class="text-[10px] text-gray-500 dark:text-zinc-500 font-bold block mb-1">HEIGHT</label>
-                        <input type="number" id="canvas-h" value="500"
-                            class="w-full bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-300 text-xs p-2 rounded border border-gray-200 dark:border-zinc-800 focus:border-blue-500 focus:outline-none transition font-mono"
-                            onchange="app.setCanvasSize()">
-                    </div>
-                </div>
-                <div class="flex flex-col space-y-2">
-                    <button onclick="document.getElementById('bg-input').click()"
-                        class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 py-2 rounded border border-gray-300 dark:border-zinc-700 transition">Set
-                        Background Image...</button>
-                    <input type="file" id="bg-input" class="hidden" accept="image/*"
-                        onchange="app.loadBackground(this)">
-                    <button onclick="app.confirmClearStage()"
-                        class="text-xs text-gray-500 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400 py-1 transition flex items-center justify-center">
-                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                            </path>
-                        </svg>Clear Stage
-                    </button>
+            <!-- Canvas Area -->
+            <div class="flex-1 flex flex-col min-w-0 bg-gray-200 dark:bg-[#121214] transition-colors duration-300">
+                <div class="flex-1 overflow-auto flex items-center justify-center p-4 sm:p-8 relative touch-none"
+                    id="canvas-wrapper">
+                    <canvas id="main-canvas" width="800" height="500"
+                        class="rounded-sm bg-white max-w-full h-auto shadow-xl border border-gray-200 dark:border-none"></canvas>
                 </div>
             </div>
         </div>
 
-        <!-- Canvas Area -->
-        <div class="flex-1 flex flex-col min-w-0 bg-gray-200 dark:bg-[#121214] transition-colors duration-300">
-            <div class="flex-1 overflow-auto flex items-center justify-center p-4 sm:p-8 relative touch-none"
-                id="canvas-wrapper">
-                <canvas id="main-canvas" width="800" height="500"
-                    class="rounded-sm bg-white max-w-full h-auto shadow-xl border border-gray-200 dark:border-none"></canvas>
-            </div>
+        <!-- Timeline Bottom Container -->
+        <div class="bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 flex flex-col shrink-0 z-20 transition-colors duration-300"
+            style="height: 176px;">
+            <div class="h-12 flex items-center px-4 justify-between border-b border-gray-100 dark:border-zinc-800">
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center space-x-1">
+                        <!-- Go to Start Button -->
+                        <button onclick="app.goToFirstFrame()"
+                            class="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white transition border border-gray-200 dark:border-zinc-700 shadow-sm"
+                            title="Go to Start">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path>
+                            </svg>
+                        </button>
+                        <button onclick="app.prevFrame()"
+                            class="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white transition border border-gray-200 dark:border-zinc-700 shadow-sm"
+                            title="Previous Frame (<)">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15 19l-7-7 7-7"></path>
+                            </svg>
+                        </button>
+                        <button onclick="app.nextFrame()"
+                            class="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white transition border border-gray-200 dark:border-zinc-700 shadow-sm"
+                            title="Next Frame (>)">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7">
+                                </path>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="h-4 w-px bg-gray-300 dark:bg-zinc-700"></div>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="app.play()" id="btn-play-btm"
+                            class="flex items-center justify-center w-7 h-7 bg-green-100 hover:bg-green-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-green-600 dark:text-green-400 rounded-full border border-green-200 dark:border-zinc-600 transition shadow-sm">
+                            <svg class="w-3 h-3 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                            </svg>
+                        </button>
+                        <button onclick="app.stop()" id="btn-stop-btm"
+                            class="hidden flex items-center justify-center w-7 h-7 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-full border border-red-200 dark:border-transparent transition shadow-sm">
+                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M6 6h12v12H6z" />
+                            </svg>
+                        </button>
+                        <div
+                            class="flex items-center space-x-2 bg-gray-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full border border-gray-200 dark:border-zinc-700">
+                            <span
+                                class="text-[10px] text-gray-500 dark:text-zinc-500 font-bold uppercase tracking-wider hidden sm:inline">Speed</span>
+                            <input type="range" min="1" max="30" value="12" class="w-16"
+                                oninput="app.updateFps(this.value)">
+                            <span id="fps-display"
+                                class="text-[10px] w-4 font-mono text-gray-600 dark:text-zinc-400">12</span>
+                        </div>
+                        <button type="button" onclick="app.toggleLoop()" id="btn-loop-btm"
+                            class="text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium">Loop</button>
+                        <button type="button" onclick="app.toggleSmooth()" id="btn-smooth-btm"
+                            class="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium">Smooth</button>
+                    </div>
 
-            <!-- Timeline Bottom Container -->
-            <div class="bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 flex flex-col shrink-0 z-20 transition-colors duration-300"
-                style="height: 176px;">
-                <div class="h-12 flex items-center px-4 justify-between border-b border-gray-100 dark:border-zinc-800">
-                    <div class="flex items-center space-x-4">
-                        <div class="flex items-center space-x-1">
-                            <!-- Go to Start Button -->
-                            <button onclick="app.goToFirstFrame()"
-                                class="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white transition border border-gray-200 dark:border-zinc-700 shadow-sm"
-                                title="Go to Start">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M11 19l-7-7 7-7m8 14l-7-7 7-7"></path>
-                                </svg>
-                            </button>
-                            <button onclick="app.prevFrame()"
-                                class="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white transition border border-gray-200 dark:border-zinc-700 shadow-sm"
-                                title="Previous Frame (<)">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="h-4 w-px bg-gray-300 dark:bg-zinc-700 mx-2"></div>
+
+                    <div class="flex items-center space-x-2">
+                        <!-- Move Left/Right -->
+                        <div class="flex rounded-md shadow-sm">
+                            <button onclick="app.moveFrame(-1)"
+                                class="px-2 py-1 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-l border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 transition"
+                                title="Move Frame Left">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M15 19l-7-7 7-7"></path>
                                 </svg>
                             </button>
-                            <button onclick="app.nextFrame()"
-                                class="w-7 h-7 flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded text-gray-500 dark:text-zinc-400 hover:text-gray-900 dark:hover:text-white transition border border-gray-200 dark:border-zinc-700 shadow-sm"
-                                title="Next Frame (>)">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <button onclick="app.moveFrame(1)"
+                                class="px-2 py-1 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-r border-t border-b border-r border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 transition"
+                                title="Move Frame Right">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M9 5l7 7-7 7"></path>
                                 </svg>
                             </button>
                         </div>
-                        <div class="h-4 w-px bg-gray-300 dark:bg-zinc-700"></div>
-                        <div class="flex items-center space-x-3">
-                            <button onclick="app.play()" id="btn-play-btm"
-                                class="flex items-center justify-center w-7 h-7 bg-green-100 hover:bg-green-200 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-green-600 dark:text-green-400 rounded-full border border-green-200 dark:border-zinc-600 transition shadow-sm">
-                                <svg class="w-3 h-3 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M8 5v14l11-7z" />
-                                </svg>
-                            </button>
-                            <button onclick="app.stop()" id="btn-stop-btm"
-                                class="hidden flex items-center justify-center w-7 h-7 bg-red-100 hover:bg-red-200 dark:bg-red-900/30 dark:hover:bg-red-900/50 text-red-600 dark:text-red-400 rounded-full border border-red-200 dark:border-transparent transition shadow-sm">
-                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M6 6h12v12H6z" />
-                                </svg>
-                            </button>
-                            <div
-                                class="flex items-center space-x-2 bg-gray-100 dark:bg-zinc-800 px-2 py-0.5 rounded-full border border-gray-200 dark:border-zinc-700">
-                                <span
-                                    class="text-[10px] text-gray-500 dark:text-zinc-500 font-bold uppercase tracking-wider hidden sm:inline">Speed</span>
-                                <input type="range" min="1" max="30" value="12" class="w-16"
-                                    oninput="app.updateFps(this.value)">
-                                <span id="fps-display"
-                                    class="text-[10px] w-4 font-mono text-gray-600 dark:text-zinc-400">12</span>
-                            </div>
-                            <button type="button" onclick="app.toggleLoop()" id="btn-loop-btm"
-                                class="text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium">Loop</button>
-                            <button type="button" onclick="app.toggleSmooth()" id="btn-smooth-btm"
-                                class="text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium">Smooth</button>
-                        </div>
 
-                        <div class="h-4 w-px bg-gray-300 dark:bg-zinc-700 mx-2"></div>
+                        <!-- Add Frame -->
+                        <button onclick="app.addFrame()"
+                            class="flex items-center space-x-1 px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold shadow-sm transition">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 4v16m8-8H4"></path>
+                            </svg>
+                            <span>Add</span>
+                        </button>
 
-                        <div class="flex items-center space-x-2">
-                            <!-- Move Left/Right -->
-                            <div class="flex rounded-md shadow-sm">
-                                <button onclick="app.moveFrame(-1)"
-                                    class="px-2 py-1 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-l border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 transition"
-                                    title="Move Frame Left">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M15 19l-7-7 7-7"></path>
-                                    </svg>
-                                </button>
-                                <button onclick="app.moveFrame(1)"
-                                    class="px-2 py-1 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-r border-t border-b border-r border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 transition"
-                                    title="Move Frame Right">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M9 5l7 7-7 7"></path>
-                                    </svg>
-                                </button>
-                            </div>
-
-                            <!-- Add Frame -->
-                            <button onclick="app.addFrame()"
-                                class="flex items-center space-x-1 px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-bold shadow-sm transition">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <!-- Duplicate/Delete -->
+                        <div
+                            class="flex items-center space-x-1 border-l border-gray-300 dark:border-zinc-700 pl-2 ml-1">
+                            <button onclick="app.duplicateCurrentFrame()"
+                                class="p-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 transition"
+                                title="Duplicate Selected">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M12 4v16m8-8H4"></path>
+                                        d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2">
+                                    </path>
                                 </svg>
-                                <span>Add</span>
                             </button>
-
-                            <!-- Duplicate/Delete -->
-                            <div
-                                class="flex items-center space-x-1 border-l border-gray-300 dark:border-zinc-700 pl-2 ml-1">
-                                <button onclick="app.duplicateCurrentFrame()"
-                                    class="p-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded border border-gray-200 dark:border-zinc-700 text-gray-600 dark:text-zinc-300 transition"
-                                    title="Duplicate Selected">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2">
-                                        </path>
-                                    </svg>
-                                </button>
-                                <button onclick="app.deleteFrame()"
-                                    class="p-1.5 bg-gray-100 hover:bg-red-100 dark:bg-zinc-800 dark:hover:bg-red-900/30 rounded border border-gray-200 dark:border-zinc-700 text-red-500 dark:text-red-400 transition"
-                                    title="Delete Selected">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
-                                        </path>
-                                    </svg>
-                                </button>
-                            </div>
+                            <button onclick="app.deleteFrame()"
+                                class="p-1.5 bg-gray-100 hover:bg-red-100 dark:bg-zinc-800 dark:hover:bg-red-900/30 rounded border border-gray-200 dark:border-zinc-700 text-red-500 dark:text-red-400 transition"
+                                title="Delete Selected">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                                    </path>
+                                </svg>
+                            </button>
                         </div>
                     </div>
-                    <span class="text-xs font-mono text-gray-500 dark:text-zinc-500" id="frame-counter">0 / 0</span>
                 </div>
-                <div class="flex-1 overflow-x-auto timeline-scroll flex items-center p-3 space-x-3 bg-gray-50 dark:bg-zinc-950 transition-colors duration-300"
-                    id="timeline-track"></div>
+                <span class="text-xs font-mono text-gray-500 dark:text-zinc-500" id="frame-counter">0 / 0</span>
             </div>
+            <div class="flex-1 overflow-x-auto timeline-scroll flex items-center p-3 space-x-3 bg-gray-50 dark:bg-zinc-950 transition-colors duration-300"
+                id="timeline-track"></div>
         </div>
     </div>
 
@@ -747,823 +734,874 @@
         </div>
     </div>
 
-    <script>
-        const SEGMENT_LINE = 'line';
-        const SEGMENT_CIRCLE = 'circle';
+    <!-- Settings Modal -->
+    <div id="settings-modal"
+        class="fixed inset-0 bg-black/50 dark:bg-black/90 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+        <div
+            class="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 w-full max-w-sm rounded-xl shadow-2xl flex flex-col overflow-hidden p-6 transition-colors duration-300">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white">Settings</h3>
+                <button onclick="app.closeSettings()"
+                    class="text-gray-500 hover:text-gray-800 dark:text-zinc-400 dark:hover:text-white">✕</button>
+            </div>
 
-        class Joint {
-            constructor(id, parentId, length, angle, type = SEGMENT_LINE, radius = 20, thickness = 14, filled = true) {
-                this.id = id; this.parentId = parentId; this.length = length; this.angle = angle;
-                this.type = type; this.radius = radius; this.thickness = thickness; this.filled = filled;
-                this.x = 0; this.y = 0;
-            }
-            clone() { return new Joint(this.id, this.parentId, this.length, this.angle, this.type, this.radius, this.thickness, this.filled); }
-        }
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] text-gray-500 dark:text-zinc-500 font-bold block mb-1">WIDTH</label>
+                        <input type="number" id="canvas-w" value="800"
+                            class="w-full bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-300 text-xs p-2 rounded border border-gray-200 dark:border-zinc-800 focus:border-blue-500 focus:outline-none transition font-mono"
+                            onchange="app.setCanvasSize()">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-500 dark:text-zinc-500 font-bold block mb-1">HEIGHT</label>
+                        <input type="number" id="canvas-h" value="500"
+                            class="w-full bg-gray-100 dark:bg-zinc-950 text-gray-900 dark:text-zinc-300 text-xs p-2 rounded border border-gray-200 dark:border-zinc-800 focus:border-blue-500 focus:outline-none transition font-mono"
+                            onchange="app.setCanvasSize()">
+                    </div>
+                </div>
 
-        class Figure {
-            constructor() {
-                this.id = Math.random().toString(36).substr(2, 9);
-                this.x = 400; this.y = 300;
-                this.joints = []; this.scale = 1.0; this.color = '#000000'; this.selected = false;
-                this.type = 'figure'; this.text = "";
+                <div class="pt-4 border-t border-gray-200 dark:border-zinc-700 space-y-2">
+                    <button onclick="document.getElementById('bg-input').click()"
+                        class="w-full text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-zinc-800 dark:hover:bg-zinc-700 dark:text-zinc-300 py-3 rounded border border-gray-300 dark:border-zinc-700 transition">Set
+                        Background Image...</button>
+                    <input type="file" id="bg-input" class="hidden" accept="image/*"
+                        onchange="app.loadBackground(this)">
+
+                    <button onclick="app.confirmClearStage()"
+                        class="w-full text-xs text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/10 py-3 rounded border border-transparent hover:border-red-200 dark:hover:border-red-900/30 transition flex items-center justify-center">
+                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16">
+                            </path>
+                        </svg>Clear Stage
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <script>
+            const SEGMENT_LINE = 'line';
+            const SEGMENT_CIRCLE = 'circle';
+
+            class Joint {
+                constructor(id, parentId, length, angle, type = SEGMENT_LINE, radius = 20, thickness = 14, filled = true) {
+                    this.id = id; this.parentId = parentId; this.length = length; this.angle = angle;
+                    this.type = type; this.radius = radius; this.thickness = thickness; this.filled = filled;
+                    this.x = 0; this.y = 0;
+                }
+                clone() { return new Joint(this.id, this.parentId, this.length, this.angle, this.type, this.radius, this.thickness, this.filled); }
             }
-            clone() {
-                const f = new Figure(); f.id = this.id; f.x = this.x; f.y = this.y;
-                f.scale = this.scale; f.color = this.color; f.selected = this.selected;
-                f.type = this.type; f.text = this.text;
-                f.joints = this.joints.map(j => j.clone());
-                return f;
-            }
-            updatePositions() {
-                const jointMap = {}; this.joints.forEach(j => jointMap[j.id] = j);
-                const calcJoint = (joint) => {
-                    if (joint.parentId === null) {
-                        joint.x = this.x; joint.y = this.y;
-                    } else {
-                        const parent = jointMap[joint.parentId];
-                        if (parent) {
-                            joint.x = parent.x + Math.cos(joint.angle) * (joint.length * this.scale);
-                            joint.y = parent.y + Math.sin(joint.angle) * (joint.length * this.scale);
+
+            class Figure {
+                constructor() {
+                    this.id = Math.random().toString(36).substr(2, 9);
+                    this.x = 400; this.y = 300;
+                    this.joints = []; this.scale = 1.0; this.color = '#000000'; this.selected = false;
+                    this.type = 'figure'; this.text = "";
+                }
+                clone() {
+                    const f = new Figure(); f.id = this.id; f.x = this.x; f.y = this.y;
+                    f.scale = this.scale; f.color = this.color; f.selected = this.selected;
+                    f.type = this.type; f.text = this.text;
+                    f.joints = this.joints.map(j => j.clone());
+                    return f;
+                }
+                updatePositions() {
+                    const jointMap = {}; this.joints.forEach(j => jointMap[j.id] = j);
+                    const calcJoint = (joint) => {
+                        if (joint.parentId === null) {
+                            joint.x = this.x; joint.y = this.y;
+                        } else {
+                            const parent = jointMap[joint.parentId];
+                            if (parent) {
+                                joint.x = parent.x + Math.cos(joint.angle) * (joint.length * this.scale);
+                                joint.y = parent.y + Math.sin(joint.angle) * (joint.length * this.scale);
+                            }
                         }
-                    }
-                };
-                const roots = this.joints.filter(j => j.parentId === null);
-                const process = (j) => { calcJoint(j); this.joints.filter(child => child.parentId === j.id).forEach(process); };
-                roots.forEach(process);
-            }
-        }
-
-        const builder = {
-            canvas: null, ctx: null, isOpen: false, figure: null, selectedId: null, dragTarget: null,
-            init() {
-                this.canvas = document.getElementById('builder-canvas');
-                this.ctx = this.canvas.getContext('2d');
-                this.canvas.addEventListener('mousedown', (e) => this.handleStart(e, false)); window.addEventListener('mousemove', (e) => this.handleMove(e, false)); window.addEventListener('mouseup', (e) => this.handleEnd(e));
-                this.canvas.addEventListener('touchstart', (e) => this.handleStart(e, true), { passive: false }); window.addEventListener('touchmove', (e) => this.handleMove(e, true), { passive: false }); window.addEventListener('touchend', (e) => this.handleEnd(e));
-            },
-            open() {
-                this.isOpen = true; document.getElementById('builder-modal').classList.remove('hidden');
-                this.figure = new Figure(); this.figure.x = this.canvas.width / 2; this.figure.y = this.canvas.height / 2;
-                this.figure.joints = [new Joint('root', null, 0, 0)]; this.selectedId = 'root'; this.updateUI(); this.render();
-            },
-            close() { this.isOpen = false; document.getElementById('builder-modal').classList.add('hidden'); },
-            addSegment(type) { if (!this.selectedId) return; const id = Math.random().toString(36).substr(2, 9); const angle = Math.PI / 2; const length = 40; const j = new Joint(id, this.selectedId, length, angle, type, 20, 14, true); this.figure.joints.push(j); this.selectedId = id; this.updateUI(); this.render(); },
-            deleteSegment() { if (!this.selectedId || this.selectedId === 'root') return; const toRemove = [this.selectedId]; const getAllChildren = (pid) => { this.figure.joints.filter(j => j.parentId === pid).forEach(c => { toRemove.push(c.id); getAllChildren(c.id); }); }; getAllChildren(this.selectedId); this.figure.joints = this.figure.joints.filter(j => !toRemove.includes(j.id)); this.selectedId = this.figure.joints[0].id; this.updateUI(); this.render(); },
-            updateProp(prop, val) { if (!this.selectedId || this.selectedId === 'root') return; const j = this.figure.joints.find(j => j.id === this.selectedId); if (j) { if (prop === 'thickness') { j.thickness = parseInt(val); document.getElementById('b-thick-val').innerText = j.thickness; } else if (prop === 'length') { j.length = parseInt(val); document.getElementById('b-len-val').innerText = j.length; } else if (prop === 'radius') { j.radius = parseInt(val); document.getElementById('b-rad-val').innerText = j.radius; } this.render(); } },
-            toggleFill() { if (!this.selectedId || this.selectedId === 'root') return; const j = this.figure.joints.find(j => j.id === this.selectedId); if (j) { j.filled = !j.filled; this.updateUI(); this.render(); } },
-            toggleType() { if (!this.selectedId || this.selectedId === 'root') return; const j = this.figure.joints.find(j => j.id === this.selectedId); if (j) { j.type = j.type === SEGMENT_LINE ? SEGMENT_CIRCLE : SEGMENT_LINE; if (j.type === SEGMENT_CIRCLE && j.radius === 0) j.radius = 20; this.updateUI(); this.render(); } },
-            saveAndAdd() { const newFig = new Figure(); newFig.joints = this.figure.joints.map(j => j.clone()); newFig.x = 400; newFig.y = 300; app.addCustomFigure(newFig); this.close(); },
-            getPos(e, isTouch) { const rect = this.canvas.getBoundingClientRect(); let clientX = isTouch ? e.touches[0].clientX : e.clientX; let clientY = isTouch ? e.touches[0].clientY : e.clientY; const scaleX = this.canvas.width / rect.width; const scaleY = this.canvas.height / rect.height; return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY }; },
-            handleStart(e, isTouch) { if (!this.isOpen) return; if (isTouch) e.preventDefault(); const pos = this.getPos(e, isTouch); this.figure.updatePositions(); for (let i = this.figure.joints.length - 1; i >= 0; i--) { const j = this.figure.joints[i]; if (Math.hypot(pos.x - j.x, pos.y - j.y) < 15) { this.selectedId = j.id; this.dragTarget = j; this.updateUI(); this.render(); return; } } },
-            handleMove(e, isTouch) { if (!this.isOpen || !this.dragTarget) return; if (isTouch) e.preventDefault(); if (this.dragTarget.id === 'root') return; const pos = this.getPos(e, isTouch); const parent = this.figure.joints.find(j => j.id === this.dragTarget.parentId); if (parent) { const dx = pos.x - parent.x; const dy = pos.y - parent.y; this.dragTarget.angle = Math.atan2(dy, dx); this.dragTarget.length = Math.hypot(dx, dy); if (this.selectedId === this.dragTarget.id) { document.getElementById('b-length').value = Math.round(this.dragTarget.length); document.getElementById('b-len-val').innerText = Math.round(this.dragTarget.length); } this.render(); } },
-            handleEnd(e) { this.dragTarget = null; },
-            updateUI() { const props = document.getElementById('builder-props'); const isRoot = this.selectedId === 'root'; if (isRoot || !this.selectedId) { props.classList.add('opacity-50', 'pointer-events-none'); } else { props.classList.remove('opacity-50', 'pointer-events-none'); const j = this.figure.joints.find(j => j.id === this.selectedId); if (j) { document.getElementById('b-thickness').value = j.thickness; document.getElementById('b-thick-val').innerText = j.thickness; document.getElementById('b-length').value = Math.round(j.length); document.getElementById('b-len-val').innerText = Math.round(j.length); const circleControls = document.getElementById('b-circle-controls'); if (j.type === SEGMENT_CIRCLE) { circleControls.classList.remove('hidden'); document.getElementById('b-radius').value = j.radius; document.getElementById('b-rad-val').innerText = j.radius; document.getElementById('b-filled').checked = (j.filled !== false); } else { circleControls.classList.add('hidden'); } } } },
-            render() { this.ctx.fillStyle = "#e5e5e5"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height); this.ctx.strokeStyle = "#d4d4d4"; this.ctx.lineWidth = 1; this.ctx.beginPath(); for (let x = 0; x < this.canvas.width; x += 20) { this.ctx.moveTo(x, 0); this.ctx.lineTo(x, this.canvas.height); } for (let y = 0; y < this.canvas.height; y += 20) { this.ctx.moveTo(0, y); this.ctx.lineTo(this.canvas.width, y); } this.ctx.stroke(); this.figure.updatePositions(); this.figure.joints.forEach(j => { if (!j.parentId) return; const p = this.figure.joints.find(x => x.id === j.parentId); if (!p) return; this.ctx.strokeStyle = "#000"; this.ctx.fillStyle = "#000"; this.ctx.lineWidth = j.thickness; this.ctx.lineCap = 'round'; if (j.type === SEGMENT_CIRCLE) { const dx = j.x - p.x; const dy = j.y - p.y; const angle = Math.atan2(dy, dx); const r = j.radius; const cx = j.x - Math.cos(angle) * (r * 0.5); const cy = j.y - Math.sin(angle) * (r * 0.5); const chinX = cx - Math.cos(angle) * r; const chinY = cy - Math.sin(angle) * r; this.ctx.beginPath(); this.ctx.moveTo(p.x, p.y); this.ctx.lineTo(chinX, chinY); this.ctx.stroke(); this.ctx.beginPath(); this.ctx.arc(cx, cy, r, 0, Math.PI * 2); if (j.filled !== false) this.ctx.fill(); else { this.ctx.save(); this.ctx.fillStyle = "rgba(255,255,255,0)"; this.ctx.stroke(); this.ctx.restore(); this.ctx.fillStyle = "#000"; } } else { this.ctx.beginPath(); this.ctx.moveTo(p.x, p.y); this.ctx.lineTo(j.x, j.y); this.ctx.stroke(); } }); this.figure.joints.forEach(j => { this.ctx.beginPath(); this.ctx.arc(j.x, j.y, 5, 0, Math.PI * 2); if (j.id === this.selectedId) { this.ctx.fillStyle = "#3b82f6"; this.ctx.strokeStyle = "#fff"; this.ctx.lineWidth = 2; this.ctx.stroke(); } else if (j.id === 'root') { this.ctx.fillStyle = "#f97316"; } else { this.ctx.fillStyle = "#ef4444"; } this.ctx.fill(); }); }
-        };
-
-        const app = {
-            // State
-            zoomLevel: 1.0,
-            canvas: document.getElementById('main-canvas'),
-            ctx: document.getElementById('main-canvas').getContext('2d'),
-            frames: [],
-            frameDelays: [],
-            currentFrameIndex: 0,
-            figures: [],
-            bgImage: null,
-            fps: 12,
-            isPlaying: false,
-            lastTime: 0,
-            playbackAccumulator: 0,
-            isLooping: true,
-            isSmooth: true,
-            showOnion: true,
-            dragTarget: null,
-            mouseX: 0,
-            mouseY: 0,
-            draggedFrameIndex: null,
-            handleRadius: 4,
-            pendingAction: null,
-            undoStack: [],
-            pendingAction: null,
-            undoStack: [],
-            redoStack: [],
-            selectedFrames: new Set(), // [NEW] Track multiple selected frames
-
-            toggleTheme() { const root = document.getElementById('html-root'); root.classList.toggle('dark'); },
-
-            init() {
-                // Check if we have saved data
-                builder.init();
-
-                if (!this.loadFromLocal()) {
-                    // No saved data, initialize defaults
-                    this.addFigure();
-                }
-
-                this.resizeCanvas();
-                window.addEventListener('resize', () => this.resizeCanvas());
-
-                this.canvas.addEventListener('mousedown', (e) => this.handleStart(e, false)); window.addEventListener('mousemove', (e) => this.handleMove(e, false)); window.addEventListener('mouseup', (e) => this.handleEnd(e));
-                this.canvas.addEventListener('touchstart', (e) => this.handleStart(e, true), { passive: false }); window.addEventListener('touchmove', (e) => this.handleMove(e, true), { passive: false }); window.addEventListener('touchend', (e) => this.handleEnd(e));
-
-                const timeline = document.getElementById('timeline-track');
-                timeline.addEventListener('wheel', (e) => { if (e.deltaY !== 0) { e.preventDefault(); timeline.scrollLeft += e.deltaY; } }, { passive: false });
-
-                window.addEventListener('keydown', (e) => {
-                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-                    if (e.code === 'Space') { e.preventDefault(); if (this.isPlaying) this.stop(); else this.addFrame(); }
-                    if (e.key === ',' || e.key === '<') this.prevFrame(); if (e.key === '.' || e.key === '>') this.nextFrame();
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); if (e.shiftKey) this.redo(); else this.undo(); }
-                    if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); this.redo(); }
-                });
-
-                // Set Initial Zoom Display
-                this.updateZoomDisplay();
-
-                // Initial render call if loadFromLocal didn't trigger one
-                if (this.frames.length === 0) this.render();
-            },
-
-            // --- CORE UTILS & MODALS (Moved Up for Safety) ---
-            toggleLoop(fs) { if (fs !== undefined) this.isLooping = fs; else this.isLooping = !this.isLooping; const btn = document.getElementById('btn-loop-btm'); if (this.isLooping) { btn.className = "text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium"; } else { btn.className = "text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium"; } },
-            toggleSmooth(fs) { if (fs !== undefined) this.isSmooth = fs; else this.isSmooth = !this.isSmooth; const btn = document.getElementById('btn-smooth-btm'); if (this.isSmooth) { btn.className = "text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium"; } else { btn.className = "text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium"; } },
-
-            showModal(t, m, a) { document.getElementById('confirm-title').innerText = t; document.getElementById('confirm-msg').innerText = m; this.pendingAction = a; document.getElementById('confirm-modal').classList.remove('hidden'); },
-            closeModal() { document.getElementById('confirm-modal').classList.add('hidden'); this.pendingAction = null; },
-            executeConfirm() { if (this.pendingAction) this.pendingAction(); this.closeModal(); },
-
-            confirmClearStage() { this.showModal("Clear Stage?", "Remove all figures?", () => { this.saveState(); this.figures = []; this.render(); this.saveLocal(); }); },
-            confirmNewProject() { this.showModal("New Project?", "Discard animation?", () => { this.saveState(); this.newProject(); }); },
-
-            newProject() {
-                this.stop();
-                this.frames = [];
-                this.frameDelays = [];
-                this.figures = [];
-                this.currentFrameIndex = 0;
-                this.bgImage = null;
-                this.undoStack = [];
-                this.redoStack = [];
-                document.getElementById('canvas-w').value = 800;
-                document.getElementById('canvas-h').value = 500;
-                this.setCanvasSize();
-                this.addFigure();
-                this.render();
-                this.updateTimeline();
-                this.saveLocal();
-            },
-
-            // --- ZOOM LOGIC START ---
-            changeZoom(delta) {
-                this.zoomLevel += delta;
-                // Clamp zoom level
-                if (this.zoomLevel < 0.1) this.zoomLevel = 0.1;
-                if (this.zoomLevel > 5.0) this.zoomLevel = 5.0;
-
-                this.updateZoomDisplay();
-                this.setCanvasSize(); // Re-apply styles
-            },
-
-            updateZoomDisplay() {
-                const pct = Math.round(this.zoomLevel * 100);
-                document.getElementById('zoom-display').innerText = `${pct}%`;
-            },
-            // --- ZOOM LOGIC END ---
-
-            // --- PERSISTENCE LOGIC START ---
-            saveLocal() {
-                const d = {
-                    version: 2,
-                    width: this.canvas.width,
-                    height: this.canvas.height,
-                    fps: this.fps,
-                    frames: this.frames,
-                    delays: this.frameDelays,
-                    figures: this.figures,
-                    currentFrameIndex: this.currentFrameIndex
-                };
-                try {
-                    localStorage.setItem('stickmotion_data', JSON.stringify(d));
-                } catch (e) {
-                    console.error("Storage full or error", e);
-                }
-            },
-
-            loadFromLocal() {
-                try {
-                    const data = localStorage.getItem('stickmotion_data');
-                    if (!data) return false;
-                    const d = JSON.parse(data);
-
-                    if (d.width) {
-                        document.getElementById('canvas-w').value = d.width;
-                        document.getElementById('canvas-h').value = d.height;
-                        this.canvas.width = d.width;
-                        this.canvas.height = d.height;
-                    }
-                    if (d.fps) {
-                        this.updateFps(d.fps);
-                        document.getElementById('frame-duration').value = d.fps;
-                    }
-
-                    // Helper to reconstitute classes from JSON
-                    const reconstructFigures = (figsData) => {
-                        return figsData.map(figd => {
-                            const fig = new Figure();
-                            Object.assign(fig, figd);
-                            fig.joints = figd.joints.map(jd => {
-                                const j = new Joint();
-                                Object.assign(j, jd);
-                                return j;
-                            });
-                            return fig;
-                        });
                     };
+                    const roots = this.joints.filter(j => j.parentId === null);
+                    const process = (j) => { calcJoint(j); this.joints.filter(child => child.parentId === j.id).forEach(process); };
+                    roots.forEach(process);
+                }
+            }
 
-                    if (d.frames) {
-                        this.frames = d.frames.map(frameData => reconstructFigures(frameData));
+            const builder = {
+                canvas: null, ctx: null, isOpen: false, figure: null, selectedId: null, dragTarget: null,
+                init() {
+                    this.canvas = document.getElementById('builder-canvas');
+                    this.ctx = this.canvas.getContext('2d');
+                    this.canvas.addEventListener('mousedown', (e) => this.handleStart(e, false)); window.addEventListener('mousemove', (e) => this.handleMove(e, false)); window.addEventListener('mouseup', (e) => this.handleEnd(e));
+                    this.canvas.addEventListener('touchstart', (e) => this.handleStart(e, true), { passive: false }); window.addEventListener('touchmove', (e) => this.handleMove(e, true), { passive: false }); window.addEventListener('touchend', (e) => this.handleEnd(e));
+                },
+                open() {
+                    this.isOpen = true; document.getElementById('builder-modal').classList.remove('hidden');
+                    this.figure = new Figure(); this.figure.x = this.canvas.width / 2; this.figure.y = this.canvas.height / 2;
+                    this.figure.joints = [new Joint('root', null, 0, 0)]; this.selectedId = 'root'; this.updateUI(); this.render();
+                },
+                close() { this.isOpen = false; document.getElementById('builder-modal').classList.add('hidden'); },
+                addSegment(type) { if (!this.selectedId) return; const id = Math.random().toString(36).substr(2, 9); const angle = Math.PI / 2; const length = 40; const j = new Joint(id, this.selectedId, length, angle, type, 20, 14, true); this.figure.joints.push(j); this.selectedId = id; this.updateUI(); this.render(); },
+                deleteSegment() { if (!this.selectedId || this.selectedId === 'root') return; const toRemove = [this.selectedId]; const getAllChildren = (pid) => { this.figure.joints.filter(j => j.parentId === pid).forEach(c => { toRemove.push(c.id); getAllChildren(c.id); }); }; getAllChildren(this.selectedId); this.figure.joints = this.figure.joints.filter(j => !toRemove.includes(j.id)); this.selectedId = this.figure.joints[0].id; this.updateUI(); this.render(); },
+                updateProp(prop, val) { if (!this.selectedId || this.selectedId === 'root') return; const j = this.figure.joints.find(j => j.id === this.selectedId); if (j) { if (prop === 'thickness') { j.thickness = parseInt(val); document.getElementById('b-thick-val').innerText = j.thickness; } else if (prop === 'length') { j.length = parseInt(val); document.getElementById('b-len-val').innerText = j.length; } else if (prop === 'radius') { j.radius = parseInt(val); document.getElementById('b-rad-val').innerText = j.radius; } this.render(); } },
+                toggleFill() { if (!this.selectedId || this.selectedId === 'root') return; const j = this.figure.joints.find(j => j.id === this.selectedId); if (j) { j.filled = !j.filled; this.updateUI(); this.render(); } },
+                toggleType() { if (!this.selectedId || this.selectedId === 'root') return; const j = this.figure.joints.find(j => j.id === this.selectedId); if (j) { j.type = j.type === SEGMENT_LINE ? SEGMENT_CIRCLE : SEGMENT_LINE; if (j.type === SEGMENT_CIRCLE && j.radius === 0) j.radius = 20; this.updateUI(); this.render(); } },
+                saveAndAdd() { const newFig = new Figure(); newFig.joints = this.figure.joints.map(j => j.clone()); newFig.x = 400; newFig.y = 300; app.addCustomFigure(newFig); this.close(); },
+                getPos(e, isTouch) { const rect = this.canvas.getBoundingClientRect(); let clientX = isTouch ? e.touches[0].clientX : e.clientX; let clientY = isTouch ? e.touches[0].clientY : e.clientY; const scaleX = this.canvas.width / rect.width; const scaleY = this.canvas.height / rect.height; return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY }; },
+                handleStart(e, isTouch) { if (!this.isOpen) return; if (isTouch) e.preventDefault(); const pos = this.getPos(e, isTouch); this.figure.updatePositions(); for (let i = this.figure.joints.length - 1; i >= 0; i--) { const j = this.figure.joints[i]; if (Math.hypot(pos.x - j.x, pos.y - j.y) < 15) { this.selectedId = j.id; this.dragTarget = j; this.updateUI(); this.render(); return; } } },
+                handleMove(e, isTouch) { if (!this.isOpen || !this.dragTarget) return; if (isTouch) e.preventDefault(); if (this.dragTarget.id === 'root') return; const pos = this.getPos(e, isTouch); const parent = this.figure.joints.find(j => j.id === this.dragTarget.parentId); if (parent) { const dx = pos.x - parent.x; const dy = pos.y - parent.y; this.dragTarget.angle = Math.atan2(dy, dx); this.dragTarget.length = Math.hypot(dx, dy); if (this.selectedId === this.dragTarget.id) { document.getElementById('b-length').value = Math.round(this.dragTarget.length); document.getElementById('b-len-val').innerText = Math.round(this.dragTarget.length); } this.render(); } },
+                handleEnd(e) { this.dragTarget = null; },
+                updateUI() { const props = document.getElementById('builder-props'); const isRoot = this.selectedId === 'root'; if (isRoot || !this.selectedId) { props.classList.add('opacity-50', 'pointer-events-none'); } else { props.classList.remove('opacity-50', 'pointer-events-none'); const j = this.figure.joints.find(j => j.id === this.selectedId); if (j) { document.getElementById('b-thickness').value = j.thickness; document.getElementById('b-thick-val').innerText = j.thickness; document.getElementById('b-length').value = Math.round(j.length); document.getElementById('b-len-val').innerText = Math.round(j.length); const circleControls = document.getElementById('b-circle-controls'); if (j.type === SEGMENT_CIRCLE) { circleControls.classList.remove('hidden'); document.getElementById('b-radius').value = j.radius; document.getElementById('b-rad-val').innerText = j.radius; document.getElementById('b-filled').checked = (j.filled !== false); } else { circleControls.classList.add('hidden'); } } } },
+                render() { this.ctx.fillStyle = "#e5e5e5"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height); this.ctx.strokeStyle = "#d4d4d4"; this.ctx.lineWidth = 1; this.ctx.beginPath(); for (let x = 0; x < this.canvas.width; x += 20) { this.ctx.moveTo(x, 0); this.ctx.lineTo(x, this.canvas.height); } for (let y = 0; y < this.canvas.height; y += 20) { this.ctx.moveTo(0, y); this.ctx.lineTo(this.canvas.width, y); } this.ctx.stroke(); this.figure.updatePositions(); this.figure.joints.forEach(j => { if (!j.parentId) return; const p = this.figure.joints.find(x => x.id === j.parentId); if (!p) return; this.ctx.strokeStyle = "#000"; this.ctx.fillStyle = "#000"; this.ctx.lineWidth = j.thickness; this.ctx.lineCap = 'round'; if (j.type === SEGMENT_CIRCLE) { const dx = j.x - p.x; const dy = j.y - p.y; const angle = Math.atan2(dy, dx); const r = j.radius; const cx = j.x - Math.cos(angle) * (r * 0.5); const cy = j.y - Math.sin(angle) * (r * 0.5); const chinX = cx - Math.cos(angle) * r; const chinY = cy - Math.sin(angle) * r; this.ctx.beginPath(); this.ctx.moveTo(p.x, p.y); this.ctx.lineTo(chinX, chinY); this.ctx.stroke(); this.ctx.beginPath(); this.ctx.arc(cx, cy, r, 0, Math.PI * 2); if (j.filled !== false) this.ctx.fill(); else { this.ctx.save(); this.ctx.fillStyle = "rgba(255,255,255,0)"; this.ctx.stroke(); this.ctx.restore(); this.ctx.fillStyle = "#000"; } } else { this.ctx.beginPath(); this.ctx.moveTo(p.x, p.y); this.ctx.lineTo(j.x, j.y); this.ctx.stroke(); } }); this.figure.joints.forEach(j => { this.ctx.beginPath(); this.ctx.arc(j.x, j.y, 5, 0, Math.PI * 2); if (j.id === this.selectedId) { this.ctx.fillStyle = "#3b82f6"; this.ctx.strokeStyle = "#fff"; this.ctx.lineWidth = 2; this.ctx.stroke(); } else if (j.id === 'root') { this.ctx.fillStyle = "#f97316"; } else { this.ctx.fillStyle = "#ef4444"; } this.ctx.fill(); }); }
+            };
+
+            const app = {
+                // State
+                zoomLevel: 1.0,
+                canvas: document.getElementById('main-canvas'),
+                ctx: document.getElementById('main-canvas').getContext('2d'),
+                frames: [],
+                frameDelays: [],
+                currentFrameIndex: 0,
+                figures: [],
+                bgImage: null,
+                fps: 12,
+                isPlaying: false,
+                lastTime: 0,
+                playbackAccumulator: 0,
+                isLooping: true,
+                isSmooth: true,
+                showOnion: true,
+                dragTarget: null,
+                mouseX: 0,
+                mouseY: 0,
+                draggedFrameIndex: null,
+                handleRadius: 4,
+                pendingAction: null,
+                undoStack: [],
+                pendingAction: null,
+                undoStack: [],
+                redoStack: [],
+                selectedFrames: new Set(), // [NEW] Track multiple selected frames
+
+                toggleTheme() { const root = document.getElementById('html-root'); root.classList.toggle('dark'); },
+
+                init() {
+                    // Check if we have saved data
+                    builder.init();
+
+                    if (!this.loadFromLocal()) {
+                        // No saved data, initialize defaults
+                        this.addFigure();
                     }
 
-                    if (d.figures) {
-                        this.figures = reconstructFigures(d.figures);
-                    }
+                    this.resizeCanvas();
+                    window.addEventListener('resize', () => this.resizeCanvas());
 
-                    if (d.delays) this.frameDelays = d.delays;
-                    else this.frameDelays = new Array(this.frames.length).fill(1.0);
+                    this.canvas.addEventListener('mousedown', (e) => this.handleStart(e, false)); window.addEventListener('mousemove', (e) => this.handleMove(e, false)); window.addEventListener('mouseup', (e) => this.handleEnd(e));
+                    this.canvas.addEventListener('touchstart', (e) => this.handleStart(e, true), { passive: false }); window.addEventListener('touchmove', (e) => this.handleMove(e, true), { passive: false }); window.addEventListener('touchend', (e) => this.handleEnd(e));
 
-                    this.currentFrameIndex = d.currentFrameIndex || 0;
+                    const timeline = document.getElementById('timeline-track');
+                    timeline.addEventListener('wheel', (e) => { if (e.deltaY !== 0) { e.preventDefault(); timeline.scrollLeft += e.deltaY; } }, { passive: false });
 
-                    // Bounds check
-                    if (this.currentFrameIndex >= this.frames.length) this.currentFrameIndex = Math.max(0, this.frames.length - 1);
-
-                    // Force a load of the current frame
-                    if (this.frames.length > 0) {
-                        this.loadFrame(this.currentFrameIndex, false);
-                    }
-
-                    this.updateTimeline();
-                    return true;
-                } catch (e) {
-                    console.error("Load error", e);
-                    return false;
-                }
-            },
-            // --- PERSISTENCE LOGIC END ---
-
-            // --- LIBRARY FUNCTIONS START ---
-            openLibrary() { document.getElementById('library-modal').classList.remove('hidden'); },
-            closeLibrary() { document.getElementById('library-modal').classList.add('hidden'); },
-            addFromLibrary(type) {
-                this.saveState();
-                let fig;
-                switch (type) {
-                    case 'stickman': fig = this.createStickman(); break;
-                    case 'sword': fig = this.createSword(); break;
-                    case 'ball': fig = this.createBall(); break;
-                    case 'racket': fig = this.createRacket(); break;
-                    case 'bike': fig = this.createBike(); break;
-                    case 'car': fig = this.createCar(); break;
-                }
-
-                // Offset slightly so they don't stack perfectly on top
-                if (this.figures.length > 0) {
-                    fig.x += 30; fig.y += 30;
-                }
-
-                this.figures.push(fig);
-                this.selectFigure(fig);
-                this.render();
-                this.saveLocal();
-                this.closeLibrary();
-            },
-
-            createSword() {
-                const f = new Figure(); f.color = '#555';
-                const j = [];
-                j.push(new Joint('root', null, 0, 0)); // Handle base
-                j.push(new Joint('handle', 'root', 25, -Math.PI / 2, SEGMENT_LINE, 20, 8)); // Handle
-                j.push(new Joint('guardL', 'handle', 20, Math.PI, SEGMENT_LINE, 20, 6)); // Guard Left
-                j.push(new Joint('guardR', 'handle', 20, 0, SEGMENT_LINE, 20, 6)); // Guard Right
-                j.push(new Joint('blade', 'handle', 90, -Math.PI / 2, SEGMENT_LINE, 20, 10)); // Blade
-                f.joints = j;
-                return f;
-            },
-
-            createBall() {
-                const f = new Figure(); f.color = '#ff6b6b';
-                const j = [];
-                j.push(new Joint('root', null, 0, 0));
-                j.push(new Joint('ball', 'root', 25, 0, SEGMENT_CIRCLE, 25, 14, true));
-                f.joints = j;
-                return f;
-            },
-
-            createRacket() {
-                const f = new Figure(); f.color = '#22c55e';
-                const j = [];
-                j.push(new Joint('root', null, 0, 0));
-                j.push(new Joint('handle', 'root', 40, -Math.PI / 2, SEGMENT_LINE, 20, 8));
-                j.push(new Joint('head', 'handle', 60, -Math.PI / 2, SEGMENT_CIRCLE, 30, 4, false)); // Wireframe circle
-                f.joints = j;
-                return f;
-            },
-
-            createBike() {
-                const f = new Figure(); f.color = '#3b82f6';
-                const j = [];
-                // Root is the crank/pedal area
-                j.push(new Joint('root', null, 0, 0));
-                j.push(new Joint('backStay', 'root', 50, Math.PI - 0.3, SEGMENT_LINE, 20, 6));
-                j.push(new Joint('backWheel', 'backStay', 30, 0, SEGMENT_CIRCLE, 30, 4, false));
-                j.push(new Joint('seatTube', 'root', 55, -Math.PI / 2 + 0.2, SEGMENT_LINE, 20, 6));
-                j.push(new Joint('seat', 'seatTube', 15, Math.PI, SEGMENT_LINE, 20, 10));
-                j.push(new Joint('topTube', 'seatTube', 55, 0.1, SEGMENT_LINE, 20, 6));
-                j.push(new Joint('downTube', 'root', 58, -Math.PI / 4 - 0.3, SEGMENT_LINE, 20, 6));
-                // connect front fork roughly
-                j.push(new Joint('headTube', 'topTube', 15, -Math.PI / 2 + 0.3, SEGMENT_LINE, 20, 8));
-                j.push(new Joint('bars', 'headTube', 20, Math.PI - 0.5, SEGMENT_LINE, 20, 6));
-                j.push(new Joint('fork', 'headTube', 45, Math.PI / 2 + 0.3, SEGMENT_LINE, 20, 6));
-                j.push(new Joint('frontWheel', 'fork', 30, 0, SEGMENT_CIRCLE, 30, 4, false));
-                f.joints = j;
-                return f;
-            },
-
-            createCar() {
-                const f = new Figure(); f.color = '#eab308'; // Yellow car
-                const j = [];
-                j.push(new Joint('root', null, 0, 0)); // Center chassis
-                j.push(new Joint('chassisF', 'root', 50, 0, SEGMENT_LINE, 20, 10));
-                j.push(new Joint('chassisB', 'root', 50, Math.PI, SEGMENT_LINE, 20, 10));
-                j.push(new Joint('roofF', 'root', 35, -Math.PI / 3, SEGMENT_LINE, 20, 6));
-                j.push(new Joint('roofTop', 'roofF', 40, 0, SEGMENT_LINE, 20, 6));
-                j.push(new Joint('wheelF', 'chassisF', 20, Math.PI / 2, SEGMENT_CIRCLE, 20, 6, false));
-                j.push(new Joint('wheelB', 'chassisB', 20, Math.PI / 2, SEGMENT_CIRCLE, 20, 6, false));
-                f.joints = j;
-                return f;
-            },
-            // --- LIBRARY FUNCTIONS END ---
-
-            resizeCanvas() { },
-            openBuilder() { builder.open(); },
-            addCustomFigure(fig) { this.saveState(); this.figures.push(fig); this.selectFigure(fig); this.render(); this.saveLocal(); },
-
-            addText() {
-                this.saveState();
-                const fig = new Figure(); fig.type = 'text'; fig.text = "Text";
-                fig.x = this.canvas.width / 2; fig.y = this.canvas.height / 2;
-                fig.scale = 1.0; fig.color = "#000000";
-                fig.joints = [new Joint('root', null, 0, 0), new Joint('handle', 'root', 20, 0)];
-                this.figures.push(fig); this.selectFigure(fig); this.render();
-                this.saveLocal();
-            },
-
-            updateText(val) {
-                const fig = this.figures.find(f => f.selected);
-                if (fig && fig.type === 'text') { fig.text = val; this.render(); this.saveLocal(); }
-            },
-
-            createStickman() { const f = new Figure(); const j = []; j.push(new Joint('hip', null, 0, 0)); j.push(new Joint('abs', 'hip', 23, -Math.PI / 2)); j.push(new Joint('chest', 'abs', 23, -Math.PI / 2)); j.push(new Joint('neck', 'chest', 40, -Math.PI / 2, SEGMENT_CIRCLE, 20, 14, true)); j.push(new Joint('lShldr', 'chest', 25, Math.PI - 0.2)); j.push(new Joint('lElbow', 'lShldr', 25, Math.PI - 0.5)); j.push(new Joint('lHand', 'lElbow', 20, Math.PI - 0.2)); j.push(new Joint('rShldr', 'chest', 25, 0.2)); j.push(new Joint('rElbow', 'rShldr', 25, 0.5)); j.push(new Joint('rHand', 'rElbow', 20, 0.2)); j.push(new Joint('lKnee', 'hip', 35, Math.PI / 2 + 0.3)); j.push(new Joint('lFoot', 'lKnee', 35, Math.PI / 2 + 0.1)); j.push(new Joint('rKnee', 'hip', 35, Math.PI / 2 - 0.3)); j.push(new Joint('rFoot', 'rKnee', 35, Math.PI / 2 - 0.1)); f.joints = j; return f; },
-            saveState() { if (this.undoStack.length > 50) this.undoStack.shift(); this.undoStack.push({ frames: this.frames.map(f => f.map(x => x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f => f.clone()) }); this.redoStack = []; },
-            undo() { if (this.undoStack.length === 0) return; this.redoStack.push({ frames: this.frames.map(f => f.map(x => x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f => f.clone()) }); this.restoreState(this.undoStack.pop()); },
-            redo() { if (this.redoStack.length === 0) return; this.undoStack.push({ frames: this.frames.map(f => f.map(x => x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f => f.clone()) }); this.restoreState(this.redoStack.pop()); },
-            restoreState(state) { this.frames = state.frames.map(f => f.map(x => x.clone())); this.frameDelays = [...state.frameDelays]; this.currentFrameIndex = state.currentFrameIndex; this.figures = state.figures.map(f => f.clone()); const delay = this.frameDelays[this.currentFrameIndex] || 1.0; document.getElementById('frame-duration').value = delay; document.getElementById('duration-display').innerText = delay.toFixed(1) + 'x'; this.render(); this.updateTimeline(); this.saveLocal(); },
-            addFigure() { this.saveState(); const fig = this.createStickman(); if (this.figures.length > 0) { fig.x += 20; fig.y += 20; } this.figures.push(fig); this.selectFigure(fig); this.render(); this.saveLocal(); },
-            deleteSelectedFigure() { const idx = this.figures.findIndex(f => f.selected); if (idx !== -1) { this.saveState(); this.figures.splice(idx, 1); this.render(); this.saveLocal(); } },
-            raiseFigure() { const idx = this.figures.findIndex(f => f.selected); if (idx !== -1 && idx < this.figures.length - 1) { this.saveState(); const t = this.figures[idx]; this.figures[idx] = this.figures[idx + 1]; this.figures[idx + 1] = t; this.render(); this.saveLocal(); } },
-            lowerFigure() { const idx = this.figures.findIndex(f => f.selected); if (idx > 0) { this.saveState(); const t = this.figures[idx]; this.figures[idx] = this.figures[idx - 1]; this.figures[idx - 1] = t; this.render(); this.saveLocal(); } },
-            prevFrame() { if (this.frames.length > 0 && this.currentFrameIndex > 0) this.loadFrame(this.currentFrameIndex - 1); },
-            nextFrame() { if (this.frames.length > 0 && this.currentFrameIndex < this.frames.length - 1) this.loadFrame(this.currentFrameIndex + 1); },
-
-            goToFirstFrame() {
-                if (this.frames.length > 0) {
-                    this.loadFrame(0);
-                    this.scrollToFrame(0);
-                }
-            },
-
-            // --- RESTORED FUNCTION ---
-            setFrameDuration(val) {
-                const d = parseFloat(val);
-                document.getElementById('duration-display').innerText = d.toFixed(1) + 'x';
-                if (this.frameDelays[this.currentFrameIndex] !== undefined) {
-                    this.frameDelays[this.currentFrameIndex] = d;
-                    const container = document.getElementById('timeline-track');
-                    if (container && container.children[this.currentFrameIndex]) {
-                        const wrapper = container.children[this.currentFrameIndex];
-                        const badge = wrapper.querySelector('.absolute.top-0.left-0');
-                        if (badge) {
-                            badge.innerText = d.toFixed(1) + 'x';
-                            badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${d > 1.0 ? 'bg-blue-600 text-white' : 'bg-zinc-700 text-zinc-400'}`;
-                        }
-                        const barFill = wrapper.querySelector('.absolute.bottom-0 div');
-                        if (barFill) {
-                            let w = (d / 10.0) * 100;
-                            w = Math.max(5, w);
-                            barFill.style.width = w + '%';
-                            barFill.className = `h-full ${d > 1.0 ? 'bg-blue-500' : 'bg-zinc-600'}`;
-                        }
-                    }
-                    this.saveLocal();
-                }
-            },
-            // -------------------------
-
-            // --- UPDATED: setCanvasSize to respect zoom ---
-            setCanvasSize() {
-                const w = parseInt(document.getElementById('canvas-w').value) || 800;
-                const h = parseInt(document.getElementById('canvas-h').value) || 500;
-                this.canvas.width = w;
-                this.canvas.height = h;
-
-                // Apply zoom scaling to CSS dimensions
-                this.canvas.style.width = (w * this.zoomLevel) + 'px';
-                this.canvas.style.height = (h * this.zoomLevel) + 'px';
-                this.canvas.style.maxWidth = 'none'; // Allow overflow for zooming in
-
-                this.render();
-                this.saveLocal();
-            },
-            // --- END UPDATE ---
-
-            loadBackground(i) { if (i.files && i.files[0]) { const r = new FileReader(); r.onload = (e) => { const img = new Image(); img.onload = () => { this.bgImage = img; this.render(); }; img.src = e.target.result; }; r.readAsDataURL(i.files[0]); } },
-            saveProject() { const d = { version: 2, width: this.canvas.width, height: this.canvas.height, fps: this.fps, frames: this.frames, delays: this.frameDelays }; const b = new Blob([JSON.stringify(d)], { type: 'application/json' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'project.json'; a.click(); },
-            loadProject(i) { if (i.files && i.files[0]) { this.stop(); this.saveState(); const r = new FileReader(); r.onload = (e) => { try { const d = JSON.parse(e.target.result); if (d.width) { document.getElementById('canvas-w').value = d.width; document.getElementById('canvas-h').value = d.height; this.setCanvasSize(); } if (d.fps) { this.updateFps(d.fps); document.getElementById('fps-display').innerText = d.fps; } this.frames = d.frames.map(fd => fd.map(figd => { const fig = new Figure(); Object.assign(fig, figd); fig.joints = figd.joints.map(jd => { const j = new Joint(); Object.assign(j, jd); return j; }); return fig; })); if (d.delays) this.frameDelays = d.delays; else this.frameDelays = new Array(this.frames.length).fill(1.0); this.currentFrameIndex = 0; this.loadFrame(0); this.updateTimeline(); this.undoStack = []; this.redoStack = []; this.saveLocal(); } catch (err) { alert("Error: " + err); } }; r.readAsText(i.files[0]); } },
-            async exportGif() { if (this.frames.length === 0) return; document.getElementById('loading-modal').classList.remove('hidden'); try { const res = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js'); const blob = await res.blob(); const url = URL.createObjectURL(blob); const gif = new GIF({ workers: 2, quality: 10, width: this.canvas.width, height: this.canvas.height, workerScript: url }); const wasPlaying = this.isPlaying; if (wasPlaying) this.stop(); const origIdx = this.currentFrameIndex; const origFigs = this.figures; const baseDelay = 1000 / this.fps; for (let i = 0; i < this.frames.length; i++) { const dm = this.frameDelays[i] || 1.0; const steps = this.isSmooth ? Math.max(1, Math.round(5 * dm)) : 1; const stepDelay = (baseDelay * dm) / steps; const fA = this.frames[i]; const nextIdx = (i + 1) % this.frames.length; if (!this.isLooping && i === this.frames.length - 1) { this.figures = fA.map(f => f.clone()); this.renderFrameToCtx(); gif.addFrame(this.ctx, { copy: true, delay: baseDelay * dm }); } else { const fB = this.frames[nextIdx]; for (let s = 0; s < steps; s++) { let t = s / steps; if (!this.isSmooth) t = 0; this.renderInterpolated(fA, fB, t, false); this.renderFrameToCtx(false); gif.addFrame(this.ctx, { copy: true, delay: stepDelay }); if (!this.isSmooth) break; } } } gif.on('finished', (b) => { document.getElementById('loading-modal').classList.add('hidden'); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'animation.gif'; a.click(); this.currentFrameIndex = origIdx; this.figures = origFigs; this.render(); }); gif.render(); } catch (err) { document.getElementById('loading-modal').classList.add('hidden'); alert("GIF Error."); } },
-            renderFrameToCtx(h = false) { this.ctx.fillStyle = "#ffffff"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height); if (this.bgImage) this.ctx.drawImage(this.bgImage, 0, 0, this.canvas.width, this.canvas.height); this.figures.forEach(f => { f.updatePositions(); this.drawFigure(f, h); }); },
-            addFrame() { const d = (this.frameDelays.length > 0 && this.frameDelays[this.currentFrameIndex] !== undefined) ? this.frameDelays[this.currentFrameIndex] : 1.0; const snap = this.figures.map(f => f.clone()); if (this.frames.length === 0) { this.frames.push(snap); this.frameDelays.push(d); this.currentFrameIndex = 0; } else { this.frames.splice(this.currentFrameIndex + 1, 0, snap); this.frameDelays.splice(this.currentFrameIndex + 1, 0, d); this.currentFrameIndex++; } this.updateTimeline(); this.render(); this.scrollToFrame(this.currentFrameIndex); this.saveLocal(); },
-            duplicateCurrentFrame() { if (this.frames.length === 0) return; this.duplicateFrameAtIndex(this.currentFrameIndex); },
-            duplicateFrameAtIndex(idx) { if (idx < 0 || idx >= this.frames.length) return; this.saveState(); const src = this.frames[idx]; const newF = src.map(f => f.clone()); const d = this.frameDelays[idx]; this.frames.splice(idx + 1, 0, newF); this.frameDelays.splice(idx + 1, 0, d); this.currentFrameIndex = idx + 1; this.loadFrame(this.currentFrameIndex); this.updateTimeline(); this.saveLocal(); },
-
-            deleteFrameAtIndex(idx) {
-                if (this.frames.length === 0) return;
-                this.saveState();
-
-                if (this.frames.length === 1) {
-                    this.newProject();
-                    return;
-                }
-
-                this.frames.splice(idx, 1);
-                this.frameDelays.splice(idx, 1);
-
-                if (this.currentFrameIndex === idx) {
-                    if (this.currentFrameIndex >= this.frames.length) {
-                        this.currentFrameIndex = this.frames.length - 1;
-                    }
-                } else if (this.currentFrameIndex > idx) {
-                    this.currentFrameIndex--;
-                }
-
-                // Pass false to prevent overwriting the new current frame with the deleted frame's canvas data
-                this.loadFrame(this.currentFrameIndex, false);
-                this.updateTimeline();
-                this.saveLocal();
-            },
-
-            deleteFrame() {
-                if (this.frames.length === 0) return;
-
-                // Multi-delete Support
-                if (this.selectedFrames.size > 0) {
-                    // Sort indices descending to avoid shifting problems
-                    const sortedIndices = Array.from(this.selectedFrames).sort((a, b) => b - a);
-
-                    this.saveState();
-
-                    sortedIndices.forEach(idx => {
-                        this.frames.splice(idx, 1);
-                        this.frameDelays.splice(idx, 1);
+                    window.addEventListener('keydown', (e) => {
+                        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+                        if (e.code === 'Space') { e.preventDefault(); if (this.isPlaying) this.stop(); else this.addFrame(); }
+                        if (e.key === ',' || e.key === '<') this.prevFrame(); if (e.key === '.' || e.key === '>') this.nextFrame();
+                        if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); if (e.shiftKey) this.redo(); else this.undo(); }
+                        if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); this.redo(); }
                     });
 
-                    this.selectedFrames.clear();
+                    // Set Initial Zoom Display
+                    this.updateZoomDisplay();
 
-                    // Adjust currentFrameIndex
-                    if (this.frames.length === 0) {
+                    // Initial render call if loadFromLocal didn't trigger one
+                    if (this.frames.length === 0) this.render();
+                },
+
+                // --- CORE UTILS & MODALS (Moved Up for Safety) ---
+                toggleLoop(fs) { if (fs !== undefined) this.isLooping = fs; else this.isLooping = !this.isLooping; const btn = document.getElementById('btn-loop-btm'); if (this.isLooping) { btn.className = "text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium"; } else { btn.className = "text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium"; } },
+                toggleSmooth(fs) { if (fs !== undefined) this.isSmooth = fs; else this.isSmooth = !this.isSmooth; const btn = document.getElementById('btn-smooth-btm'); if (this.isSmooth) { btn.className = "text-[10px] px-2 py-1 rounded-full bg-blue-100 text-blue-600 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 transition-colors font-medium"; } else { btn.className = "text-[10px] px-2 py-1 rounded-full bg-gray-100 text-gray-500 border border-gray-200 dark:bg-zinc-700 dark:text-zinc-400 hover:text-gray-800 dark:hover:text-zinc-200 transition-colors font-medium"; } },
+
+                showModal(t, m, a) { document.getElementById('confirm-title').innerText = t; document.getElementById('confirm-msg').innerText = m; this.pendingAction = a; document.getElementById('confirm-modal').classList.remove('hidden'); },
+                closeModal() { document.getElementById('confirm-modal').classList.add('hidden'); this.pendingAction = null; },
+
+                openSettings() { document.getElementById('settings-modal').classList.remove('hidden'); },
+                closeSettings() { document.getElementById('settings-modal').classList.add('hidden'); },
+
+                executeConfirm() { if (this.pendingAction) this.pendingAction(); this.closeModal(); },
+
+                confirmClearStage() { this.showModal("Clear Stage?", "Remove all figures?", () => { this.saveState(); this.figures = []; this.render(); this.saveLocal(); }); },
+                confirmNewProject() { this.showModal("New Project?", "Discard animation?", () => { this.saveState(); this.newProject(); }); },
+
+                newProject() {
+                    this.stop();
+                    this.frames = [];
+                    this.frameDelays = [];
+                    this.figures = [];
+                    this.currentFrameIndex = 0;
+                    this.bgImage = null;
+                    this.undoStack = [];
+                    this.redoStack = [];
+                    document.getElementById('canvas-w').value = 800;
+                    document.getElementById('canvas-h').value = 500;
+                    this.setCanvasSize();
+                    this.addFigure();
+                    this.render();
+                    this.updateTimeline();
+                    this.saveLocal();
+                },
+
+                // --- ZOOM LOGIC START ---
+                changeZoom(delta) {
+                    this.zoomLevel += delta;
+                    // Clamp zoom level
+                    if (this.zoomLevel < 0.1) this.zoomLevel = 0.1;
+                    if (this.zoomLevel > 5.0) this.zoomLevel = 5.0;
+
+                    this.updateZoomDisplay();
+                    this.setCanvasSize(); // Re-apply styles
+                },
+
+                updateZoomDisplay() {
+                    const pct = Math.round(this.zoomLevel * 100);
+                    document.getElementById('zoom-display').innerText = `${pct}%`;
+                },
+                // --- ZOOM LOGIC END ---
+
+                // --- PERSISTENCE LOGIC START ---
+                saveLocal() {
+                    const d = {
+                        version: 2,
+                        width: this.canvas.width,
+                        height: this.canvas.height,
+                        fps: this.fps,
+                        frames: this.frames,
+                        delays: this.frameDelays,
+                        figures: this.figures,
+                        currentFrameIndex: this.currentFrameIndex
+                    };
+                    try {
+                        localStorage.setItem('stickmotion_data', JSON.stringify(d));
+                    } catch (e) {
+                        console.error("Storage full or error", e);
+                    }
+                },
+
+                loadFromLocal() {
+                    try {
+                        const data = localStorage.getItem('stickmotion_data');
+                        if (!data) return false;
+                        const d = JSON.parse(data);
+
+                        if (d.width) {
+                            document.getElementById('canvas-w').value = d.width;
+                            document.getElementById('canvas-h').value = d.height;
+                            this.canvas.width = d.width;
+                            this.canvas.height = d.height;
+                        }
+                        if (d.fps) {
+                            this.updateFps(d.fps);
+                            document.getElementById('frame-duration').value = d.fps;
+                        }
+
+                        // Helper to reconstitute classes from JSON
+                        const reconstructFigures = (figsData) => {
+                            return figsData.map(figd => {
+                                const fig = new Figure();
+                                Object.assign(fig, figd);
+                                fig.joints = figd.joints.map(jd => {
+                                    const j = new Joint();
+                                    Object.assign(j, jd);
+                                    return j;
+                                });
+                                return fig;
+                            });
+                        };
+
+                        if (d.frames) {
+                            this.frames = d.frames.map(frameData => reconstructFigures(frameData));
+                        }
+
+                        if (d.figures) {
+                            this.figures = reconstructFigures(d.figures);
+                        }
+
+                        if (d.delays) this.frameDelays = d.delays;
+                        else this.frameDelays = new Array(this.frames.length).fill(1.0);
+
+                        this.currentFrameIndex = d.currentFrameIndex || 0;
+
+                        // Bounds check
+                        if (this.currentFrameIndex >= this.frames.length) this.currentFrameIndex = Math.max(0, this.frames.length - 1);
+
+                        // Force a load of the current frame
+                        if (this.frames.length > 0) {
+                            this.loadFrame(this.currentFrameIndex, false);
+                        }
+
+                        this.updateTimeline();
+                        return true;
+                    } catch (e) {
+                        console.error("Load error", e);
+                        return false;
+                    }
+                },
+                // --- PERSISTENCE LOGIC END ---
+
+                // --- LIBRARY FUNCTIONS START ---
+                openLibrary() { document.getElementById('library-modal').classList.remove('hidden'); },
+                closeLibrary() { document.getElementById('library-modal').classList.add('hidden'); },
+                addFromLibrary(type) {
+                    this.saveState();
+                    let fig;
+                    switch (type) {
+                        case 'stickman': fig = this.createStickman(); break;
+                        case 'sword': fig = this.createSword(); break;
+                        case 'ball': fig = this.createBall(); break;
+                        case 'racket': fig = this.createRacket(); break;
+                        case 'bike': fig = this.createBike(); break;
+                        case 'car': fig = this.createCar(); break;
+                    }
+
+                    // Offset slightly so they don't stack perfectly on top
+                    if (this.figures.length > 0) {
+                        fig.x += 30; fig.y += 30;
+                    }
+
+                    this.figures.push(fig);
+                    this.selectFigure(fig);
+                    this.render();
+                    this.saveLocal();
+                    this.closeLibrary();
+                },
+
+                createSword() {
+                    const f = new Figure(); f.color = '#555';
+                    const j = [];
+                    j.push(new Joint('root', null, 0, 0)); // Handle base
+                    j.push(new Joint('handle', 'root', 25, -Math.PI / 2, SEGMENT_LINE, 20, 8)); // Handle
+                    j.push(new Joint('guardL', 'handle', 20, Math.PI, SEGMENT_LINE, 20, 6)); // Guard Left
+                    j.push(new Joint('guardR', 'handle', 20, 0, SEGMENT_LINE, 20, 6)); // Guard Right
+                    j.push(new Joint('blade', 'handle', 90, -Math.PI / 2, SEGMENT_LINE, 20, 10)); // Blade
+                    f.joints = j;
+                    return f;
+                },
+
+                createBall() {
+                    const f = new Figure(); f.color = '#ff6b6b';
+                    const j = [];
+                    j.push(new Joint('root', null, 0, 0));
+                    j.push(new Joint('ball', 'root', 25, 0, SEGMENT_CIRCLE, 25, 14, true));
+                    f.joints = j;
+                    return f;
+                },
+
+                createRacket() {
+                    const f = new Figure(); f.color = '#22c55e';
+                    const j = [];
+                    j.push(new Joint('root', null, 0, 0));
+                    j.push(new Joint('handle', 'root', 40, -Math.PI / 2, SEGMENT_LINE, 20, 8));
+                    j.push(new Joint('head', 'handle', 60, -Math.PI / 2, SEGMENT_CIRCLE, 30, 4, false)); // Wireframe circle
+                    f.joints = j;
+                    return f;
+                },
+
+                createBike() {
+                    const f = new Figure(); f.color = '#3b82f6';
+                    const j = [];
+                    // Root is the crank/pedal area
+                    j.push(new Joint('root', null, 0, 0));
+                    j.push(new Joint('backStay', 'root', 50, Math.PI - 0.3, SEGMENT_LINE, 20, 6));
+                    j.push(new Joint('backWheel', 'backStay', 30, 0, SEGMENT_CIRCLE, 30, 4, false));
+                    j.push(new Joint('seatTube', 'root', 55, -Math.PI / 2 + 0.2, SEGMENT_LINE, 20, 6));
+                    j.push(new Joint('seat', 'seatTube', 15, Math.PI, SEGMENT_LINE, 20, 10));
+                    j.push(new Joint('topTube', 'seatTube', 55, 0.1, SEGMENT_LINE, 20, 6));
+                    j.push(new Joint('downTube', 'root', 58, -Math.PI / 4 - 0.3, SEGMENT_LINE, 20, 6));
+                    // connect front fork roughly
+                    j.push(new Joint('headTube', 'topTube', 15, -Math.PI / 2 + 0.3, SEGMENT_LINE, 20, 8));
+                    j.push(new Joint('bars', 'headTube', 20, Math.PI - 0.5, SEGMENT_LINE, 20, 6));
+                    j.push(new Joint('fork', 'headTube', 45, Math.PI / 2 + 0.3, SEGMENT_LINE, 20, 6));
+                    j.push(new Joint('frontWheel', 'fork', 30, 0, SEGMENT_CIRCLE, 30, 4, false));
+                    f.joints = j;
+                    return f;
+                },
+
+                createCar() {
+                    const f = new Figure(); f.color = '#eab308'; // Yellow car
+                    const j = [];
+                    j.push(new Joint('root', null, 0, 0)); // Center chassis
+                    j.push(new Joint('chassisF', 'root', 50, 0, SEGMENT_LINE, 20, 10));
+                    j.push(new Joint('chassisB', 'root', 50, Math.PI, SEGMENT_LINE, 20, 10));
+                    j.push(new Joint('roofF', 'root', 35, -Math.PI / 3, SEGMENT_LINE, 20, 6));
+                    j.push(new Joint('roofTop', 'roofF', 40, 0, SEGMENT_LINE, 20, 6));
+                    j.push(new Joint('wheelF', 'chassisF', 20, Math.PI / 2, SEGMENT_CIRCLE, 20, 6, false));
+                    j.push(new Joint('wheelB', 'chassisB', 20, Math.PI / 2, SEGMENT_CIRCLE, 20, 6, false));
+                    f.joints = j;
+                    return f;
+                },
+                // --- LIBRARY FUNCTIONS END ---
+
+                resizeCanvas() { },
+                openBuilder() { builder.open(); },
+                addCustomFigure(fig) { this.saveState(); this.figures.push(fig); this.selectFigure(fig); this.render(); this.saveLocal(); },
+
+                addText() {
+                    this.saveState();
+                    const fig = new Figure(); fig.type = 'text'; fig.text = "Text";
+                    fig.x = this.canvas.width / 2; fig.y = this.canvas.height / 2;
+                    fig.scale = 1.0; fig.color = "#000000";
+                    fig.joints = [new Joint('root', null, 0, 0), new Joint('handle', 'root', 20, 0)];
+                    this.figures.push(fig); this.selectFigure(fig); this.render();
+                    this.saveLocal();
+                },
+
+                updateText(val) {
+                    const fig = this.figures.find(f => f.selected);
+                    if (fig && fig.type === 'text') { fig.text = val; this.render(); this.saveLocal(); }
+                },
+
+                createStickman() { const f = new Figure(); const j = []; j.push(new Joint('hip', null, 0, 0)); j.push(new Joint('abs', 'hip', 23, -Math.PI / 2)); j.push(new Joint('chest', 'abs', 23, -Math.PI / 2)); j.push(new Joint('neck', 'chest', 40, -Math.PI / 2, SEGMENT_CIRCLE, 20, 14, true)); j.push(new Joint('lShldr', 'chest', 25, Math.PI - 0.2)); j.push(new Joint('lElbow', 'lShldr', 25, Math.PI - 0.5)); j.push(new Joint('lHand', 'lElbow', 20, Math.PI - 0.2)); j.push(new Joint('rShldr', 'chest', 25, 0.2)); j.push(new Joint('rElbow', 'rShldr', 25, 0.5)); j.push(new Joint('rHand', 'rElbow', 20, 0.2)); j.push(new Joint('lKnee', 'hip', 35, Math.PI / 2 + 0.3)); j.push(new Joint('lFoot', 'lKnee', 35, Math.PI / 2 + 0.1)); j.push(new Joint('rKnee', 'hip', 35, Math.PI / 2 - 0.3)); j.push(new Joint('rFoot', 'rKnee', 35, Math.PI / 2 - 0.1)); f.joints = j; return f; },
+                saveState() { if (this.undoStack.length > 50) this.undoStack.shift(); this.undoStack.push({ frames: this.frames.map(f => f.map(x => x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f => f.clone()) }); this.redoStack = []; },
+                undo() { if (this.undoStack.length === 0) return; this.redoStack.push({ frames: this.frames.map(f => f.map(x => x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f => f.clone()) }); this.restoreState(this.undoStack.pop()); },
+                redo() { if (this.redoStack.length === 0) return; this.undoStack.push({ frames: this.frames.map(f => f.map(x => x.clone())), frameDelays: [...this.frameDelays], currentFrameIndex: this.currentFrameIndex, figures: this.figures.map(f => f.clone()) }); this.restoreState(this.redoStack.pop()); },
+                restoreState(state) { this.frames = state.frames.map(f => f.map(x => x.clone())); this.frameDelays = [...state.frameDelays]; this.currentFrameIndex = state.currentFrameIndex; this.figures = state.figures.map(f => f.clone()); const delay = this.frameDelays[this.currentFrameIndex] || 1.0; document.getElementById('frame-duration').value = delay; document.getElementById('duration-display').innerText = delay.toFixed(1) + 'x'; this.render(); this.updateTimeline(); this.saveLocal(); },
+                addFigure() { this.saveState(); const fig = this.createStickman(); if (this.figures.length > 0) { fig.x += 20; fig.y += 20; } this.figures.push(fig); this.selectFigure(fig); this.render(); this.saveLocal(); },
+                deleteSelectedFigure() { const idx = this.figures.findIndex(f => f.selected); if (idx !== -1) { this.saveState(); this.figures.splice(idx, 1); this.render(); this.saveLocal(); } },
+                raiseFigure() { const idx = this.figures.findIndex(f => f.selected); if (idx !== -1 && idx < this.figures.length - 1) { this.saveState(); const t = this.figures[idx]; this.figures[idx] = this.figures[idx + 1]; this.figures[idx + 1] = t; this.render(); this.saveLocal(); } },
+                lowerFigure() { const idx = this.figures.findIndex(f => f.selected); if (idx > 0) { this.saveState(); const t = this.figures[idx]; this.figures[idx] = this.figures[idx - 1]; this.figures[idx - 1] = t; this.render(); this.saveLocal(); } },
+                prevFrame() { if (this.frames.length > 0 && this.currentFrameIndex > 0) this.loadFrame(this.currentFrameIndex - 1); },
+                nextFrame() { if (this.frames.length > 0 && this.currentFrameIndex < this.frames.length - 1) this.loadFrame(this.currentFrameIndex + 1); },
+
+                goToFirstFrame() {
+                    if (this.frames.length > 0) {
+                        this.loadFrame(0);
+                        this.scrollToFrame(0);
+                    }
+                },
+
+                // --- RESTORED FUNCTION ---
+                setFrameDuration(val) {
+                    const d = parseFloat(val);
+                    document.getElementById('duration-display').innerText = d.toFixed(1) + 'x';
+                    if (this.frameDelays[this.currentFrameIndex] !== undefined) {
+                        this.frameDelays[this.currentFrameIndex] = d;
+                        const container = document.getElementById('timeline-track');
+                        if (container && container.children[this.currentFrameIndex]) {
+                            const wrapper = container.children[this.currentFrameIndex];
+                            const badge = wrapper.querySelector('.absolute.top-0.left-0');
+                            if (badge) {
+                                badge.innerText = d.toFixed(1) + 'x';
+                                badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${d > 1.0 ? 'bg-blue-600 text-white' : 'bg-zinc-700 text-zinc-400'}`;
+                            }
+                            const barFill = wrapper.querySelector('.absolute.bottom-0 div');
+                            if (barFill) {
+                                let w = (d / 10.0) * 100;
+                                w = Math.max(5, w);
+                                barFill.style.width = w + '%';
+                                barFill.className = `h-full ${d > 1.0 ? 'bg-blue-500' : 'bg-zinc-600'}`;
+                            }
+                        }
+                        this.saveLocal();
+                    }
+                },
+                // -------------------------
+
+                // --- UPDATED: setCanvasSize to respect zoom ---
+                setCanvasSize() {
+                    const w = parseInt(document.getElementById('canvas-w').value) || 800;
+                    const h = parseInt(document.getElementById('canvas-h').value) || 500;
+                    this.canvas.width = w;
+                    this.canvas.height = h;
+
+                    // Apply zoom scaling to CSS dimensions
+                    this.canvas.style.width = (w * this.zoomLevel) + 'px';
+                    this.canvas.style.height = (h * this.zoomLevel) + 'px';
+                    this.canvas.style.maxWidth = 'none'; // Allow overflow for zooming in
+
+                    this.render();
+                    this.saveLocal();
+                },
+                // --- END UPDATE ---
+
+                loadBackground(i) { if (i.files && i.files[0]) { const r = new FileReader(); r.onload = (e) => { const img = new Image(); img.onload = () => { this.bgImage = img; this.render(); }; img.src = e.target.result; }; r.readAsDataURL(i.files[0]); } },
+                saveProject() { const d = { version: 2, width: this.canvas.width, height: this.canvas.height, fps: this.fps, frames: this.frames, delays: this.frameDelays }; const b = new Blob([JSON.stringify(d)], { type: 'application/json' }); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'project.json'; a.click(); },
+                loadProject(i) { if (i.files && i.files[0]) { this.stop(); this.saveState(); const r = new FileReader(); r.onload = (e) => { try { const d = JSON.parse(e.target.result); if (d.width) { document.getElementById('canvas-w').value = d.width; document.getElementById('canvas-h').value = d.height; this.setCanvasSize(); } if (d.fps) { this.updateFps(d.fps); document.getElementById('fps-display').innerText = d.fps; } this.frames = d.frames.map(fd => fd.map(figd => { const fig = new Figure(); Object.assign(fig, figd); fig.joints = figd.joints.map(jd => { const j = new Joint(); Object.assign(j, jd); return j; }); return fig; })); if (d.delays) this.frameDelays = d.delays; else this.frameDelays = new Array(this.frames.length).fill(1.0); this.currentFrameIndex = 0; this.loadFrame(0); this.updateTimeline(); this.undoStack = []; this.redoStack = []; this.saveLocal(); } catch (err) { alert("Error: " + err); } }; r.readAsText(i.files[0]); } },
+                async exportGif() { if (this.frames.length === 0) return; document.getElementById('loading-modal').classList.remove('hidden'); try { const res = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js'); const blob = await res.blob(); const url = URL.createObjectURL(blob); const gif = new GIF({ workers: 2, quality: 10, width: this.canvas.width, height: this.canvas.height, workerScript: url }); const wasPlaying = this.isPlaying; if (wasPlaying) this.stop(); const origIdx = this.currentFrameIndex; const origFigs = this.figures; const baseDelay = 1000 / this.fps; for (let i = 0; i < this.frames.length; i++) { const dm = this.frameDelays[i] || 1.0; const steps = this.isSmooth ? Math.max(1, Math.round(5 * dm)) : 1; const stepDelay = (baseDelay * dm) / steps; const fA = this.frames[i]; const nextIdx = (i + 1) % this.frames.length; if (!this.isLooping && i === this.frames.length - 1) { this.figures = fA.map(f => f.clone()); this.renderFrameToCtx(); gif.addFrame(this.ctx, { copy: true, delay: baseDelay * dm }); } else { const fB = this.frames[nextIdx]; for (let s = 0; s < steps; s++) { let t = s / steps; if (!this.isSmooth) t = 0; this.renderInterpolated(fA, fB, t, false); this.renderFrameToCtx(false); gif.addFrame(this.ctx, { copy: true, delay: stepDelay }); if (!this.isSmooth) break; } } } gif.on('finished', (b) => { document.getElementById('loading-modal').classList.add('hidden'); const u = URL.createObjectURL(b); const a = document.createElement('a'); a.href = u; a.download = 'animation.gif'; a.click(); this.currentFrameIndex = origIdx; this.figures = origFigs; this.render(); }); gif.render(); } catch (err) { document.getElementById('loading-modal').classList.add('hidden'); alert("GIF Error."); } },
+                renderFrameToCtx(h = false) { this.ctx.fillStyle = "#ffffff"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height); if (this.bgImage) this.ctx.drawImage(this.bgImage, 0, 0, this.canvas.width, this.canvas.height); this.figures.forEach(f => { f.updatePositions(); this.drawFigure(f, h); }); },
+                addFrame() { const d = (this.frameDelays.length > 0 && this.frameDelays[this.currentFrameIndex] !== undefined) ? this.frameDelays[this.currentFrameIndex] : 1.0; const snap = this.figures.map(f => f.clone()); if (this.frames.length === 0) { this.frames.push(snap); this.frameDelays.push(d); this.currentFrameIndex = 0; } else { this.frames.splice(this.currentFrameIndex + 1, 0, snap); this.frameDelays.splice(this.currentFrameIndex + 1, 0, d); this.currentFrameIndex++; } this.updateTimeline(); this.render(); this.scrollToFrame(this.currentFrameIndex); this.saveLocal(); },
+                duplicateCurrentFrame() { if (this.frames.length === 0) return; this.duplicateFrameAtIndex(this.currentFrameIndex); },
+                duplicateFrameAtIndex(idx) { if (idx < 0 || idx >= this.frames.length) return; this.saveState(); const src = this.frames[idx]; const newF = src.map(f => f.clone()); const d = this.frameDelays[idx]; this.frames.splice(idx + 1, 0, newF); this.frameDelays.splice(idx + 1, 0, d); this.currentFrameIndex = idx + 1; this.loadFrame(this.currentFrameIndex); this.updateTimeline(); this.saveLocal(); },
+
+                deleteFrameAtIndex(idx) {
+                    if (this.frames.length === 0) return;
+                    this.saveState();
+
+                    if (this.frames.length === 1) {
                         this.newProject();
                         return;
                     }
 
-                    if (this.currentFrameIndex >= this.frames.length) {
-                        this.currentFrameIndex = Math.max(0, this.frames.length - 1);
+                    this.frames.splice(idx, 1);
+                    this.frameDelays.splice(idx, 1);
+
+                    if (this.currentFrameIndex === idx) {
+                        if (this.currentFrameIndex >= this.frames.length) {
+                            this.currentFrameIndex = this.frames.length - 1;
+                        }
+                    } else if (this.currentFrameIndex > idx) {
+                        this.currentFrameIndex--;
                     }
 
+                    // Pass false to prevent overwriting the new current frame with the deleted frame's canvas data
                     this.loadFrame(this.currentFrameIndex, false);
                     this.updateTimeline();
                     this.saveLocal();
-                } else {
-                    this.deleteFrameAtIndex(this.currentFrameIndex);
-                }
-            },
+                },
 
-            saveFrame(isInit = false) { if (this.frames.length === 0 && !isInit) return; const snap = this.figures.map(f => f.clone()); if (isInit) { this.frames = [snap]; this.frameDelays = [1.0]; } else this.frames[this.currentFrameIndex] = snap; },
-            loadFrame(idx, autoSave = true, event = null) {
-                if (this.frames.length === 0) return;
+                deleteFrame() {
+                    if (this.frames.length === 0) return;
 
-                // Handle Selection Logic
-                if (event && event.shiftKey) {
-                    // Range Select
-                    const start = Math.min(this.currentFrameIndex, idx);
-                    const end = Math.max(this.currentFrameIndex, idx);
-                    this.selectedFrames.clear();
-                    for (let i = start; i <= end; i++) this.selectedFrames.add(i);
-                } else if (event && (event.ctrlKey || event.metaKey)) {
-                    // Toggle Select
-                    if (this.selectedFrames.has(idx)) {
-                        this.selectedFrames.delete(idx);
-                    } else {
-                        this.selectedFrames.add(idx);
-                    }
-                    this.selectedFrames.add(this.currentFrameIndex); // Ensure current is always selected
-                } else {
-                    // Single Select (default)
-                    if (event || !this.selectedFrames.has(idx)) {
-                        this.selectedFrames.clear();
-                        this.selectedFrames.add(idx);
-                    }
-                }
+                    // Multi-delete Support
+                    if (this.selectedFrames.size > 0) {
+                        // Sort indices descending to avoid shifting problems
+                        const sortedIndices = Array.from(this.selectedFrames).sort((a, b) => b - a);
 
-                if (autoSave && this.frames[this.currentFrameIndex])
-                    this.frames[this.currentFrameIndex] = this.figures.map(f => f.clone());
-
-                this.currentFrameIndex = idx;
-                this.figures = this.frames[idx].map(f => f.clone());
-
-                const d = this.frameDelays[idx] || 1.0;
-                document.getElementById('frame-duration').value = d;
-                document.getElementById('duration-display').innerText = d.toFixed(1) + 'x';
-
-                this.render();
-                this.updateTimelineUiState(); // Updated manually or via render
-                this.updateTimeline(); // Re-render timeline to show selection
-            },
-            play() { if (this.isPlaying || this.frames.length === 0) return; this.saveFrame(); this.isPlaying = true; document.getElementById('btn-play-btm').classList.add('hidden'); document.getElementById('btn-stop-btm').classList.remove('hidden'); this.lastTime = performance.now(); this.playbackAccumulator = 0; if (this.currentFrameIndex >= this.frames.length - 1) this.currentFrameIndex = 0; requestAnimationFrame((t) => this.playTick(t)); },
-            stop() { this.isPlaying = false; document.getElementById('btn-play-btm').classList.remove('hidden'); document.getElementById('btn-stop-btm').classList.add('hidden'); if (this.frames.length > 0) this.loadFrame(this.currentFrameIndex, false); },
-            playTick(now) { if (!this.isPlaying) return; const dt = now - this.lastTime; this.lastTime = now; const cm = this.frameDelays[this.currentFrameIndex] || 1.0; const ms = (1000 / this.fps) * cm; this.playbackAccumulator += dt; if (this.playbackAccumulator >= ms) { this.playbackAccumulator -= ms; this.currentFrameIndex++; if (this.currentFrameIndex >= this.frames.length) { if (this.isLooping) this.currentFrameIndex = 0; else { this.currentFrameIndex = this.frames.length - 1; this.stop(); return; } } this.updateTimelineUiState(); } if (this.isSmooth) { let t = this.playbackAccumulator / ms; if (t > 1) t = 1; if (this.currentFrameIndex < this.frames.length) { const fA = this.frames[this.currentFrameIndex]; const nI = (this.currentFrameIndex + 1) % this.frames.length; if (!this.isLooping && this.currentFrameIndex === this.frames.length - 1) this.figures = fA.map(f => f.clone()); else if (this.frames[nI]) this.renderInterpolated(fA, this.frames[nI], t); else { this.figures = fA.map(f => f.clone()); this.render(); } } } else { if (this.frames[this.currentFrameIndex]) { this.figures = this.frames[this.currentFrameIndex].map(f => f.clone()); this.render(); } } requestAnimationFrame((t) => this.playTick(t)); },
-            renderInterpolated(fA, fB, t, draw = true) { if (!fA || !fB) return; const interp = []; fA.forEach(figA => { const figB = fB.find(f => f.id === figA.id); if (figB) { const nF = figA.clone(); nF.x = figA.x + (figB.x - figA.x) * t; nF.y = figA.y + (figB.y - figA.y) * t; nF.scale = figA.scale + (figB.scale - figA.scale) * t; nF.joints.forEach(jA => { const jB = figB.joints.find(j => j.id === jA.id); if (jB) { let d = jB.angle - jA.angle; while (d < -Math.PI) d += Math.PI * 2; while (d > Math.PI) d -= Math.PI * 2; jA.angle += d * t; } }); interp.push(nF); } else interp.push(figA.clone()); }); this.figures = interp; if (draw) this.render(); },
-            updateFps(v) { this.fps = parseInt(v); document.getElementById('fps-display').innerText = v; this.saveLocal(); },
-            getPos(e, isTouch) { const r = this.canvas.getBoundingClientRect(); let cx = isTouch ? e.touches[0].clientX : e.clientX; let cy = isTouch ? e.touches[0].clientY : e.clientY; return { x: (cx - r.left) * (this.canvas.width / r.width), y: (cy - r.top) * (this.canvas.height / r.height) }; },
-
-            // --- UPDATED: Hit Testing Helper ---
-            distToSegment(p, v, w) {
-                const l2 = Math.pow(v.x - w.x, 2) + Math.pow(v.y - w.y, 2);
-                if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
-                let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
-                t = Math.max(0, Math.min(1, t));
-                return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
-            },
-
-            // --- UPDATED: Handle Start to Check Segments for Selection ---
-            handleStart(e, isTouch) {
-                if (this.isPlaying) return;
-                if (isTouch) e.preventDefault();
-                const pos = this.getPos(e, isTouch);
-                this.mouseX = pos.x; this.mouseY = pos.y;
-
-                // 1. Check for Handles (Pivot Points) - Priority 1
-                for (let i = this.figures.length - 1; i >= 0; i--) {
-                    const fig = this.figures[i];
-                    fig.updatePositions();
-                    // Root Handle
-                    const root = fig.joints.find(j => j.parentId === null);
-                    if (Math.hypot(pos.x - root.x, pos.y - root.y) < (this.handleRadius + 10)) {
                         this.saveState();
-                        this.dragTarget = { figure: fig, type: 'root', joint: root, offsetX: pos.x - fig.x, offsetY: pos.y - fig.y };
-                        this.selectFigure(fig);
-                        this.render();
+
+                        sortedIndices.forEach(idx => {
+                            this.frames.splice(idx, 1);
+                            this.frameDelays.splice(idx, 1);
+                        });
+
+                        this.selectedFrames.clear();
+
+                        // Adjust currentFrameIndex
+                        if (this.frames.length === 0) {
+                            this.newProject();
+                            return;
+                        }
+
+                        if (this.currentFrameIndex >= this.frames.length) {
+                            this.currentFrameIndex = Math.max(0, this.frames.length - 1);
+                        }
+
+                        this.loadFrame(this.currentFrameIndex, false);
+                        this.updateTimeline();
+                        this.saveLocal();
+                    } else {
+                        this.deleteFrameAtIndex(this.currentFrameIndex);
+                    }
+                },
+
+                saveFrame(isInit = false) { if (this.frames.length === 0 && !isInit) return; const snap = this.figures.map(f => f.clone()); if (isInit) { this.frames = [snap]; this.frameDelays = [1.0]; } else this.frames[this.currentFrameIndex] = snap; },
+                loadFrame(idx, autoSave = true, event = null) {
+                    if (this.frames.length === 0) return;
+
+                    // Handle Selection Logic
+                    if (event && event.shiftKey) {
+                        // Range Select
+                        const start = Math.min(this.currentFrameIndex, idx);
+                        const end = Math.max(this.currentFrameIndex, idx);
+                        this.selectedFrames.clear();
+                        for (let i = start; i <= end; i++) this.selectedFrames.add(i);
+                    } else if (event && (event.ctrlKey || event.metaKey)) {
+                        // Toggle Select
+                        if (this.selectedFrames.has(idx)) {
+                            this.selectedFrames.delete(idx);
+                        } else {
+                            this.selectedFrames.add(idx);
+                        }
+                        this.selectedFrames.add(this.currentFrameIndex); // Ensure current is always selected
+                    } else {
+                        // Single Select (default)
+                        if (event || !this.selectedFrames.has(idx)) {
+                            this.selectedFrames.clear();
+                            this.selectedFrames.add(idx);
+                        }
+                    }
+
+                    if (autoSave && this.frames[this.currentFrameIndex])
+                        this.frames[this.currentFrameIndex] = this.figures.map(f => f.clone());
+
+                    this.currentFrameIndex = idx;
+                    this.figures = this.frames[idx].map(f => f.clone());
+
+                    const d = this.frameDelays[idx] || 1.0;
+                    document.getElementById('frame-duration').value = d;
+                    document.getElementById('duration-display').innerText = d.toFixed(1) + 'x';
+
+                    this.render();
+                    this.updateTimelineUiState(); // Updated manually or via render
+                    this.updateTimeline(); // Re-render timeline to show selection
+                },
+                play() { if (this.isPlaying || this.frames.length === 0) return; this.saveFrame(); this.isPlaying = true; document.getElementById('btn-play-btm').classList.add('hidden'); document.getElementById('btn-stop-btm').classList.remove('hidden'); this.lastTime = performance.now(); this.playbackAccumulator = 0; if (this.currentFrameIndex >= this.frames.length - 1) this.currentFrameIndex = 0; requestAnimationFrame((t) => this.playTick(t)); },
+                stop() { this.isPlaying = false; document.getElementById('btn-play-btm').classList.remove('hidden'); document.getElementById('btn-stop-btm').classList.add('hidden'); if (this.frames.length > 0) this.loadFrame(this.currentFrameIndex, false); },
+                playTick(now) { if (!this.isPlaying) return; const dt = now - this.lastTime; this.lastTime = now; const cm = this.frameDelays[this.currentFrameIndex] || 1.0; const ms = (1000 / this.fps) * cm; this.playbackAccumulator += dt; if (this.playbackAccumulator >= ms) { this.playbackAccumulator -= ms; this.currentFrameIndex++; if (this.currentFrameIndex >= this.frames.length) { if (this.isLooping) this.currentFrameIndex = 0; else { this.currentFrameIndex = this.frames.length - 1; this.stop(); return; } } this.updateTimelineUiState(); } if (this.isSmooth) { let t = this.playbackAccumulator / ms; if (t > 1) t = 1; if (this.currentFrameIndex < this.frames.length) { const fA = this.frames[this.currentFrameIndex]; const nI = (this.currentFrameIndex + 1) % this.frames.length; if (!this.isLooping && this.currentFrameIndex === this.frames.length - 1) this.figures = fA.map(f => f.clone()); else if (this.frames[nI]) this.renderInterpolated(fA, this.frames[nI], t); else { this.figures = fA.map(f => f.clone()); this.render(); } } } else { if (this.frames[this.currentFrameIndex]) { this.figures = this.frames[this.currentFrameIndex].map(f => f.clone()); this.render(); } } requestAnimationFrame((t) => this.playTick(t)); },
+                renderInterpolated(fA, fB, t, draw = true) { if (!fA || !fB) return; const interp = []; fA.forEach(figA => { const figB = fB.find(f => f.id === figA.id); if (figB) { const nF = figA.clone(); nF.x = figA.x + (figB.x - figA.x) * t; nF.y = figA.y + (figB.y - figA.y) * t; nF.scale = figA.scale + (figB.scale - figA.scale) * t; nF.joints.forEach(jA => { const jB = figB.joints.find(j => j.id === jA.id); if (jB) { let d = jB.angle - jA.angle; while (d < -Math.PI) d += Math.PI * 2; while (d > Math.PI) d -= Math.PI * 2; jA.angle += d * t; } }); interp.push(nF); } else interp.push(figA.clone()); }); this.figures = interp; if (draw) this.render(); },
+                updateFps(v) { this.fps = parseInt(v); document.getElementById('fps-display').innerText = v; this.saveLocal(); },
+                getPos(e, isTouch) { const r = this.canvas.getBoundingClientRect(); let cx = isTouch ? e.touches[0].clientX : e.clientX; let cy = isTouch ? e.touches[0].clientY : e.clientY; return { x: (cx - r.left) * (this.canvas.width / r.width), y: (cy - r.top) * (this.canvas.height / r.height) }; },
+
+                // --- UPDATED: Hit Testing Helper ---
+                distToSegment(p, v, w) {
+                    const l2 = Math.pow(v.x - w.x, 2) + Math.pow(v.y - w.y, 2);
+                    if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+                    let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+                    t = Math.max(0, Math.min(1, t));
+                    return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+                },
+
+                // --- UPDATED: Handle Start to Check Segments for Selection ---
+                handleStart(e, isTouch) {
+                    if (this.isPlaying) return;
+                    if (isTouch) e.preventDefault();
+                    const pos = this.getPos(e, isTouch);
+                    this.mouseX = pos.x; this.mouseY = pos.y;
+
+                    // 1. Check for Handles (Pivot Points) - Priority 1
+                    for (let i = this.figures.length - 1; i >= 0; i--) {
+                        const fig = this.figures[i];
+                        fig.updatePositions();
+                        // Root Handle
+                        const root = fig.joints.find(j => j.parentId === null);
+                        if (Math.hypot(pos.x - root.x, pos.y - root.y) < (this.handleRadius + 10)) {
+                            this.saveState();
+                            this.dragTarget = { figure: fig, type: 'root', joint: root, offsetX: pos.x - fig.x, offsetY: pos.y - fig.y };
+                            this.selectFigure(fig);
+                            this.render();
+                            return;
+                        }
+                        // Joint Handles
+                        for (let j of fig.joints) {
+                            if (j.parentId === null) continue;
+                            if (Math.hypot(pos.x - j.x, pos.y - j.y) < (this.handleRadius + 10)) {
+                                this.saveState();
+                                this.dragTarget = { figure: fig, type: 'joint', joint: j };
+                                this.selectFigure(fig);
+                                this.render();
+                                return;
+                            }
+                        }
+                    }
+
+                    // 2. Check for Segments (Body) - Priority 2 (Selection Only)
+                    for (let i = this.figures.length - 1; i >= 0; i--) {
+                        const fig = this.figures[i];
+                        // Check distance to lines
+                        for (let j of fig.joints) {
+                            if (!j.parentId) continue;
+                            const parent = fig.joints.find(p => p.id === j.parentId);
+                            if (!parent) continue;
+
+                            // Calculate if click is on this segment
+                            const dist = this.distToSegment(pos, { x: parent.x, y: parent.y }, { x: j.x, y: j.y });
+                            const thickness = (j.thickness || 14) * fig.scale;
+
+                            if (dist < thickness / 2 + 5) {
+                                this.saveState();
+                                // Select the figure
+                                this.selectFigure(fig);
+
+                                // Start dragging the whole figure as if by root
+                                const root = fig.joints.find(x => x.parentId === null);
+                                this.dragTarget = { figure: fig, type: 'root', joint: root, offsetX: pos.x - fig.x, offsetY: pos.y - fig.y };
+
+                                this.render();
+                                return;
+                            }
+                        }
+                    }
+
+                    this.deselectAll();
+                    this.render();
+                },
+                // --- END UPDATE ---
+
+                handleMove(e, isTouch) { const pos = this.getPos(e, isTouch); if (!isTouch && !this.dragTarget && !this.isPlaying) { let h = false; for (let f of this.figures) { for (let j of f.joints) { if (Math.hypot(pos.x - j.x, pos.y - j.y) < this.handleRadius * 2) { h = true; break; } } } this.canvas.style.cursor = h ? 'pointer' : 'crosshair'; } if (!this.dragTarget) return; if (isTouch && e.cancelable) e.preventDefault(); if (this.dragTarget.type === 'root') { const fig = this.dragTarget.figure; fig.x = pos.x - this.dragTarget.offsetX; fig.y = pos.y - this.dragTarget.offsetY; } else { const joint = this.dragTarget.joint; const fig = this.dragTarget.figure; const parent = fig.joints.find(j => j.id === joint.parentId); if (parent) { const dx = pos.x - parent.x; const dy = pos.y - parent.y; const newA = Math.atan2(dy, dx); const delta = newA - joint.angle; joint.angle = newA; this.rotateHierarchy(fig, joint.id, delta); } } this.render(); },
+                handleEnd(e) { this.dragTarget = null; this.saveLocal(); },
+                rotateHierarchy(fig, pid, delta) { fig.joints.forEach(j => { if (j.parentId === pid) { j.angle += delta; this.rotateHierarchy(fig, j.id, delta); } }); },
+                selectFigure(fig) {
+                    this.figures.forEach(f => f.selected = false); fig.selected = true;
+                    document.getElementById('color-picker').value = fig.color;
+                    const textPanel = document.getElementById('text-editor-panel');
+                    if (fig.type === 'text') { textPanel.classList.remove('hidden'); document.getElementById('text-figure-input').value = fig.text; } else { textPanel.classList.add('hidden'); }
+                },
+                deselectAll() { this.figures.forEach(f => f.selected = false); document.getElementById('text-editor-panel').classList.add('hidden'); },
+                flipFigure() { const fig = this.figures.find(f => f.selected); if (!fig) return; this.saveState(); fig.joints.forEach(j => { if (j.parentId !== null) j.angle = Math.PI - j.angle; }); this.render(); this.saveLocal(); },
+                centerFigure() { const fig = this.figures.find(f => f.selected); if (!fig) return; this.saveState(); fig.x = this.canvas.width / 2; fig.y = this.canvas.height / 2; this.render(); this.saveLocal(); },
+                scaleFigure(f) { const fig = this.figures.find(fig => fig.selected); if (!fig) return; this.saveState(); fig.scale *= f; this.render(); this.saveLocal(); },
+                rotateSelectedFigure(delta) { const fig = this.figures.find(f => f.selected); if (!fig) return; this.saveState(); fig.joints.forEach(j => { if (j.parentId !== null) j.angle += delta; }); this.render(); this.saveLocal(); },
+                setFigureColor(hex) { const fig = this.figures.find(f => f.selected); if (!fig) return; this.saveState(); fig.color = hex; document.getElementById('color-preview').style.backgroundColor = hex; this.render(); this.saveLocal(); },
+                render() { this.ctx.fillStyle = "#ffffff"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height); if (this.bgImage) this.ctx.drawImage(this.bgImage, 0, 0, this.canvas.width, this.canvas.height); this.showOnion = document.getElementById('onion-check').checked; if (this.showOnion && !this.isPlaying && this.frames.length > 0) { let pF = null; if (this.currentFrameIndex === this.frames.length - 1) pF = this.frames[this.currentFrameIndex]; else if (this.currentFrameIndex > 0) pF = this.frames[this.currentFrameIndex - 1]; if (pF) { this.ctx.globalAlpha = 0.3; pF.forEach(f => { f.updatePositions(); this.drawFigure(f, false); }); this.ctx.globalAlpha = 1.0; } } this.figures.forEach(f => { f.updatePositions(); this.drawFigure(f, !this.isPlaying); }); },
+                drawFigure(fig, showHandles) {
+                    this.ctx.strokeStyle = fig.color; this.ctx.fillStyle = fig.color;
+                    this.ctx.lineCap = 'round'; this.ctx.lineJoin = 'round';
+
+                    if (fig.type === 'text') {
+                        this.ctx.save(); this.ctx.translate(fig.x, fig.y);
+                        let angle = 0; let scale = fig.scale;
+                        const handle = fig.joints.find(j => j.id === 'handle');
+                        if (handle) {
+                            const dx = handle.x - fig.x; const dy = handle.y - fig.y;
+                            angle = Math.atan2(dy, dx); scale = Math.hypot(dx, dy) / 20.0;
+                        }
+                        this.ctx.rotate(angle); this.ctx.scale(scale, scale);
+                        this.ctx.font = "bold 20px sans-serif"; this.ctx.textAlign = "center"; this.ctx.textBaseline = "middle";
+                        this.ctx.fillText(fig.text, 0, 0); this.ctx.restore();
+
+                        if (showHandles) {
+                            this.ctx.beginPath(); this.ctx.arc(fig.x, fig.y, this.handleRadius + 2, 0, Math.PI * 2);
+                            this.ctx.fillStyle = '#f97316'; this.ctx.fill();
+                            if (handle) {
+                                this.ctx.beginPath(); this.ctx.arc(handle.x, handle.y, this.handleRadius, 0, Math.PI * 2);
+                                this.ctx.fillStyle = '#ef4444';
+                                if (this.dragTarget && this.dragTarget.joint === handle) { this.ctx.fillStyle = '#3b82f6'; this.ctx.strokeStyle = '#fff'; this.ctx.lineWidth = 2; this.ctx.stroke(); }
+                                this.ctx.fill();
+                                this.ctx.beginPath(); this.ctx.moveTo(fig.x, fig.y); this.ctx.lineTo(handle.x, handle.y);
+                                this.ctx.strokeStyle = 'rgba(255, 100, 100, 0.3)'; this.ctx.lineWidth = 1; this.ctx.stroke();
+                            }
+                        }
                         return;
                     }
-                    // Joint Handles
-                    for (let j of fig.joints) {
-                        if (j.parentId === null) continue;
-                        if (Math.hypot(pos.x - j.x, pos.y - j.y) < (this.handleRadius + 10)) {
-                            this.saveState();
-                            this.dragTarget = { figure: fig, type: 'joint', joint: j };
-                            this.selectFigure(fig);
-                            this.render();
-                            return;
-                        }
-                    }
-                }
 
-                // 2. Check for Segments (Body) - Priority 2 (Selection Only)
-                for (let i = this.figures.length - 1; i >= 0; i--) {
-                    const fig = this.figures[i];
-                    // Check distance to lines
-                    for (let j of fig.joints) {
-                        if (!j.parentId) continue;
+                    fig.joints.forEach(j => {
+                        if (j.parentId === null) return;
                         const parent = fig.joints.find(p => p.id === j.parentId);
-                        if (!parent) continue;
-
-                        // Calculate if click is on this segment
-                        const dist = this.distToSegment(pos, { x: parent.x, y: parent.y }, { x: j.x, y: j.y });
-                        const thickness = (j.thickness || 14) * fig.scale;
-
-                        if (dist < thickness / 2 + 5) {
-                            this.saveState();
-                            // Select the figure
-                            this.selectFigure(fig);
-
-                            // Start dragging the whole figure as if by root
-                            const root = fig.joints.find(x => x.parentId === null);
-                            this.dragTarget = { figure: fig, type: 'root', joint: root, offsetX: pos.x - fig.x, offsetY: pos.y - fig.y };
-
-                            this.render();
-                            return;
+                        if (!parent) return;
+                        this.ctx.lineWidth = (j.thickness || 14) * fig.scale;
+                        if (j.type === SEGMENT_CIRCLE) {
+                            const dx = j.x - parent.x; const dy = j.y - parent.y;
+                            const angle = Math.atan2(dy, dx);
+                            const r = (j.radius || 20) * fig.scale;
+                            const cx = j.x - Math.cos(angle) * (r * 0.5);
+                            const cy = j.y - Math.sin(angle) * (r * 0.5);
+                            const chinX = cx - Math.cos(angle) * r;
+                            const chinY = cy - Math.sin(angle) * r;
+                            this.ctx.beginPath(); this.ctx.moveTo(parent.x, parent.y); this.ctx.lineTo(chinX, chinY); this.ctx.stroke();
+                            this.ctx.beginPath(); this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                            if (j.filled !== false) this.ctx.fill(); else { this.ctx.save(); this.ctx.fillStyle = "rgba(255,255,255,0)"; this.ctx.stroke(); this.ctx.restore(); this.ctx.fillStyle = fig.color; }
+                        } else {
+                            this.ctx.beginPath(); this.ctx.moveTo(parent.x, parent.y); this.ctx.lineTo(j.x, j.y); this.ctx.stroke();
                         }
-                    }
-                }
-
-                this.deselectAll();
-                this.render();
-            },
-            // --- END UPDATE ---
-
-            handleMove(e, isTouch) { const pos = this.getPos(e, isTouch); if (!isTouch && !this.dragTarget && !this.isPlaying) { let h = false; for (let f of this.figures) { for (let j of f.joints) { if (Math.hypot(pos.x - j.x, pos.y - j.y) < this.handleRadius * 2) { h = true; break; } } } this.canvas.style.cursor = h ? 'pointer' : 'crosshair'; } if (!this.dragTarget) return; if (isTouch && e.cancelable) e.preventDefault(); if (this.dragTarget.type === 'root') { const fig = this.dragTarget.figure; fig.x = pos.x - this.dragTarget.offsetX; fig.y = pos.y - this.dragTarget.offsetY; } else { const joint = this.dragTarget.joint; const fig = this.dragTarget.figure; const parent = fig.joints.find(j => j.id === joint.parentId); if (parent) { const dx = pos.x - parent.x; const dy = pos.y - parent.y; const newA = Math.atan2(dy, dx); const delta = newA - joint.angle; joint.angle = newA; this.rotateHierarchy(fig, joint.id, delta); } } this.render(); },
-            handleEnd(e) { this.dragTarget = null; this.saveLocal(); },
-            rotateHierarchy(fig, pid, delta) { fig.joints.forEach(j => { if (j.parentId === pid) { j.angle += delta; this.rotateHierarchy(fig, j.id, delta); } }); },
-            selectFigure(fig) {
-                this.figures.forEach(f => f.selected = false); fig.selected = true;
-                document.getElementById('color-picker').value = fig.color;
-                const textPanel = document.getElementById('text-editor-panel');
-                if (fig.type === 'text') { textPanel.classList.remove('hidden'); document.getElementById('text-figure-input').value = fig.text; } else { textPanel.classList.add('hidden'); }
-            },
-            deselectAll() { this.figures.forEach(f => f.selected = false); document.getElementById('text-editor-panel').classList.add('hidden'); },
-            flipFigure() { const fig = this.figures.find(f => f.selected); if (!fig) return; this.saveState(); fig.joints.forEach(j => { if (j.parentId !== null) j.angle = Math.PI - j.angle; }); this.render(); this.saveLocal(); },
-            centerFigure() { const fig = this.figures.find(f => f.selected); if (!fig) return; this.saveState(); fig.x = this.canvas.width / 2; fig.y = this.canvas.height / 2; this.render(); this.saveLocal(); },
-            scaleFigure(f) { const fig = this.figures.find(fig => fig.selected); if (!fig) return; this.saveState(); fig.scale *= f; this.render(); this.saveLocal(); },
-            rotateSelectedFigure(delta) { const fig = this.figures.find(f => f.selected); if (!fig) return; this.saveState(); fig.joints.forEach(j => { if (j.parentId !== null) j.angle += delta; }); this.render(); this.saveLocal(); },
-            setFigureColor(hex) { const fig = this.figures.find(f => f.selected); if (!fig) return; this.saveState(); fig.color = hex; document.getElementById('color-preview').style.backgroundColor = hex; this.render(); this.saveLocal(); },
-            render() { this.ctx.fillStyle = "#ffffff"; this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height); if (this.bgImage) this.ctx.drawImage(this.bgImage, 0, 0, this.canvas.width, this.canvas.height); this.showOnion = document.getElementById('onion-check').checked; if (this.showOnion && !this.isPlaying && this.frames.length > 0) { let pF = null; if (this.currentFrameIndex === this.frames.length - 1) pF = this.frames[this.currentFrameIndex]; else if (this.currentFrameIndex > 0) pF = this.frames[this.currentFrameIndex - 1]; if (pF) { this.ctx.globalAlpha = 0.3; pF.forEach(f => { f.updatePositions(); this.drawFigure(f, false); }); this.ctx.globalAlpha = 1.0; } } this.figures.forEach(f => { f.updatePositions(); this.drawFigure(f, !this.isPlaying); }); },
-            drawFigure(fig, showHandles) {
-                this.ctx.strokeStyle = fig.color; this.ctx.fillStyle = fig.color;
-                this.ctx.lineCap = 'round'; this.ctx.lineJoin = 'round';
-
-                if (fig.type === 'text') {
-                    this.ctx.save(); this.ctx.translate(fig.x, fig.y);
-                    let angle = 0; let scale = fig.scale;
-                    const handle = fig.joints.find(j => j.id === 'handle');
-                    if (handle) {
-                        const dx = handle.x - fig.x; const dy = handle.y - fig.y;
-                        angle = Math.atan2(dy, dx); scale = Math.hypot(dx, dy) / 20.0;
-                    }
-                    this.ctx.rotate(angle); this.ctx.scale(scale, scale);
-                    this.ctx.font = "bold 20px sans-serif"; this.ctx.textAlign = "center"; this.ctx.textBaseline = "middle";
-                    this.ctx.fillText(fig.text, 0, 0); this.ctx.restore();
+                    });
 
                     if (showHandles) {
-                        this.ctx.beginPath(); this.ctx.arc(fig.x, fig.y, this.handleRadius + 2, 0, Math.PI * 2);
-                        this.ctx.fillStyle = '#f97316'; this.ctx.fill();
-                        if (handle) {
-                            this.ctx.beginPath(); this.ctx.arc(handle.x, handle.y, this.handleRadius, 0, Math.PI * 2);
-                            this.ctx.fillStyle = '#ef4444';
-                            if (this.dragTarget && this.dragTarget.joint === handle) { this.ctx.fillStyle = '#3b82f6'; this.ctx.strokeStyle = '#fff'; this.ctx.lineWidth = 2; this.ctx.stroke(); }
+                        fig.joints.forEach(j => {
+                            this.ctx.beginPath(); let r = this.handleRadius;
+                            if (j.parentId === null) { this.ctx.fillStyle = '#f97316'; r += 2; } else { this.ctx.fillStyle = '#ef4444'; }
+                            this.ctx.arc(j.x, j.y, r, 0, Math.PI * 2);
+                            if (this.dragTarget && this.dragTarget.joint === j) { this.ctx.fillStyle = '#3b82f6'; this.ctx.strokeStyle = '#fff'; this.ctx.lineWidth = 2; this.ctx.stroke(); }
                             this.ctx.fill();
-                            this.ctx.beginPath(); this.ctx.moveTo(fig.x, fig.y); this.ctx.lineTo(handle.x, handle.y);
-                            this.ctx.strokeStyle = 'rgba(255, 100, 100, 0.3)'; this.ctx.lineWidth = 1; this.ctx.stroke();
+                        });
+                        if (fig.selected) {
+                            const root = fig.joints.find(j => j.parentId === null);
+                            if (root) { this.ctx.beginPath(); this.ctx.arc(root.x, root.y, this.handleRadius + 4, 0, Math.PI * 2); this.ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)'; this.ctx.lineWidth = 2; this.ctx.stroke(); }
                         }
                     }
-                    return;
-                }
+                },
+                handleDragStart(e, idx) { this.draggedFrameIndex = idx; e.dataTransfer.effectAllowed = 'move'; },
+                handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; },
+                handleDrop(e, targetIdx) { e.preventDefault(); const fromIdx = this.draggedFrameIndex; if (fromIdx === targetIdx) return; this.saveState(); const movingFrame = this.frames[fromIdx]; const movingDelay = this.frameDelays[fromIdx]; this.frames.splice(fromIdx, 1); this.frameDelays.splice(fromIdx, 1); this.frames.splice(targetIdx, 0, movingFrame); this.frameDelays.splice(targetIdx, 0, movingDelay); if (this.currentFrameIndex === fromIdx) this.currentFrameIndex = targetIdx; else if (this.currentFrameIndex > fromIdx && this.currentFrameIndex <= targetIdx) this.currentFrameIndex--; else if (this.currentFrameIndex < fromIdx && this.currentFrameIndex >= targetIdx) this.currentFrameIndex++; this.updateTimeline(); this.loadFrame(this.currentFrameIndex); },
+                updateTimeline() {
+                    const container = document.getElementById('timeline-track');
+                    container.innerHTML = '';
+                    this.frames.forEach((frame, idx) => {
+                        // Check if selected
+                        const isSelected = this.selectedFrames.has(idx) || idx === this.currentFrameIndex;
 
-                fig.joints.forEach(j => {
-                    if (j.parentId === null) return;
-                    const parent = fig.joints.find(p => p.id === j.parentId);
-                    if (!parent) return;
-                    this.ctx.lineWidth = (j.thickness || 14) * fig.scale;
-                    if (j.type === SEGMENT_CIRCLE) {
-                        const dx = j.x - parent.x; const dy = j.y - parent.y;
-                        const angle = Math.atan2(dy, dx);
-                        const r = (j.radius || 20) * fig.scale;
-                        const cx = j.x - Math.cos(angle) * (r * 0.5);
-                        const cy = j.y - Math.sin(angle) * (r * 0.5);
-                        const chinX = cx - Math.cos(angle) * r;
-                        const chinY = cy - Math.sin(angle) * r;
-                        this.ctx.beginPath(); this.ctx.moveTo(parent.x, parent.y); this.ctx.lineTo(chinX, chinY); this.ctx.stroke();
-                        this.ctx.beginPath(); this.ctx.arc(cx, cy, r, 0, Math.PI * 2);
-                        if (j.filled !== false) this.ctx.fill(); else { this.ctx.save(); this.ctx.fillStyle = "rgba(255,255,255,0)"; this.ctx.stroke(); this.ctx.restore(); this.ctx.fillStyle = fig.color; }
-                    } else {
-                        this.ctx.beginPath(); this.ctx.moveTo(parent.x, parent.y); this.ctx.lineTo(j.x, j.y); this.ctx.stroke();
-                    }
-                });
+                        const wrapper = document.createElement('div');
+                        wrapper.className = `frame-thumb relative min-w-[80px] h-[64px] bg-gray-100 dark:bg-zinc-800 rounded-md border-2 cursor-pointer hover:border-gray-400 dark:hover:border-zinc-500 overflow-hidden shrink-0 group ${isSelected ? 'active border-blue-500 ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-zinc-900' : 'border-gray-300 dark:border-zinc-700'}`;
 
-                if (showHandles) {
-                    fig.joints.forEach(j => {
-                        this.ctx.beginPath(); let r = this.handleRadius;
-                        if (j.parentId === null) { this.ctx.fillStyle = '#f97316'; r += 2; } else { this.ctx.fillStyle = '#ef4444'; }
-                        this.ctx.arc(j.x, j.y, r, 0, Math.PI * 2);
-                        if (this.dragTarget && this.dragTarget.joint === j) { this.ctx.fillStyle = '#3b82f6'; this.ctx.strokeStyle = '#fff'; this.ctx.lineWidth = 2; this.ctx.stroke(); }
-                        this.ctx.fill();
-                    });
-                    if (fig.selected) {
-                        const root = fig.joints.find(j => j.parentId === null);
-                        if (root) { this.ctx.beginPath(); this.ctx.arc(root.x, root.y, this.handleRadius + 4, 0, Math.PI * 2); this.ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)'; this.ctx.lineWidth = 2; this.ctx.stroke(); }
-                    }
-                }
-            },
-            handleDragStart(e, idx) { this.draggedFrameIndex = idx; e.dataTransfer.effectAllowed = 'move'; },
-            handleDragOver(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; },
-            handleDrop(e, targetIdx) { e.preventDefault(); const fromIdx = this.draggedFrameIndex; if (fromIdx === targetIdx) return; this.saveState(); const movingFrame = this.frames[fromIdx]; const movingDelay = this.frameDelays[fromIdx]; this.frames.splice(fromIdx, 1); this.frameDelays.splice(fromIdx, 1); this.frames.splice(targetIdx, 0, movingFrame); this.frameDelays.splice(targetIdx, 0, movingDelay); if (this.currentFrameIndex === fromIdx) this.currentFrameIndex = targetIdx; else if (this.currentFrameIndex > fromIdx && this.currentFrameIndex <= targetIdx) this.currentFrameIndex--; else if (this.currentFrameIndex < fromIdx && this.currentFrameIndex >= targetIdx) this.currentFrameIndex++; this.updateTimeline(); this.loadFrame(this.currentFrameIndex); },
-            updateTimeline() {
-                const container = document.getElementById('timeline-track');
-                container.innerHTML = '';
-                this.frames.forEach((frame, idx) => {
-                    // Check if selected
-                    const isSelected = this.selectedFrames.has(idx) || idx === this.currentFrameIndex;
+                        // PASS EVENT
+                        wrapper.onclick = (e) => this.loadFrame(idx, true, e);
 
-                    const wrapper = document.createElement('div');
-                    wrapper.className = `frame-thumb relative min-w-[80px] h-[64px] bg-gray-100 dark:bg-zinc-800 rounded-md border-2 cursor-pointer hover:border-gray-400 dark:hover:border-zinc-500 overflow-hidden shrink-0 group ${isSelected ? 'active border-blue-500 ring-2 ring-blue-500 ring-offset-1 dark:ring-offset-zinc-900' : 'border-gray-300 dark:border-zinc-700'}`;
+                        wrapper.draggable = true;
+                        wrapper.ondragstart = (e) => app.handleDragStart(e, idx);
+                        wrapper.ondragover = (e) => app.handleDragOver(e);
+                        wrapper.ondrop = (e) => app.handleDrop(e, idx);
 
-                    // PASS EVENT
-                    wrapper.onclick = (e) => this.loadFrame(idx, true, e);
+                        const delay = this.frameDelays[idx] || 1.0;
+                        const badge = document.createElement('div');
+                        badge.innerText = delay.toFixed(1) + 'x';
+                        badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${delay > 1.0 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-700 dark:bg-zinc-700 dark:text-zinc-400'}`;
+                        wrapper.appendChild(badge);
 
-                    wrapper.draggable = true;
-                    wrapper.ondragstart = (e) => app.handleDragStart(e, idx);
-                    wrapper.ondragover = (e) => app.handleDragOver(e);
-                    wrapper.ondrop = (e) => app.handleDrop(e, idx);
+                        // --- NEW BUTTONS CONTAINER START ---
+                        const btnContainer = document.createElement('div');
+                        btnContainer.className = "frame-actions absolute top-1 right-1 flex space-x-1 z-20";
 
-                    const delay = this.frameDelays[idx] || 1.0;
-                    const badge = document.createElement('div');
-                    badge.innerText = delay.toFixed(1) + 'x';
-                    badge.className = `absolute top-0 left-0 text-[9px] px-1.5 py-0.5 font-mono z-10 rounded-br font-bold ${delay > 1.0 ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-700 dark:bg-zinc-700 dark:text-zinc-400'}`;
-                    wrapper.appendChild(badge);
+                        // Duplicate Button
+                        const dupBtn = document.createElement('button');
+                        dupBtn.className = "p-1 rounded bg-gray-200 hover:bg-white text-gray-600 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-zinc-300 shadow-sm border border-black/10 dark:border-white/10";
+                        dupBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>`;
+                        dupBtn.title = "Duplicate";
+                        dupBtn.onclick = (e) => { e.stopPropagation(); app.duplicateFrameAtIndex(idx); };
+                        btnContainer.appendChild(dupBtn);
 
-                    // --- NEW BUTTONS CONTAINER START ---
-                    const btnContainer = document.createElement('div');
-                    btnContainer.className = "frame-actions absolute top-1 right-1 flex space-x-1 z-20";
+                        // Delete Button
+                        const delBtn = document.createElement('button');
+                        delBtn.className = "p-1 rounded bg-gray-200 hover:bg-red-500 hover:text-white text-gray-600 dark:bg-zinc-700 dark:hover:bg-red-500 dark:text-zinc-300 dark:hover:text-white shadow-sm border border-black/10 dark:border-white/10 transition-colors";
+                        delBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
+                        delBtn.title = "Delete";
+                        delBtn.onclick = (e) => { e.stopPropagation(); app.deleteFrameAtIndex(idx); };
+                        btnContainer.appendChild(delBtn);
 
-                    // Duplicate Button
-                    const dupBtn = document.createElement('button');
-                    dupBtn.className = "p-1 rounded bg-gray-200 hover:bg-white text-gray-600 dark:bg-zinc-700 dark:hover:bg-zinc-600 dark:text-zinc-300 shadow-sm border border-black/10 dark:border-white/10";
-                    dupBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>`;
-                    dupBtn.title = "Duplicate";
-                    dupBtn.onclick = (e) => { e.stopPropagation(); app.duplicateFrameAtIndex(idx); };
-                    btnContainer.appendChild(dupBtn);
+                        wrapper.appendChild(btnContainer);
+                        // --- NEW BUTTONS CONTAINER END ---
 
-                    // Delete Button
-                    const delBtn = document.createElement('button');
-                    delBtn.className = "p-1 rounded bg-gray-200 hover:bg-red-500 hover:text-white text-gray-600 dark:bg-zinc-700 dark:hover:bg-red-500 dark:text-zinc-300 dark:hover:text-white shadow-sm border border-black/10 dark:border-white/10 transition-colors";
-                    delBtn.innerHTML = `<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>`;
-                    delBtn.title = "Delete";
-                    delBtn.onclick = (e) => { e.stopPropagation(); app.deleteFrameAtIndex(idx); };
-                    btnContainer.appendChild(delBtn);
+                        const barContainer = document.createElement('div');
+                        barContainer.className = 'absolute bottom-0 left-0 right-0 h-1.5 bg-gray-200 dark:bg-zinc-900 mt-px';
+                        const barFill = document.createElement('div');
+                        let widthPct = (delay / 10.0) * 100;
+                        widthPct = Math.max(5, widthPct);
+                        barFill.style.width = widthPct + '%';
+                        barFill.className = `h-full ${delay > 1.0 ? 'bg-blue-500' : 'bg-gray-400 dark:bg-zinc-600'}`;
+                        barContainer.appendChild(barFill);
+                        wrapper.appendChild(barContainer);
 
-                    wrapper.appendChild(btnContainer);
-                    // --- NEW BUTTONS CONTAINER END ---
-
-                    const barContainer = document.createElement('div');
-                    barContainer.className = 'absolute bottom-0 left-0 right-0 h-1.5 bg-gray-200 dark:bg-zinc-900 mt-px';
-                    const barFill = document.createElement('div');
-                    let widthPct = (delay / 10.0) * 100;
-                    widthPct = Math.max(5, widthPct);
-                    barFill.style.width = widthPct + '%';
-                    barFill.className = `h-full ${delay > 1.0 ? 'bg-blue-500' : 'bg-gray-400 dark:bg-zinc-600'}`;
-                    barContainer.appendChild(barFill);
-                    wrapper.appendChild(barContainer);
-
-                    const cv = document.createElement('canvas');
-                    cv.width = 80;
-                    cv.height = 56;
-                    const ctx = cv.getContext('2d');
-                    const sc = Math.min(80 / this.canvas.width, 56 / this.canvas.height);
-                    ctx.scale(sc, sc);
-                    frame.forEach(fig => {
-                        fig.updatePositions();
-                        ctx.strokeStyle = fig.color;
-                        ctx.fillStyle = fig.color;
-                        ctx.lineWidth = 14 * fig.scale;
-                        ctx.lineCap = 'round';
-                        ctx.lineJoin = 'round';
-                        fig.joints.forEach(j => {
-                            if (!j.parentId) return;
-                            const p = fig.joints.find(x => x.id === j.parentId);
-                            if (!p) return;
-                            ctx.beginPath();
-                            ctx.moveTo(p.x, p.y);
-                            ctx.lineTo(j.x, j.y);
-                            ctx.stroke();
-                            if (j.type === SEGMENT_CIRCLE) {
+                        const cv = document.createElement('canvas');
+                        cv.width = 80;
+                        cv.height = 56;
+                        const ctx = cv.getContext('2d');
+                        const sc = Math.min(80 / this.canvas.width, 56 / this.canvas.height);
+                        ctx.scale(sc, sc);
+                        frame.forEach(fig => {
+                            fig.updatePositions();
+                            ctx.strokeStyle = fig.color;
+                            ctx.fillStyle = fig.color;
+                            ctx.lineWidth = 14 * fig.scale;
+                            ctx.lineCap = 'round';
+                            ctx.lineJoin = 'round';
+                            fig.joints.forEach(j => {
+                                if (!j.parentId) return;
+                                const p = fig.joints.find(x => x.id === j.parentId);
+                                if (!p) return;
                                 ctx.beginPath();
-                                ctx.arc(j.x, j.y, j.radius * fig.scale, 0, Math.PI * 2);
-                                if (j.filled !== false) ctx.fill(); else ctx.stroke();
-                            }
+                                ctx.moveTo(p.x, p.y);
+                                ctx.lineTo(j.x, j.y);
+                                ctx.stroke();
+                                if (j.type === SEGMENT_CIRCLE) {
+                                    ctx.beginPath();
+                                    ctx.arc(j.x, j.y, j.radius * fig.scale, 0, Math.PI * 2);
+                                    if (j.filled !== false) ctx.fill(); else ctx.stroke();
+                                }
+                            });
                         });
+                        wrapper.appendChild(cv);
+                        const n = document.createElement('span');
+                        n.className = "absolute bottom-2 left-1 text-[8px] font-bold text-gray-500 dark:text-zinc-500";
+                        n.innerText = idx + 1;
+                        wrapper.appendChild(n);
+                        container.appendChild(wrapper);
                     });
-                    wrapper.appendChild(cv);
-                    const n = document.createElement('span');
-                    n.className = "absolute bottom-2 left-1 text-[8px] font-bold text-gray-500 dark:text-zinc-500";
-                    n.innerText = idx + 1;
-                    wrapper.appendChild(n);
-                    container.appendChild(wrapper);
-                });
-                this.updateTimelineUiState();
-            },
-            updateTimelineUiState() { document.getElementById('frame-counter').innerText = `${this.currentFrameIndex + 1} / ${this.frames.length}`; const thumbs = document.querySelectorAll('.frame-thumb'); thumbs.forEach((t, i) => { if (i === this.currentFrameIndex) { t.classList.add('active', 'border-blue-500'); t.classList.remove('border-gray-300', 'dark:border-zinc-700'); } else { t.classList.remove('active', 'border-blue-500'); t.classList.add('border-gray-300', 'dark:border-zinc-700'); } }); },
-            scrollToFrame(index) { const thumbs = document.querySelectorAll('.frame-thumb'); if (thumbs[index]) thumbs[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); },
-        };
+                    this.updateTimelineUiState();
+                },
+                updateTimelineUiState() { document.getElementById('frame-counter').innerText = `${this.currentFrameIndex + 1} / ${this.frames.length}`; const thumbs = document.querySelectorAll('.frame-thumb'); thumbs.forEach((t, i) => { if (i === this.currentFrameIndex) { t.classList.add('active', 'border-blue-500'); t.classList.remove('border-gray-300', 'dark:border-zinc-700'); } else { t.classList.remove('active', 'border-blue-500'); t.classList.add('border-gray-300', 'dark:border-zinc-700'); } }); },
+                scrollToFrame(index) { const thumbs = document.querySelectorAll('.frame-thumb'); if (thumbs[index]) thumbs[index].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); },
+            };
 
-        window.onload = () => app.init();
-    </script>
+            window.onload = () => app.init();
+        </script>
 </body>
 
 </html>
