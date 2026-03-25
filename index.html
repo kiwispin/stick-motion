@@ -568,6 +568,10 @@
 
   /* No-select */
   .no-select { user-select: none; -webkit-user-select: none; }
+
+  /* ── Always-visible panel: dim when no figure selected ── */
+  .panel-inactive { opacity: 0.35; pointer-events: none; transition: opacity 0.18s; }
+  .panel-active   { opacity: 1;    pointer-events: auto;  transition: opacity 0.18s; }
 </style>
 </head>
 <body>
@@ -662,47 +666,65 @@
     </div>
   </div>
 
-  <!-- RIGHT PANEL -->
+  <!-- RIGHT PANEL — all controls always visible, dimmed when nothing selected -->
   <div id="right-panel" class="no-select">
 
-    <!-- Empty state -->
-    <div id="panel-empty" class="panel-section" style="flex:1">
-      <div class="empty-state">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="5" r="2.5"/><path d="M12 7.5V15M12 10L7 8M12 10L17 8M12 15L9 20M12 15L15 20"/></svg>
-        <p>Select a figure<br>to edit its properties</p>
+    <!-- Selected figure name badge -->
+    <div id="panel-selection-badge" class="panel-section" style="padding:10px 14px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="panel-sel-dot" style="width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background 0.2s"></div>
+        <span id="panel-sel-label" style="font-size:12px;color:var(--text3);transition:color 0.2s">No figure selected</span>
       </div>
     </div>
 
-    <!-- Figure properties (shown when figure selected) -->
-    <div id="panel-figure" style="display:none">
+    <!-- FIGURE CONTROLS — always rendered, .panel-inactive dims when no selection -->
+    <div id="panel-figure-controls" class="panel-inactive">
 
       <!-- Transform -->
       <div class="panel-section">
-        <div class="panel-label">Transform</div>
-        <div class="btn-grid-2">
-          <button class="panel-btn" onclick="app.flipFigure()">
+        <div class="panel-label">Rotate</div>
+        <div class="btn-grid-4" style="margin-bottom:0">
+          <button class="panel-btn fig-btn" style="font-size:12px;padding:7px 4px" onclick="app.rotateSelectedFigure(-Math.PI/2)" title="Rotate Left 90°">↺ 90°</button>
+          <button class="panel-btn fig-btn" style="font-size:12px;padding:7px 4px" onclick="app.rotateSelectedFigure(-Math.PI/12)" title="Rotate Left 15°">↺ 15°</button>
+          <button class="panel-btn fig-btn" style="font-size:12px;padding:7px 4px" onclick="app.rotateSelectedFigure(Math.PI/12)" title="Rotate Right 15°">15° ↻</button>
+          <button class="panel-btn fig-btn" style="font-size:12px;padding:7px 4px" onclick="app.rotateSelectedFigure(Math.PI/2)" title="Rotate Right 90°">90° ↻</button>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-label">Size</div>
+        <div class="btn-grid-2" style="margin-bottom:0">
+          <button class="panel-btn fig-btn" onclick="app.scaleFigure(1.1)">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+            Bigger
+          </button>
+          <button class="panel-btn fig-btn" onclick="app.scaleFigure(0.9)">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14v6h6M20 10V4h-6M4 20l7-7M20 4l-7 7"/></svg>
+            Smaller
+          </button>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <div class="panel-label">Position</div>
+        <div class="btn-grid-2" style="margin-bottom:6px">
+          <button class="panel-btn fig-btn" onclick="app.flipFigure()">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M4 8l4-4M4 16l4 4M20 8l-4-4M20 16l-4 4"/></svg>
             Flip X
           </button>
-          <button class="panel-btn" onclick="app.centerFigure()">
+          <button class="panel-btn fig-btn" onclick="app.centerFigure()">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
             Center
           </button>
         </div>
-        <div class="btn-grid-4">
-          <button class="panel-btn" style="font-size:11px;padding:5px 4px" onclick="app.rotateSelectedFigure(-Math.PI/2)" title="Rotate Left 90°">↺90°</button>
-          <button class="panel-btn" style="font-size:11px;padding:5px 4px" onclick="app.rotateSelectedFigure(-Math.PI/12)" title="Rotate Left 15°">↺15°</button>
-          <button class="panel-btn" style="font-size:11px;padding:5px 4px" onclick="app.rotateSelectedFigure(Math.PI/12)" title="Rotate Right 15°">15°↻</button>
-          <button class="panel-btn" style="font-size:11px;padding:5px 4px" onclick="app.rotateSelectedFigure(Math.PI/2)" title="Rotate Right 90°">90°↻</button>
-        </div>
-        <div class="btn-grid-2">
-          <button class="panel-btn" onclick="app.scaleFigure(1.1)">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
-            Scale +
+        <div class="btn-grid-2" style="margin-bottom:0">
+          <button class="panel-btn fig-btn" onclick="app.raiseFigure()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 15l7-7 7 7"/></svg>
+            Forward
           </button>
-          <button class="panel-btn" onclick="app.scaleFigure(0.9)">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14v6h6M20 10V4h-6M4 20l7-7M20 4l-7 7"/></svg>
-            Scale −
+          <button class="panel-btn fig-btn" onclick="app.lowerFigure()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 9l-7 7-7-7"/></svg>
+            Backward
           </button>
         </div>
       </div>
@@ -720,33 +742,23 @@
         </div>
       </div>
 
-      <!-- Layer -->
+      <!-- Text editor — only shown for text figures -->
+      <div id="panel-text-section" class="panel-section" style="display:none">
+        <div class="panel-label">Text Content</div>
+        <textarea class="panel-textarea" id="text-figure-input" rows="3" oninput="app.updateText(this.value)"></textarea>
+      </div>
+
+      <!-- Delete -->
       <div class="panel-section">
-        <div class="panel-label">Layer</div>
-        <div class="btn-grid-2">
-          <button class="panel-btn" onclick="app.raiseFigure()">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 15l7-7 7 7"/></svg>
-            Forward
-          </button>
-          <button class="panel-btn" onclick="app.lowerFigure()">
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 9l-7 7-7-7"/></svg>
-            Backward
-          </button>
-        </div>
-        <button class="panel-btn danger" onclick="app.deleteSelectedFigure()">
+        <button class="panel-btn danger fig-btn" onclick="app.deleteSelectedFigure()">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
           Delete Figure
         </button>
       </div>
 
-      <!-- Text editor (hidden by default) -->
-      <div id="panel-text-section" class="panel-section" style="display:none">
-        <div class="panel-label">Text Content</div>
-        <textarea class="panel-textarea" id="text-figure-input" rows="3" oninput="app.updateText(this.value)"></textarea>
-      </div>
-    </div>
+    </div><!-- /panel-figure-controls -->
 
-    <!-- Groups panel (always visible below figure panel) -->
+    <!-- Groups panel — always active -->
     <div class="panel-section">
       <div class="panel-label">Groups</div>
 
@@ -769,7 +781,7 @@
       <div id="groups-list"></div>
     </div>
 
-    <!-- Frame settings -->
+    <!-- Frame settings — always active -->
     <div class="panel-section">
       <div class="panel-label">Frame Duration</div>
       <div class="slider-row">
@@ -1517,21 +1529,28 @@ const app={
     this.selectedFigureIds.clear();this.selectedFigureIds.add(fig.id);
     document.getElementById('color-picker').value=fig.color;
     document.getElementById('color-dot').style.background=fig.color;
-    // Update active swatch
     document.querySelectorAll('.color-swatch').forEach(s=>s.classList.toggle('active',s.style.background===fig.color||this.rgbToHex(s.style.background)===fig.color));
     const textSec=document.getElementById('panel-text-section');
     if(fig.type==='text'){textSec.style.display='block';document.getElementById('text-figure-input').value=fig.text;}
     else textSec.style.display='none';
-    document.getElementById('panel-empty').style.display='none';
-    document.getElementById('panel-figure').style.display='block';
+    // Always-visible panel: activate
+    document.getElementById('panel-figure-controls').className='panel-active';
+    // Selection badge
+    document.getElementById('panel-sel-dot').style.background=fig.color||'var(--accent)';
+    document.getElementById('panel-sel-label').style.color='var(--text)';
+    document.getElementById('panel-sel-label').textContent=fig.type==='text'?`"${fig.text||'Text'}"` : 'Figure selected';
     this.updateGroupPanel();
   },
   rgbToHex(rgb){const m=rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);if(!m)return rgb;return'#'+[m[1],m[2],m[3]].map(x=>parseInt(x).toString(16).padStart(2,'0')).join('');},
   deselectAll(){
     this.figures.forEach(f=>f.selected=false);this.selectedFigureIds.clear();
-    document.getElementById('panel-empty').style.display='block';
-    document.getElementById('panel-figure').style.display='none';
+    // Always-visible panel: deactivate
+    document.getElementById('panel-figure-controls').className='panel-inactive';
     document.getElementById('panel-text-section').style.display='none';
+    // Selection badge reset
+    document.getElementById('panel-sel-dot').style.background='var(--text3)';
+    document.getElementById('panel-sel-label').style.color='var(--text3)';
+    document.getElementById('panel-sel-label').textContent='No figure selected';
     this.updateGroupPanel();
   },
 
