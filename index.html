@@ -965,24 +965,18 @@
 
 <!-- Library -->
 <div class="modal-overlay" id="library-modal">
-  <div class="modal-box" style="max-width:440px">
+  <div class="modal-box" style="max-width:340px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div class="modal-title" style="margin-bottom:0">Model Library</div>
       <button onclick="app.closeLibrary()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:18px;line-height:1">×</button>
     </div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+    <div class="lib-grid">
       <div class="lib-item" onclick="app.addFromLibrary('stickman')"><span>🏃</span><p>Stickman</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('horse')"><span>🐴</span><p>Horse</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('dino')"><span>🦕</span><p>Dinosaur</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('spider')"><span>🕷️</span><p>Spider</p></div>
       <div class="lib-item" onclick="app.addFromLibrary('snake')"><span>🐍</span><p>Snake</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('bike')"><span>🚲</span><p>Bike</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('car')"><span>🚗</span><p>Car</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('sword')"><span>⚔️</span><p>Sword</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('gun')"><span>🔫</span><p>Gun</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('arrow')"><span>🏹</span><p>Arrow</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('racket')"><span>🎾</span><p>Racket</p></div>
       <div class="lib-item" onclick="app.addFromLibrary('ball')"><span>⚽</span><p>Ball</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('sword')"><span>⚔️</span><p>Sword</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('racket')"><span>🎾</span><p>Racket</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('bike')"><span>🚲</span><p>Bike</p></div>
     </div>
   </div>
 </div>
@@ -1264,12 +1258,7 @@ const app={
       case'racket':fig=this.createRacket();break;
       case'bike':fig=this.createBike();break;
       case'car':fig=this.createCar();break;
-      case'spider':fig=this.createSpider();break;
       case'snake':fig=this.createSnake();break;
-      case'dino':fig=this.createDino();break;
-      case'horse':fig=this.createHorse();break;
-      case'gun':fig=this.createGun();break;
-      case'arrow':fig=this.createArrow();break;
     }
     if(this.figures.length>0){fig.x+=30;fig.y+=30;}
     this.figures.push(fig);this.selectFigure(fig);this.render();this.saveLocal();this.closeLibrary();
@@ -1277,21 +1266,20 @@ const app={
   createStickman(){
     const f=new Figure();const j=[];
     j.push(new Joint('hip',null,0,0));
-    j.push(new Joint('abs','hip',22,-Math.PI/2,SEGMENT_LINE,20,12));
-    j.push(new Joint('chest','abs',22,-Math.PI/2,SEGMENT_LINE,20,12));
-    j.push(new Joint('neck','chest',38,-Math.PI/2,SEGMENT_CIRCLE,18,12,true));
-    j.push(new Joint('lShldr','chest',28,Math.PI-0.25,SEGMENT_LINE,20,10));
-    j.push(new Joint('lElbow','lShldr',26,Math.PI-0.6,SEGMENT_LINE,20,10));
-    j.push(new Joint('lHand','lElbow',20,Math.PI-0.3,SEGMENT_LINE,20,8));
-    j.push(new Joint('rShldr','chest',28,0.25,SEGMENT_LINE,20,10));
-    j.push(new Joint('rElbow','rShldr',26,0.6,SEGMENT_LINE,20,10));
-    j.push(new Joint('rHand','rElbow',20,0.3,SEGMENT_LINE,20,8));
-    j.push(new Joint('lThigh','hip',34,Math.PI/2+0.25,SEGMENT_LINE,20,12));
-    j.push(new Joint('lShin','lThigh',32,Math.PI/2+0.15,SEGMENT_LINE,20,11));
-    j.push(new Joint('lFoot','lShin',18,Math.PI/2-0.8,SEGMENT_LINE,20,9));
-    j.push(new Joint('rThigh','hip',34,Math.PI/2-0.25,SEGMENT_LINE,20,12));
-    j.push(new Joint('rShin','rThigh',32,Math.PI/2-0.15,SEGMENT_LINE,20,11));
-    j.push(new Joint('rFoot','rShin',18,Math.PI/2+0.8,SEGMENT_LINE,20,9));
+    j.push(new Joint('abs','hip',23,-Math.PI/2));
+    j.push(new Joint('chest','abs',23,-Math.PI/2));
+    // neck length reduced to account for circle now drawing centred at joint (not offset)
+    j.push(new Joint('neck','chest',22,-Math.PI/2,SEGMENT_CIRCLE,20,14,true));
+    j.push(new Joint('lShldr','chest',25,Math.PI-.2));
+    j.push(new Joint('lElbow','lShldr',25,Math.PI-.5));
+    j.push(new Joint('lHand','lElbow',20,Math.PI-.2));
+    j.push(new Joint('rShldr','chest',25,.2));
+    j.push(new Joint('rElbow','rShldr',25,.5));
+    j.push(new Joint('rHand','rElbow',20,.2));
+    j.push(new Joint('lKnee','hip',35,Math.PI/2+.3));
+    j.push(new Joint('lFoot','lKnee',35,Math.PI/2+.1));
+    j.push(new Joint('rKnee','hip',35,Math.PI/2-.3));
+    j.push(new Joint('rFoot','rKnee',35,Math.PI/2-.1));
     f.joints=j;return f;
   },
   createSword(){
