@@ -965,18 +965,24 @@
 
 <!-- Library -->
 <div class="modal-overlay" id="library-modal">
-  <div class="modal-box" style="max-width:340px">
+  <div class="modal-box" style="max-width:440px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
       <div class="modal-title" style="margin-bottom:0">Model Library</div>
       <button onclick="app.closeLibrary()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:18px;line-height:1">×</button>
     </div>
-    <div class="lib-grid">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
       <div class="lib-item" onclick="app.addFromLibrary('stickman')"><span>🏃</span><p>Stickman</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('sword')"><span>⚔️</span><p>Sword</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('ball')"><span>⚽</span><p>Ball</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('racket')"><span>🎾</span><p>Racket</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('horse')"><span>🐴</span><p>Horse</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('dino')"><span>🦕</span><p>Dinosaur</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('spider')"><span>🕷️</span><p>Spider</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('snake')"><span>🐍</span><p>Snake</p></div>
       <div class="lib-item" onclick="app.addFromLibrary('bike')"><span>🚲</span><p>Bike</p></div>
       <div class="lib-item" onclick="app.addFromLibrary('car')"><span>🚗</span><p>Car</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('sword')"><span>⚔️</span><p>Sword</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('gun')"><span>🔫</span><p>Gun</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('arrow')"><span>🏹</span><p>Arrow</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('racket')"><span>🎾</span><p>Racket</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('ball')"><span>⚽</span><p>Ball</p></div>
     </div>
   </div>
 </div>
@@ -1258,16 +1264,210 @@ const app={
       case'racket':fig=this.createRacket();break;
       case'bike':fig=this.createBike();break;
       case'car':fig=this.createCar();break;
+      case'spider':fig=this.createSpider();break;
+      case'snake':fig=this.createSnake();break;
+      case'dino':fig=this.createDino();break;
+      case'horse':fig=this.createHorse();break;
+      case'gun':fig=this.createGun();break;
+      case'arrow':fig=this.createArrow();break;
     }
     if(this.figures.length>0){fig.x+=30;fig.y+=30;}
     this.figures.push(fig);this.selectFigure(fig);this.render();this.saveLocal();this.closeLibrary();
   },
-  createStickman(){const f=new Figure();const j=[];j.push(new Joint('hip',null,0,0));j.push(new Joint('abs','hip',23,-Math.PI/2));j.push(new Joint('chest','abs',23,-Math.PI/2));j.push(new Joint('neck','chest',40,-Math.PI/2,SEGMENT_CIRCLE,20,14,true));j.push(new Joint('lShldr','chest',25,Math.PI-.2));j.push(new Joint('lElbow','lShldr',25,Math.PI-.5));j.push(new Joint('lHand','lElbow',20,Math.PI-.2));j.push(new Joint('rShldr','chest',25,.2));j.push(new Joint('rElbow','rShldr',25,.5));j.push(new Joint('rHand','rElbow',20,.2));j.push(new Joint('lKnee','hip',35,Math.PI/2+.3));j.push(new Joint('lFoot','lKnee',35,Math.PI/2+.1));j.push(new Joint('rKnee','hip',35,Math.PI/2-.3));j.push(new Joint('rFoot','rKnee',35,Math.PI/2-.1));f.joints=j;return f;},
-  createSword(){const f=new Figure();f.color='#555';const j=[];j.push(new Joint('root',null,0,0));j.push(new Joint('handle','root',25,-Math.PI/2,SEGMENT_LINE,20,8));j.push(new Joint('guardL','handle',20,Math.PI,SEGMENT_LINE,20,6));j.push(new Joint('guardR','handle',20,0,SEGMENT_LINE,20,6));j.push(new Joint('blade','handle',90,-Math.PI/2,SEGMENT_LINE,20,10));f.joints=j;return f;},
-  createBall(){const f=new Figure();f.color='#ff6b6b';f.joints=[new Joint('root',null,0,0),new Joint('ball','root',0,0,SEGMENT_CIRCLE,25,14,true)];return f;},
-  createRacket(){const f=new Figure();f.color='#22c55e';f.joints=[new Joint('root',null,0,0),new Joint('handle','root',40,-Math.PI/2,SEGMENT_LINE,20,8),new Joint('head','handle',60,-Math.PI/2,SEGMENT_CIRCLE,30,4,false)];return f;},
-  createBike(){const f=new Figure();f.color='#3b82f6';const j=[];j.push(new Joint('root',null,0,0));j.push(new Joint('backStay','root',50,Math.PI-.3,SEGMENT_LINE,20,6));j.push(new Joint('backWheel','backStay',30,0,SEGMENT_CIRCLE,30,4,false));j.push(new Joint('seatTube','root',55,-Math.PI/2+.2,SEGMENT_LINE,20,6));j.push(new Joint('seat','seatTube',15,Math.PI,SEGMENT_LINE,20,10));j.push(new Joint('topTube','seatTube',55,.1,SEGMENT_LINE,20,6));j.push(new Joint('downTube','root',58,-Math.PI/4-.3,SEGMENT_LINE,20,6));j.push(new Joint('headTube','topTube',15,-Math.PI/2+.3,SEGMENT_LINE,20,8));j.push(new Joint('bars','headTube',20,Math.PI-.5,SEGMENT_LINE,20,6));j.push(new Joint('fork','headTube',45,Math.PI/2+.3,SEGMENT_LINE,20,6));j.push(new Joint('frontWheel','fork',30,0,SEGMENT_CIRCLE,30,4,false));f.joints=j;return f;},
-  createCar(){const f=new Figure();f.color='#eab308';const j=[];j.push(new Joint('root',null,0,0));j.push(new Joint('chassisF','root',50,0,SEGMENT_LINE,20,10));j.push(new Joint('chassisB','root',50,Math.PI,SEGMENT_LINE,20,10));j.push(new Joint('roofF','root',35,-Math.PI/3,SEGMENT_LINE,20,6));j.push(new Joint('roofTop','roofF',40,0,SEGMENT_LINE,20,6));j.push(new Joint('wheelF','chassisF',20,Math.PI/2,SEGMENT_CIRCLE,20,6,false));j.push(new Joint('wheelB','chassisB',20,Math.PI/2,SEGMENT_CIRCLE,20,6,false));f.joints=j;return f;},
+  createStickman(){
+    const f=new Figure();const j=[];
+    j.push(new Joint('hip',null,0,0));
+    j.push(new Joint('abs','hip',22,-Math.PI/2,SEGMENT_LINE,20,12));
+    j.push(new Joint('chest','abs',22,-Math.PI/2,SEGMENT_LINE,20,12));
+    j.push(new Joint('neck','chest',38,-Math.PI/2,SEGMENT_CIRCLE,18,12,true));
+    j.push(new Joint('lShldr','chest',28,Math.PI-0.25,SEGMENT_LINE,20,10));
+    j.push(new Joint('lElbow','lShldr',26,Math.PI-0.6,SEGMENT_LINE,20,10));
+    j.push(new Joint('lHand','lElbow',20,Math.PI-0.3,SEGMENT_LINE,20,8));
+    j.push(new Joint('rShldr','chest',28,0.25,SEGMENT_LINE,20,10));
+    j.push(new Joint('rElbow','rShldr',26,0.6,SEGMENT_LINE,20,10));
+    j.push(new Joint('rHand','rElbow',20,0.3,SEGMENT_LINE,20,8));
+    j.push(new Joint('lThigh','hip',34,Math.PI/2+0.25,SEGMENT_LINE,20,12));
+    j.push(new Joint('lShin','lThigh',32,Math.PI/2+0.15,SEGMENT_LINE,20,11));
+    j.push(new Joint('lFoot','lShin',18,Math.PI/2-0.8,SEGMENT_LINE,20,9));
+    j.push(new Joint('rThigh','hip',34,Math.PI/2-0.25,SEGMENT_LINE,20,12));
+    j.push(new Joint('rShin','rThigh',32,Math.PI/2-0.15,SEGMENT_LINE,20,11));
+    j.push(new Joint('rFoot','rShin',18,Math.PI/2+0.8,SEGMENT_LINE,20,9));
+    f.joints=j;return f;
+  },
+  createSword(){
+    const f=new Figure();f.color='#8899aa';const j=[];
+    j.push(new Joint('pommel',null,0,0));
+    j.push(new Joint('grip','pommel',28,-Math.PI/2,SEGMENT_LINE,20,9));
+    j.push(new Joint('guardL','grip',22,Math.PI,SEGMENT_LINE,20,7));
+    j.push(new Joint('guardR','grip',22,0,SEGMENT_LINE,20,7));
+    j.push(new Joint('blade1','grip',40,-Math.PI/2,SEGMENT_LINE,20,8));
+    j.push(new Joint('blade2','blade1',38,-Math.PI/2,SEGMENT_LINE,20,6));
+    j.push(new Joint('tip','blade2',28,-Math.PI/2,SEGMENT_LINE,20,4));
+    f.joints=j;return f;
+  },
+  createBall(){
+    const f=new Figure();f.color='#ff6b6b';
+    f.joints=[new Joint('root',null,0,0),new Joint('ball','root',0,0,SEGMENT_CIRCLE,28,14,true)];
+    return f;
+  },
+  createRacket(){
+    const f=new Figure();f.color='#22c55e';const j=[];
+    j.push(new Joint('butt',null,0,0));
+    j.push(new Joint('grip','butt',32,-Math.PI/2,SEGMENT_LINE,20,8));
+    j.push(new Joint('throat','grip',22,-Math.PI/2,SEGMENT_LINE,20,6));
+    j.push(new Joint('head','throat',0,0,SEGMENT_CIRCLE,32,5,false));
+    f.joints=j;return f;
+  },
+  createBike(){
+    const f=new Figure();f.color='#3b82f6';const j=[];
+    const PI=Math.PI;
+    j.push(new Joint('bb',null,0,0));
+    j.push(new Joint('rearAxle','bb',70,PI,SEGMENT_LINE,20,5));
+    j.push(new Joint('rearWheel','rearAxle',0,0,SEGMENT_CIRCLE,32,4,false));
+    j.push(new Joint('seatTop','bb',58,-PI/2+0.08,SEGMENT_LINE,20,5));
+    j.push(new Joint('saddle','seatTop',16,PI,SEGMENT_LINE,20,7));
+    j.push(new Joint('headTop','seatTop',70,-0.08,SEGMENT_LINE,20,5));
+    j.push(new Joint('headBottom','headTop',18,PI/2+0.2,SEGMENT_LINE,20,5));
+    j.push(new Joint('forkEnd','headBottom',42,PI/2+0.15,SEGMENT_LINE,20,5));
+    j.push(new Joint('frontWheel','forkEnd',0,0,SEGMENT_CIRCLE,32,4,false));
+    j.push(new Joint('stem','headTop',18,-PI/2-0.15,SEGMENT_LINE,20,5));
+    j.push(new Joint('barL','stem',16,PI-0.3,SEGMENT_LINE,20,6));
+    j.push(new Joint('barR','stem',16,-0.3,SEGMENT_LINE,20,6));
+    f.joints=j;return f;
+  },
+  createCar(){
+    const f=new Figure();f.color='#e74c3c';const j=[];
+    const PI=Math.PI;
+    j.push(new Joint('chassis',null,0,0));
+    j.push(new Joint('frontFloor','chassis',70,0,SEGMENT_LINE,20,10));
+    j.push(new Joint('rearFloor','chassis',70,PI,SEGMENT_LINE,20,10));
+    j.push(new Joint('frontWheel','frontFloor',0,0,SEGMENT_CIRCLE,22,5,false));
+    j.push(new Joint('rearWheel','rearFloor',0,0,SEGMENT_CIRCLE,22,5,false));
+    j.push(new Joint('fBumper','frontFloor',28,-PI/2+0.7,SEGMENT_LINE,20,8));
+    j.push(new Joint('windBase','fBumper',18,-PI/2+0.3,SEGMENT_LINE,20,7));
+    j.push(new Joint('roofFront','windBase',42,-0.1,SEGMENT_LINE,20,7));
+    j.push(new Joint('roofRear','roofFront',50,PI+0.08,SEGMENT_LINE,20,7));
+    j.push(new Joint('rBumper','rearFloor',30,-PI/2+PI-0.6,SEGMENT_LINE,20,8));
+    f.joints=j;return f;
+  },
+  createSpider(){
+    const f=new Figure();f.color='#1a1a2e';const j=[];
+    const PI=Math.PI;
+    j.push(new Joint('abdomen',null,0,0));
+    j.push(new Joint('thorax','abdomen',30,0,SEGMENT_CIRCLE,14,8,true));
+    j.push(new Joint('head','thorax',26,0,SEGMENT_CIRCLE,10,6,true));
+    j.push(new Joint('ll1a','thorax',24,-PI/4,SEGMENT_LINE,20,4));
+    j.push(new Joint('ll1b','ll1a',22,-PI/8,SEGMENT_LINE,20,3));
+    j.push(new Joint('ll2a','thorax',24,-PI/2+0.2,SEGMENT_LINE,20,4));
+    j.push(new Joint('ll2b','ll2a',22,-PI/2-0.1,SEGMENT_LINE,20,3));
+    j.push(new Joint('ll3a','thorax',24,PI/2+PI/4,SEGMENT_LINE,20,4));
+    j.push(new Joint('ll3b','ll3a',22,PI/2+PI/4+0.3,SEGMENT_LINE,20,3));
+    j.push(new Joint('ll4a','thorax',24,PI/4+0.1,SEGMENT_LINE,20,4));
+    j.push(new Joint('ll4b','ll4a',22,PI/8+0.2,SEGMENT_LINE,20,3));
+    j.push(new Joint('rl1a','thorax',24,PI+PI/4,SEGMENT_LINE,20,4));
+    j.push(new Joint('rl1b','rl1a',22,PI+PI/8,SEGMENT_LINE,20,3));
+    j.push(new Joint('rl2a','thorax',24,PI+PI/2-0.2,SEGMENT_LINE,20,4));
+    j.push(new Joint('rl2b','rl2a',22,PI+PI/2+0.1,SEGMENT_LINE,20,3));
+    j.push(new Joint('rl3a','thorax',24,-PI/4+0.1,SEGMENT_LINE,20,4));
+    j.push(new Joint('rl3b','rl3a',22,-PI/8+0.1,SEGMENT_LINE,20,3));
+    j.push(new Joint('rl4a','thorax',24,PI-PI/4,SEGMENT_LINE,20,4));
+    j.push(new Joint('rl4b','rl4a',22,PI-PI/8,SEGMENT_LINE,20,3));
+    f.joints=j;return f;
+  },
+  createSnake(){
+    const f=new Figure();f.color='#2ecc71';const j=[];
+    const PI=Math.PI;
+    j.push(new Joint('s0',null,0,0));
+    j.push(new Joint('s1','s0',22,0.0,SEGMENT_LINE,20,11));
+    j.push(new Joint('s2','s1',22,0.15,SEGMENT_LINE,20,11));
+    j.push(new Joint('s3','s2',22,0.3,SEGMENT_LINE,20,10));
+    j.push(new Joint('s4','s3',22,0.15,SEGMENT_LINE,20,10));
+    j.push(new Joint('s5','s4',22,-0.1,SEGMENT_LINE,20,9));
+    j.push(new Joint('s6','s5',22,-0.3,SEGMENT_LINE,20,8));
+    j.push(new Joint('s7','s6',22,-0.2,SEGMENT_LINE,20,7));
+    j.push(new Joint('s8','s7',22,-0.05,SEGMENT_LINE,20,6));
+    j.push(new Joint('tail','s8',30,0.1,SEGMENT_LINE,20,3));
+    j.push(new Joint('neck','s0',20,PI,SEGMENT_LINE,20,10));
+    j.push(new Joint('head','neck',0,0,SEGMENT_CIRCLE,14,8,true));
+    j.push(new Joint('tongueL','head',14,PI+0.3,SEGMENT_LINE,20,2));
+    j.push(new Joint('tongueR','head',14,PI-0.3,SEGMENT_LINE,20,2));
+    f.joints=j;return f;
+  },
+  createDino(){
+    const f=new Figure();f.color='#27ae60';const j=[];
+    const PI=Math.PI;
+    j.push(new Joint('hip',null,0,0));
+    j.push(new Joint('tail1','hip',36,0.2,SEGMENT_LINE,20,12));
+    j.push(new Joint('tail2','tail1',30,0.4,SEGMENT_LINE,20,9));
+    j.push(new Joint('tail3','tail2',22,0.3,SEGMENT_LINE,20,6));
+    j.push(new Joint('spine','hip',32,-PI/2+0.2,SEGMENT_LINE,20,14));
+    j.push(new Joint('chest','spine',28,-PI/2-0.1,SEGMENT_LINE,20,13));
+    j.push(new Joint('neck','chest',26,-PI/2-0.3,SEGMENT_LINE,20,10));
+    j.push(new Joint('head','neck',0,0,SEGMENT_CIRCLE,18,8,true));
+    j.push(new Joint('lArm','chest',20,PI-0.5,SEGMENT_LINE,20,6));
+    j.push(new Joint('lForearm','lArm',14,PI-0.2,SEGMENT_LINE,20,5));
+    j.push(new Joint('rArm','chest',20,0.5,SEGMENT_LINE,20,6));
+    j.push(new Joint('rForearm','rArm',14,0.2,SEGMENT_LINE,20,5));
+    j.push(new Joint('lThigh','hip',40,PI/2+0.3,SEGMENT_LINE,20,13));
+    j.push(new Joint('lShin','lThigh',36,PI/2+0.1,SEGMENT_LINE,20,11));
+    j.push(new Joint('lFoot','lShin',20,0.1,SEGMENT_LINE,20,8));
+    j.push(new Joint('rThigh','hip',40,PI/2-0.3,SEGMENT_LINE,20,13));
+    j.push(new Joint('rShin','rThigh',36,PI/2-0.1,SEGMENT_LINE,20,11));
+    j.push(new Joint('rFoot','rShin',20,PI-0.1,SEGMENT_LINE,20,8));
+    f.joints=j;return f;
+  },
+  createHorse(){
+    const f=new Figure();f.color='#8B4513';const j=[];
+    const PI=Math.PI;
+    j.push(new Joint('body',null,0,0));
+    j.push(new Joint('rump','body',36,PI-0.15,SEGMENT_LINE,20,14));
+    j.push(new Joint('tail1','rump',22,-PI/2+0.3,SEGMENT_LINE,20,7));
+    j.push(new Joint('tail2','tail1',20,-PI/2+0.8,SEGMENT_LINE,20,5));
+    j.push(new Joint('chest','body',38,-0.1,SEGMENT_LINE,20,14));
+    j.push(new Joint('neck','chest',30,-PI/2+0.4,SEGMENT_LINE,20,10));
+    j.push(new Joint('muzzle','neck',0,0,SEGMENT_CIRCLE,12,8,true));
+    j.push(new Joint('ear','neck',14,-PI/2-0.3,SEGMENT_LINE,20,4));
+    j.push(new Joint('lHindThigh','rump',34,PI/2+0.2,SEGMENT_LINE,20,11));
+    j.push(new Joint('lHindShin','lHindThigh',28,PI/2-0.3,SEGMENT_LINE,20,9));
+    j.push(new Joint('lHindHoof','lHindShin',14,0.1,SEGMENT_LINE,20,7));
+    j.push(new Joint('rHindThigh','rump',34,PI/2-0.1,SEGMENT_LINE,20,11));
+    j.push(new Joint('rHindShin','rHindThigh',28,PI/2+0.1,SEGMENT_LINE,20,9));
+    j.push(new Joint('rHindHoof','rHindShin',14,0.1,SEGMENT_LINE,20,7));
+    j.push(new Joint('lForeThigh','chest',32,PI/2+0.15,SEGMENT_LINE,20,10));
+    j.push(new Joint('lForeShin','lForeThigh',26,PI/2-0.2,SEGMENT_LINE,20,8));
+    j.push(new Joint('lForeHoof','lForeShin',14,0.05,SEGMENT_LINE,20,7));
+    j.push(new Joint('rForeThigh','chest',32,PI/2-0.1,SEGMENT_LINE,20,10));
+    j.push(new Joint('rForeShin','rForeThigh',26,PI/2+0.15,SEGMENT_LINE,20,8));
+    j.push(new Joint('rForeHoof','rForeShin',14,0.05,SEGMENT_LINE,20,7));
+    f.joints=j;return f;
+  },
+  createGun(){
+    const f=new Figure();f.color='#2c3e50';const j=[];
+    const PI=Math.PI;
+    j.push(new Joint('trigger',null,0,0));
+    j.push(new Joint('slide','trigger',22,0,SEGMENT_LINE,20,10));
+    j.push(new Joint('barrel','slide',38,0,SEGMENT_LINE,20,8));
+    j.push(new Joint('muzzle','barrel',10,0,SEGMENT_LINE,20,6));
+    j.push(new Joint('grip1','trigger',22,PI/2+0.15,SEGMENT_LINE,20,11));
+    j.push(new Joint('grip2','grip1',18,PI/2-0.1,SEGMENT_LINE,20,10));
+    j.push(new Joint('gripBase','grip2',12,PI/2+0.05,SEGMENT_LINE,20,9));
+    j.push(new Joint('guard','trigger',16,PI/2-0.5,SEGMENT_LINE,20,4));
+    j.push(new Joint('guardFwd','guard',14,0.1,SEGMENT_LINE,20,4));
+    f.joints=j;return f;
+  },
+  createArrow(){
+    const f=new Figure();f.color='#8B4513';const j=[];
+    const PI=Math.PI;
+    j.push(new Joint('nock',null,0,0));
+    j.push(new Joint('fletchL','nock',18,PI-0.5,SEGMENT_LINE,20,3));
+    j.push(new Joint('fletchR','nock',18,PI+0.5,SEGMENT_LINE,20,3));
+    j.push(new Joint('shaft','nock',60,0,SEGMENT_LINE,20,3));
+    j.push(new Joint('neck','shaft',30,0,SEGMENT_LINE,20,3));
+    j.push(new Joint('tipL','neck',16,0.4,SEGMENT_LINE,20,3));
+    j.push(new Joint('tipR','neck',16,-0.4,SEGMENT_LINE,20,3));
+    j.push(new Joint('tip','neck',18,0,SEGMENT_LINE,20,2));
+    f.joints=j;return f;
+  },
   openBuilder(){builder.open();},
   addCustomFigure(fig){this.saveState();this.figures.push(fig);this.selectFigure(fig);this.render();this.saveLocal();},
 
