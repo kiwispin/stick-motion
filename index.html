@@ -972,6 +972,7 @@
     </div>
     <div class="lib-grid">
       <div class="lib-item" onclick="app.addFromLibrary('stickman')"><span>🏃</span><p>Stickman</p></div>
+      <div class="lib-item" onclick="app.addFromLibrary('horse')"><span>🐴</span><p>Horse</p></div>
       <div class="lib-item" onclick="app.addFromLibrary('snake')"><span>🐍</span><p>Snake</p></div>
       <div class="lib-item" onclick="app.addFromLibrary('ball')"><span>⚽</span><p>Ball</p></div>
       <div class="lib-item" onclick="app.addFromLibrary('sword')"><span>⚔️</span><p>Sword</p></div>
@@ -1253,6 +1254,7 @@ const app={
     let fig;
     switch(type){
       case'stickman':fig=this.createStickman();break;
+      case'horse':fig=this.createHorse();break;
       case'sword':fig=this.createSword();break;
       case'ball':fig=this.createBall();break;
       case'racket':fig=this.createRacket();break;
@@ -1405,28 +1407,44 @@ const app={
     f.joints=j;return f;
   },
   createHorse(){
-    const f=new Figure();f.color='#8B4513';const j=[];
+    // Modelled directly from Pivot Animator reference
+    // Body: long horizontal, root at centre
+    // Legs: nearly straight down, slight splay, two segments, thick
+    // Neck: short, ~45deg forward-up from front of body
+    // Head: small circle at neck end
+    // Tail: single segment back-and-slightly-down from rear
+    const f=new Figure();f.color='#111111';const j=[];
     const PI=Math.PI;
+
+    // Root = body centre
     j.push(new Joint('body',null,0,0));
-    j.push(new Joint('rump','body',36,PI-0.15,SEGMENT_LINE,20,14));
-    j.push(new Joint('tail1','rump',22,-PI/2+0.3,SEGMENT_LINE,20,7));
-    j.push(new Joint('tail2','tail1',20,-PI/2+0.8,SEGMENT_LINE,20,5));
-    j.push(new Joint('chest','body',38,-0.1,SEGMENT_LINE,20,14));
-    j.push(new Joint('neck','chest',30,-PI/2+0.4,SEGMENT_LINE,20,10));
-    j.push(new Joint('muzzle','neck',0,0,SEGMENT_CIRCLE,12,8,true));
-    j.push(new Joint('ear','neck',14,-PI/2-0.3,SEGMENT_LINE,20,4));
-    j.push(new Joint('lHindThigh','rump',34,PI/2+0.2,SEGMENT_LINE,20,11));
-    j.push(new Joint('lHindShin','lHindThigh',28,PI/2-0.3,SEGMENT_LINE,20,9));
-    j.push(new Joint('lHindHoof','lHindShin',14,0.1,SEGMENT_LINE,20,7));
-    j.push(new Joint('rHindThigh','rump',34,PI/2-0.1,SEGMENT_LINE,20,11));
-    j.push(new Joint('rHindShin','rHindThigh',28,PI/2+0.1,SEGMENT_LINE,20,9));
-    j.push(new Joint('rHindHoof','rHindShin',14,0.1,SEGMENT_LINE,20,7));
-    j.push(new Joint('lForeThigh','chest',32,PI/2+0.15,SEGMENT_LINE,20,10));
-    j.push(new Joint('lForeShin','lForeThigh',26,PI/2-0.2,SEGMENT_LINE,20,8));
-    j.push(new Joint('lForeHoof','lForeShin',14,0.05,SEGMENT_LINE,20,7));
-    j.push(new Joint('rForeThigh','chest',32,PI/2-0.1,SEGMENT_LINE,20,10));
-    j.push(new Joint('rForeShin','rForeThigh',26,PI/2+0.15,SEGMENT_LINE,20,8));
-    j.push(new Joint('rForeHoof','rForeShin',14,0.05,SEGMENT_LINE,20,7));
+
+    // Body front and rear (horizontal, very thick)
+    j.push(new Joint('front','body',55,0,SEGMENT_LINE,20,22));
+    j.push(new Joint('rear','body',55,PI,SEGMENT_LINE,20,22));
+
+    // Neck: from front, angled ~40deg upward-forward, short, thick
+    j.push(new Joint('neck','front',32,-PI/2+0.7,SEGMENT_LINE,20,18));
+    // Head: small circle at neck tip
+    j.push(new Joint('head','neck',0,0,SEGMENT_CIRCLE,14,16,true));
+    // Ear: tiny stub straight up from neck
+    j.push(new Joint('ear','neck',12,-PI/2,SEGMENT_LINE,20,8));
+
+    // Tail: single segment from rear, angling back-down
+    j.push(new Joint('tail','rear',30,PI-0.4,SEGMENT_LINE,20,10));
+
+    // Front legs (from front joint) — nearly straight down, slight splay
+    j.push(new Joint('fl1upper','front',28,PI/2+0.12,SEGMENT_LINE,20,14));
+    j.push(new Joint('fl1lower','fl1upper',26,PI/2+0.05,SEGMENT_LINE,20,12));
+    j.push(new Joint('fl2upper','front',28,PI/2-0.12,SEGMENT_LINE,20,14));
+    j.push(new Joint('fl2lower','fl2upper',26,PI/2-0.05,SEGMENT_LINE,20,12));
+
+    // Rear legs (from rear joint) — nearly straight down, slight splay
+    j.push(new Joint('rl1upper','rear',28,PI/2+0.12,SEGMENT_LINE,20,14));
+    j.push(new Joint('rl1lower','rl1upper',26,PI/2+0.05,SEGMENT_LINE,20,12));
+    j.push(new Joint('rl2upper','rear',28,PI/2-0.12,SEGMENT_LINE,20,14));
+    j.push(new Joint('rl2lower','rl2upper',26,PI/2-0.05,SEGMENT_LINE,20,12));
+
     f.joints=j;return f;
   },
   createGun(){
