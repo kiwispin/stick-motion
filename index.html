@@ -748,6 +748,26 @@
         <textarea class="panel-textarea" id="text-figure-input" rows="3" oninput="app.updateText(this.value)"></textarea>
       </div>
 
+      <!-- Clipboard -->
+      <div class="panel-section">
+        <div class="panel-label">Clipboard</div>
+        <div class="btn-grid-2" style="margin-bottom:5px">
+          <button class="panel-btn fig-btn" onclick="app.copySelected()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Copy
+          </button>
+          <button class="panel-btn fig-btn" onclick="app.cutSelected()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="6" cy="20" r="2"/><circle cx="6" cy="4" r="2"/><line x1="6" y1="6" x2="6" y2="18"/><line x1="21" y1="4" x2="9.86" y2="10.7"/><line x1="21" y1="20" x2="9.86" y2="13.3"/></svg>
+            Cut
+          </button>
+        </div>
+        <button class="panel-btn" id="btn-paste" onclick="app.paste()" style="pointer-events:auto;opacity:1">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+          Paste
+          <span id="paste-hint" style="font-size:10px;color:var(--text3);margin-left:auto">Ctrl+V</span>
+        </button>
+      </div>
+
       <!-- Delete -->
       <div class="panel-section">
         <button class="panel-btn danger fig-btn" onclick="app.deleteSelectedFigure()">
@@ -1109,6 +1129,7 @@ const app={
   selectedFrames:new Set(),
   handleRadius:4,
   pendingAction:null,undoStack:[],redoStack:[],
+  clipboard:[], // ← array of cloned Figure objects
   marquee:{active:false,startX:0,startY:0,endX:0,endY:0},
 
   init(){
@@ -1130,6 +1151,9 @@ const app={
       if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();if(e.shiftKey)this.redo();else this.undo();}
       if((e.ctrlKey||e.metaKey)&&e.key==='y'){e.preventDefault();this.redo();}
       if((e.ctrlKey||e.metaKey)&&e.key==='g'){e.preventDefault();if(e.shiftKey)this.ungroupSelected();else this.groupSelected();}
+      if((e.ctrlKey||e.metaKey)&&e.key==='c'){e.preventDefault();this.copySelected();}
+      if((e.ctrlKey||e.metaKey)&&e.key==='x'){e.preventDefault();this.cutSelected();}
+      if((e.ctrlKey||e.metaKey)&&e.key==='v'){e.preventDefault();this.paste();}
       if(e.key==='Escape'){this.selectedFigureIds.clear();this.deselectAll();this.render();}
       if(e.key==='Delete'||e.key==='Backspace'){if(this.figures.some(f=>f.selected))this.deleteSelectedFigure();}
     });
@@ -1265,6 +1289,94 @@ const app={
     this.saveState();const fig=this.figures[idx];
     if(fig.groupId){const g=this.groups.find(g=>g.id===fig.groupId);if(g){g.figureIds=g.figureIds.filter(id=>id!==fig.id);if(g.figureIds.length<2)this.ungroupSelected(g.id);}}
     this.figures.splice(idx,1);this.render();this.updateGroupsPanel();this.saveLocal();
+  },
+
+  // ── Clipboard ─────────────────────────────────────────────────
+  copySelected(){
+    // Collect: the selected figure, OR all figures in selectedFigureIds
+    const targets = this.selectedFigureIds.size > 0
+      ? this.figures.filter(f => this.selectedFigureIds.has(f.id))
+      : this.figures.filter(f => f.selected);
+    if(!targets.length) return;
+    // Deep-clone into clipboard, give each a fresh ID so paste creates new figures
+    this.clipboard = targets.map(f => {
+      const c = f.clone();
+      c.id = Math.random().toString(36).substr(2,9); // new ID so it's a fresh figure
+      c.selected = false;
+      c.groupId = null; // paste as ungrouped independent figure
+      return c;
+    });
+    this.showToast(`Copied ${this.clipboard.length} figure${this.clipboard.length>1?'s':''}`);
+  },
+
+  cutSelected(){
+    this.copySelected();
+    if(!this.clipboard.length) return;
+    this.saveState();
+    // Remove originals — match by current selection
+    const removedIds = this.selectedFigureIds.size > 0
+      ? new Set(this.selectedFigureIds)
+      : new Set(this.figures.filter(f=>f.selected).map(f=>f.id));
+    this.figures = this.figures.filter(f => !removedIds.has(f.id));
+    this.selectedFigureIds.clear();
+    this.deselectAll();
+    this.render(); this.saveLocal();
+    this.showToast(`Cut ${removedIds.size} figure${removedIds.size>1?'s':''}`);
+  },
+
+  paste(){
+    if(!this.clipboard.length) return;
+    this.saveState();
+    // Clone clipboard again so you can paste multiple times
+    const pasted = this.clipboard.map(f => {
+      const c = f.clone();
+      c.id = Math.random().toString(36).substr(2,9); // fresh ID each paste
+      c.x += 18; c.y += 18; // slight offset so it doesn't land exactly on top
+      c.selected = false;
+      return c;
+    });
+    // Also nudge the clipboard originals for next paste
+    this.clipboard.forEach(f => { f.x += 18; f.y += 18; });
+
+    // Deselect everything, then select the newly pasted figures
+    this.figures.forEach(f => f.selected = false);
+    this.selectedFigureIds.clear();
+
+    pasted.forEach(f => {
+      this.figures.push(f);
+      this.selectedFigureIds.add(f.id);
+    });
+
+    // If only one pasted, fully select it in the panel too
+    if(pasted.length === 1) this.selectFigure(pasted[0]);
+    else this.updateGroupPanel();
+
+    // Also paste into the current saved frame so it persists on frame switch
+    if(this.frames[this.currentFrameIndex]){
+      this.frames[this.currentFrameIndex] = this.figures.map(f => f.clone());
+    }
+
+    this.render(); this.saveLocal();
+    this.showToast(`Pasted ${pasted.length} figure${pasted.length>1?'s':''}`);
+  },
+
+  // Lightweight toast notification
+  showToast(msg){
+    let t = document.getElementById('sm-toast');
+    if(!t){
+      t = document.createElement('div');
+      t.id = 'sm-toast';
+      t.style.cssText = `position:fixed;bottom:180px;left:50%;transform:translateX(-50%);
+        background:var(--bg4);border:1px solid var(--border2);color:var(--text);
+        font-family:var(--font);font-size:12px;font-weight:500;
+        padding:7px 14px;border-radius:8px;pointer-events:none;
+        opacity:0;transition:opacity 0.15s;z-index:9999;white-space:nowrap;`;
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.style.opacity = '1';
+    clearTimeout(this._toastTimer);
+    this._toastTimer = setTimeout(()=>{ t.style.opacity='0'; }, 1600);
   },
   raiseFigure(){const i=this.figures.findIndex(f=>f.selected);if(i!==-1&&i<this.figures.length-1){this.saveState();const t=this.figures[i];this.figures[i]=this.figures[i+1];this.figures[i+1]=t;this.render();this.saveLocal();}},
   lowerFigure(){const i=this.figures.findIndex(f=>f.selected);if(i>0){this.saveState();const t=this.figures[i];this.figures[i]=this.figures[i-1];this.figures[i-1]=t;this.render();this.saveLocal();}},
