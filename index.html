@@ -1750,7 +1750,30 @@ const app={
   },
   renderInterpolated(fA,fB,t,draw=true){
     if(!fA||!fB)return;const interp=[];
-    fA.forEach(figA=>{const figB=fB.find(f=>f.id===figA.id);if(figB){const nF=figA.clone();nF.x=figA.x+(figB.x-figA.x)*t;nF.y=figA.y+(figB.y-figA.y)*t;nF.scale=figA.scale+(figB.scale-figA.scale)*t;nF.joints.forEach(jA=>{const jB=figB.joints.find(j=>j.id===jA.id);if(jB){let d=jB.angle-jA.angle;while(d<-Math.PI)d+=Math.PI*2;while(d>Math.PI)d-=Math.PI*2;jA.angle+=d*t;}});interp.push(nF);}else interp.push(figA.clone());});
+    fA.forEach(figA=>{
+      const figB=fB.find(f=>f.id===figA.id);
+      if(figB){
+        figA.updatePositions();figB.updatePositions();
+        const nF=figA.clone();nF.x=figA.x+(figB.x-figA.x)*t;nF.y=figA.y+(figB.y-figA.y)*t;nF.scale=figA.scale+(figB.scale-figA.scale)*t;
+        const mapA={},mapB={},nextPos={};
+        figA.joints.forEach(j=>mapA[j.id]=j);figB.joints.forEach(j=>mapB[j.id]=j);
+        const calc=(j)=>{
+          const jA=mapA[j.id],jB=mapB[j.id];
+          if(!jA||!jB)return;
+          if(j.parentId===null){nextPos[j.id]={x:nF.x,y:nF.y};return;}
+          if(!nextPos[j.parentId]){const p=nF.joints.find(x=>x.id===j.parentId);if(p)calc(p);}
+          const p=nextPos[j.parentId];if(!p)return;
+          const tx=jA.x+(jB.x-jA.x)*t,ty=jA.y+(jB.y-jA.y)*t;
+          j.angle=Math.atan2(ty-p.y,tx-p.x);
+          j.length=Math.hypot(tx-p.x,ty-p.y)/Math.max(0.0001,nF.scale);
+          j.radius=(jA.radius||0)+((jB.radius||0)-(jA.radius||0))*t;
+          j.thickness=(jA.thickness||0)+((jB.thickness||0)-(jA.thickness||0))*t;
+          nextPos[j.id]={x:tx,y:ty};
+        };
+        nF.joints.forEach(calc);
+        interp.push(nF);
+      }else interp.push(figA.clone());
+    });
     this.figures=interp;if(draw)this.render();
   },
   updateFps(v){this.fps=parseInt(v);document.getElementById('fps-val').innerText=v;this.saveLocal();},
