@@ -466,8 +466,8 @@
   .frame-thumb .frame-delay.show { display: block; }
   .frame-thumb .frame-actions {
     position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    gap: 4px; opacity: 0; transition: opacity 0.15s;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 8px; opacity: 0; transition: opacity 0.15s;
     background: rgba(0,0,0,0.5);
   }
   .frame-thumb:hover .frame-actions { opacity: 1; }
@@ -888,6 +888,10 @@
 
     <!-- Right: frame actions -->
     <div id="pb-right">
+      <button class="pb-frame-btn" onclick="app.deleteFrame()" title="Delete frame" style="color:var(--red)">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+      </button>
+      <div style="width:1px;height:16px;background:var(--border);margin:0 4px"></div>
       <button class="pb-frame-btn" onclick="app.moveFrame(-1)" title="Move frame left">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 19l-7-7 7-7"/></svg>
       </button>
@@ -897,9 +901,6 @@
       <div style="width:1px;height:16px;background:var(--border);margin:0 4px"></div>
       <button class="pb-frame-btn" onclick="app.duplicateCurrentFrame()" title="Duplicate frame">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-      </button>
-      <button class="pb-frame-btn" onclick="app.deleteFrame()" title="Delete frame" style="color:var(--red)">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
       </button>
       <div style="width:1px;height:16px;background:var(--border);margin:0 4px"></div>
       <button class="add-frame-btn" onclick="app.addFrame()">
