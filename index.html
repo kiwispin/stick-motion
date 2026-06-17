@@ -1502,7 +1502,7 @@ const app={
   createSpeechBubble(){
     const fig=new Figure();fig.type='speech';fig.text='Say something';
     fig.x=this.canvas.width/2;fig.y=this.canvas.height/2;fig.scale=1.0;fig.color='#000000';
-    fig.joints=[new Joint('root',null,0,0),new Joint('handle','root',40,0)];
+    fig.joints=[new Joint('root',null,0,0),new Joint('handle','root',40,0),new Joint('tail','root',92,2.15)];
     return fig;
   },
   updateText(val){const fig=this.figures.find(f=>f.selected);if(fig&&(fig.type==='text'||fig.type==='speech')){fig.text=val;this.render();this.saveLocal();}},
@@ -1832,6 +1832,14 @@ const app={
     const lx=(cos*dx+sin*dy)/scale,ly=(-sin*dx+cos*dy)/scale;
     return (lx>=-90&&lx<=90&&ly>=-47&&ly<=47)||(lx>=-72&&lx<=-10&&ly>=36&&ly<=77);
   },
+  updateFreeJointFromPos(fig,joint,pos){
+    const handle=fig.joints.find(j=>j.id==='handle');
+    let angle=0,scale=fig.scale||1;
+    if(handle){const dx=handle.x-fig.x,dy=handle.y-fig.y;angle=Math.atan2(dy,dx);scale=Math.max(0.1,Math.hypot(dx,dy)/40);}
+    const dx=pos.x-fig.x,dy=pos.y-fig.y,cos=Math.cos(angle),sin=Math.sin(angle);
+    const lx=(cos*dx+sin*dy)/scale,ly=(-sin*dx+cos*dy)/scale;
+    joint.angle=Math.atan2(ly,lx);joint.length=Math.hypot(lx,ly);
+  },
 
   // ── Interaction ───────────────────────────────────────────────
   handleStart(e,isTouch){
@@ -1905,7 +1913,8 @@ const app={
       else{fig.x=newX;fig.y=newY;}
     }else{
       const joint=this.dragTarget.joint;const fig=this.dragTarget.figure;const parent=fig.joints.find(j=>j.id===joint.parentId);
-      if(parent){const newA=Math.atan2(pos.y-parent.y,pos.x-parent.x);const delta=newA-joint.angle;joint.angle=newA;this.rotateHierarchy(fig,joint.id,delta);}
+      if(fig.type==='speech'&&joint.id==='tail')this.updateFreeJointFromPos(fig,joint,pos);
+      else if(parent){const newA=Math.atan2(pos.y-parent.y,pos.x-parent.x);const delta=newA-joint.angle;joint.angle=newA;this.rotateHierarchy(fig,joint.id,delta);}
     }
     this.render();
   },
@@ -2033,10 +2042,11 @@ const app={
     }
     if(fig.type==='speech'){
       this.ctx.save();this.ctx.translate(fig.x,fig.y);
-      let angle=0,scale=fig.scale;const handle=fig.joints.find(j=>j.id==='handle');
+      let angle=0,scale=fig.scale;const handle=fig.joints.find(j=>j.id==='handle'),tail=fig.joints.find(j=>j.id==='tail');
       if(handle){const dx=handle.x-fig.x,dy=handle.y-fig.y;angle=Math.atan2(dy,dx);scale=Math.hypot(dx,dy)/40;}
       this.ctx.rotate(angle);this.ctx.scale(scale,scale);
-      const w=180,h=94,r=18,x=-w/2,y=-h/2,tailBaseX=-38,tailJoinX=-10,tailTipX=-72,tailTipY=h/2+30;
+      const w=180,h=94,r=18,x=-w/2,y=-h/2,tailBaseX=-38,tailJoinX=-10;
+      const tailTipX=tail?Math.cos(tail.angle)*tail.length:-72,tailTipY=tail?Math.sin(tail.angle)*tail.length:h/2+30;
       this.ctx.beginPath();
       this.ctx.moveTo(x+r,y);this.ctx.lineTo(x+w-r,y);this.ctx.quadraticCurveTo(x+w,y,x+w,y+r);
       this.ctx.lineTo(x+w,y+h-r);this.ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
@@ -2048,7 +2058,7 @@ const app={
       const lines=this.wrapTextLines(fig.text||'Say something',w-34),lineH=20,startY=-(lines.length-1)*lineH/2-1;
       lines.forEach((line,i)=>this.ctx.fillText(line,0,startY+i*lineH));
       this.ctx.restore();
-      if(showHandles){this.ctx.beginPath();this.ctx.arc(fig.x,fig.y,this.handleRadius+2,0,Math.PI*2);this.ctx.fillStyle='#f97316';this.ctx.fill();if(handle){this.ctx.beginPath();this.ctx.arc(handle.x,handle.y,this.handleRadius,0,Math.PI*2);this.ctx.fillStyle='#ef4444';this.ctx.fill();this.ctx.beginPath();this.ctx.moveTo(fig.x,fig.y);this.ctx.lineTo(handle.x,handle.y);this.ctx.strokeStyle='rgba(255,100,100,0.3)';this.ctx.lineWidth=1;this.ctx.stroke();}}
+      if(showHandles){this.ctx.beginPath();this.ctx.arc(fig.x,fig.y,this.handleRadius+2,0,Math.PI*2);this.ctx.fillStyle='#f97316';this.ctx.fill();if(handle){this.ctx.beginPath();this.ctx.arc(handle.x,handle.y,this.handleRadius,0,Math.PI*2);this.ctx.fillStyle='#ef4444';this.ctx.fill();this.ctx.beginPath();this.ctx.moveTo(fig.x,fig.y);this.ctx.lineTo(handle.x,handle.y);this.ctx.strokeStyle='rgba(255,100,100,0.3)';this.ctx.lineWidth=1;this.ctx.stroke();}if(tail){this.ctx.beginPath();this.ctx.arc(tail.x,tail.y,this.handleRadius+1,0,Math.PI*2);this.ctx.fillStyle='#3b82f6';this.ctx.fill();this.ctx.beginPath();this.ctx.moveTo(fig.x,fig.y);this.ctx.lineTo(tail.x,tail.y);this.ctx.strokeStyle='rgba(59,130,246,0.25)';this.ctx.lineWidth=1;this.ctx.stroke();}}
       return;
     }
     fig.joints.forEach(j=>{
