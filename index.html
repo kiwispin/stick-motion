@@ -880,6 +880,10 @@
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2C8 2 4 6 4 10c0 4 2 7 8 10 6-3 8-6 8-10 0-4-4-8-8-8z" opacity="0.4"/><path d="M12 6C9 6 7 9 7 11c0 3 2 5 5 6 3-1 5-3 5-6 0-2-2-5-5-5z"/></svg>
         Onion
       </button>
+      <button class="pb-tag" id="btn-pivots" onclick="app.togglePivots()" title="Show or hide pivot handles">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline-block;vertical-align:middle;margin-right:3px"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+        Pivots
+      </button>
     </div>
 
     <!-- Right: frame actions -->
@@ -1135,7 +1139,7 @@ const app={
   frames:[],frameDelays:[],currentFrameIndex:0,
   figures:[],groups:[],bgImage:null,
   fps:12,isPlaying:false,lastTime:0,playbackAccumulator:0,
-  isLooping:true,isSmooth:true,showOnion:true,
+  isLooping:true,isSmooth:true,showOnion:true,showPivots:true,
   zoomLevel:1.0,dragTarget:null,
   selectedFigureIds:new Set(),
   selectedFrames:new Set(),
@@ -1175,6 +1179,7 @@ const app={
     document.getElementById('btn-loop').classList.toggle('on',this.isLooping);
     document.getElementById('btn-smooth').classList.toggle('on',this.isSmooth);
     document.getElementById('btn-onion').classList.toggle('on',this.showOnion);
+    document.getElementById('btn-pivots').classList.toggle('on',this.showPivots);
   },
 
   buildColorSwatches(){
@@ -1665,6 +1670,7 @@ const app={
   toggleLoop(){this.isLooping=!this.isLooping;document.getElementById('btn-loop').classList.toggle('on',this.isLooping);},
   toggleSmooth(){this.isSmooth=!this.isSmooth;document.getElementById('btn-smooth').classList.toggle('on',this.isSmooth);},
   toggleOnion(){this.showOnion=!this.showOnion;document.getElementById('btn-onion').classList.toggle('on',this.showOnion);this.render();},
+  togglePivots(){this.showPivots=!this.showPivots;document.getElementById('btn-pivots').classList.toggle('on',this.showPivots);this.render();},
 
   // ── Frames ────────────────────────────────────────────────────
   prevFrame(){if(this.frames.length>0&&this.currentFrameIndex>0)this.loadFrame(this.currentFrameIndex-1);},
@@ -1948,8 +1954,9 @@ const app={
       else if(this.currentFrameIndex>0)pF=this.frames[this.currentFrameIndex-1];
       if(pF){this.ctx.globalAlpha=0.25;pF.forEach(f=>{f.updatePositions();this.drawFigure(f,false);});this.ctx.globalAlpha=1.0;}
     }
-    this.figures.forEach(f=>{f.updatePositions();this.drawFigure(f,!this.isPlaying);});
-    if(!this.isPlaying)this.drawGroupBounds();
+    const showEditing=this.showPivots&&!this.isPlaying;
+    this.figures.forEach(f=>{f.updatePositions();this.drawFigure(f,showEditing);});
+    if(showEditing)this.drawGroupBounds();
   },
   drawGroupBounds(){
     this.groups.forEach(g=>{
