@@ -346,21 +346,23 @@
 
   /* Playback bar */
   #playback-bar {
-    height: 52px; display: flex; align-items: center; justify-content: center;
-    gap: 0; border-bottom: 1px solid var(--border); position: relative;
+    height: 56px; display: grid;
+    grid-template-columns: minmax(88px, 1fr) auto minmax(300px, 1fr);
+    align-items: center; gap: 12px; padding: 0 16px;
+    border-bottom: 1px solid var(--border);
     flex-shrink: 0;
   }
 
   /* Frame counter */
   #frame-counter-wrap {
-    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; gap: 8px; justify-self: start;
   }
   #frame-counter {
     font-family: var(--mono); font-size: 11px; color: var(--text3);
   }
 
   /* Playback controls center */
+  #pb-center { display: flex; align-items: center; gap: 8px; justify-self: center; }
   .pb-group { display: flex; align-items: center; gap: 3px; }
   .pb-sep { width: 1px; height: 18px; background: var(--border); margin: 0 8px; }
 
@@ -402,8 +404,10 @@
 
   /* Right side controls */
   #pb-right {
-    position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
-    display: flex; align-items: center; gap: 6px;
+    display: flex; align-items: center; gap: 8px; justify-self: end;
+  }
+  .pb-action-group {
+    display: flex; align-items: center; gap: 4px;
   }
   .pb-frame-btn {
     width: 26px; height: 26px; border-radius: 6px; border: none;
@@ -412,6 +416,13 @@
     cursor: pointer; transition: background 0.15s, color 0.15s;
   }
   .pb-frame-btn:hover { background: var(--border2); color: var(--text); }
+  .pb-danger-btn {
+    color: var(--red);
+    background: rgba(239,68,68,0.08);
+    border: 1px solid rgba(239,68,68,0.22);
+    margin-left: 6px;
+  }
+  .pb-danger-btn:hover { background: rgba(239,68,68,0.18); color: #fff; }
   .add-frame-btn {
     display: flex; align-items: center; gap: 5px;
     padding: 5px 10px; border-radius: 7px; border: none;
@@ -832,10 +843,14 @@
   <!-- Playback bar -->
   <div id="playback-bar">
 
-    <!-- Left: frame counter + nav -->
+    <!-- Left: frame status -->
     <div id="frame-counter-wrap">
       <span id="frame-counter" style="font-family:var(--mono);font-size:11px;color:var(--text3)">1 / 1</span>
-      <div style="display:flex;gap:2px">
+    </div>
+
+    <!-- Center: transport + playback settings -->
+    <div id="pb-center">
+      <div class="pb-group">
         <button class="pb-frame-btn" onclick="app.goToFirstFrame()" title="Go to start">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
         </button>
@@ -845,17 +860,13 @@
         <button class="pb-frame-btn" onclick="app.nextFrame()" title="Next (>)">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
         </button>
+        <button id="btn-play" class="pb-play" onclick="app.play()" title="Play (Space)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+        <button id="btn-stop" class="pb-play" style="display:none;background:var(--red)" onclick="app.stop()">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+        </button>
       </div>
-    </div>
-
-    <!-- Center: playback controls -->
-    <div style="display:flex;align-items:center;gap:4px">
-      <button id="btn-play" class="pb-play" onclick="app.play()" title="Play (Space)">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-      </button>
-      <button id="btn-stop" class="pb-play" style="display:none;background:var(--red)" onclick="app.stop()">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
-      </button>
 
       <div class="pb-sep"></div>
 
@@ -888,24 +899,25 @@
 
     <!-- Right: frame actions -->
     <div id="pb-right">
-      <button class="pb-frame-btn" onclick="app.deleteFrame()" title="Delete frame" style="color:var(--red)">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
-      </button>
-      <div style="width:1px;height:16px;background:var(--border);margin:0 4px"></div>
-      <button class="pb-frame-btn" onclick="app.moveFrame(-1)" title="Move frame left">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 19l-7-7 7-7"/></svg>
-      </button>
-      <button class="pb-frame-btn" onclick="app.moveFrame(1)" title="Move frame right">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
-      </button>
-      <div style="width:1px;height:16px;background:var(--border);margin:0 4px"></div>
+      <div class="pb-action-group">
+        <button class="pb-frame-btn" onclick="app.moveFrame(-1)" title="Move frame left">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 19l-7-7 7-7"/></svg>
+        </button>
+        <button class="pb-frame-btn" onclick="app.moveFrame(1)" title="Move frame right">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </div>
+      <div class="pb-sep"></div>
       <button class="pb-frame-btn" onclick="app.duplicateCurrentFrame()" title="Duplicate frame">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
       </button>
-      <div style="width:1px;height:16px;background:var(--border);margin:0 4px"></div>
       <button class="add-frame-btn" onclick="app.addFrame()">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         Add Frame
+      </button>
+      <div class="pb-sep"></div>
+      <button class="pb-frame-btn pb-danger-btn" onclick="app.deleteFrame()" title="Delete frame">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
       </button>
     </div>
   </div>
@@ -1983,8 +1995,7 @@ const app={
     if(this.bgImage)this.ctx.drawImage(this.bgImage,0,0,this.canvas.width,this.canvas.height);
     if(this.showOnion&&!this.isPlaying&&this.frames.length>0){
       let pF=null;
-      if(this.currentFrameIndex===this.frames.length-1)pF=this.frames[this.currentFrameIndex];
-      else if(this.currentFrameIndex>0)pF=this.frames[this.currentFrameIndex-1];
+      if(this.currentFrameIndex>0)pF=this.frames[this.currentFrameIndex-1];
       if(pF){this.ctx.globalAlpha=0.25;pF.forEach(f=>{f.updatePositions();this.drawFigure(f,false);});this.ctx.globalAlpha=1.0;}
     }
     const showEditing=this.showPivots&&!this.isPlaying;
