@@ -154,11 +154,11 @@
     background-size: 24px 24px;
   }
   #main-canvas {
-    background: #fff;
+    background: transparent;
     border-radius: 2px;
     cursor: crosshair;
     touch-action: none;
-    box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 20px 60px rgba(0,0,0,0.5);
+    box-shadow: none;
     transform-origin: top left;
   }
 
@@ -860,7 +860,7 @@
         <button class="pb-frame-btn" onclick="app.nextFrame()" title="Next (>)">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
         </button>
-        <button id="btn-play" class="pb-play" onclick="app.play()" title="Play (Space)">
+        <button id="btn-play" class="pb-play" onclick="app.play()" title="Play">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         </button>
         <button id="btn-stop" class="pb-play" style="display:none;background:var(--red)" onclick="app.stop()">
@@ -911,7 +911,7 @@
       <button class="pb-frame-btn" onclick="app.duplicateCurrentFrame()" title="Duplicate frame">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
       </button>
-      <button class="add-frame-btn" onclick="app.addFrame()">
+      <button class="add-frame-btn" onclick="app.addFrame()" title="Add frame (Space)">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         Add Frame
       </button>
@@ -925,7 +925,7 @@
   <!-- Timeline -->
   <div id="timeline-track">
     <!-- Frames inserted here by JS -->
-    <button id="add-frame-tl" onclick="app.addFrame()" title="Add frame">
+    <button id="add-frame-tl" onclick="app.addFrame()" title="Add frame (Space)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
   </div>
@@ -1149,6 +1149,7 @@ const builder={
 const app={
   canvas:document.getElementById('main-canvas'),
   ctx:document.getElementById('main-canvas').getContext('2d'),
+  docWidth:800,docHeight:500,stagePadding:400,
   frames:[],frameDelays:[],currentFrameIndex:0,
   figures:[],groups:[],bgImage:null,
   fps:12,isPlaying:false,lastTime:0,playbackAccumulator:0,
@@ -1164,6 +1165,7 @@ const app={
   init(){
     builder.init();
     this.buildColorSwatches();
+    this.applyCanvasSize(this.docWidth,this.docHeight);
     if(!this.loadFromLocal()) this.addFigure();
     this.canvas.addEventListener('mousedown',e=>this.handleStart(e,false));
     window.addEventListener('mousemove',e=>this.handleMove(e,false));
@@ -1212,14 +1214,14 @@ const app={
 
   // ── Persistence ───────────────────────────────────────────────
   saveLocal(){
-    const d={version:3,width:this.canvas.width,height:this.canvas.height,fps:this.fps,frames:this.frames,delays:this.frameDelays,figures:this.figures,currentFrameIndex:this.currentFrameIndex,groups:this.groups};
+    const d={version:3,width:this.docWidth,height:this.docHeight,fps:this.fps,frames:this.frames,delays:this.frameDelays,figures:this.figures,currentFrameIndex:this.currentFrameIndex,groups:this.groups};
     try{localStorage.setItem('stickmotion_data',JSON.stringify(d));}catch(e){console.error(e);}
   },
   loadFromLocal(){
     try{
       const data=localStorage.getItem('stickmotion_data');if(!data)return false;
       const d=JSON.parse(data);
-      if(d.width){document.getElementById('canvas-w').value=d.width;document.getElementById('canvas-h').value=d.height;this.canvas.width=d.width;this.canvas.height=d.height;}
+      if(d.width){document.getElementById('canvas-w').value=d.width;document.getElementById('canvas-h').value=d.height;this.applyCanvasSize(d.width,d.height);}
       if(d.fps){this.updateFps(d.fps);}
       const rf=(fd)=>fd.map(figd=>{const fig=new Figure();Object.assign(fig,figd);fig.joints=figd.joints.map(jd=>{const j=new Joint();Object.assign(j,jd);return j;});return fig;});
       if(d.frames)this.frames=d.frames.map(f=>rf(f));
@@ -1267,11 +1269,16 @@ const app={
   setCanvasSize(){
     const w=parseInt(document.getElementById('canvas-w').value)||800;
     const h=parseInt(document.getElementById('canvas-h').value)||500;
-    this.canvas.width=w;this.canvas.height=h;
-    this.canvas.style.width=(w*this.zoomLevel)+'px';
-    this.canvas.style.height=(h*this.zoomLevel)+'px';
-    this.canvas.style.maxWidth='none';
+    this.applyCanvasSize(w,h);
     this.render();this.saveLocal();
+  },
+  applyCanvasSize(w,h){
+    this.docWidth=w;this.docHeight=h;
+    const sw=w+this.stagePadding*2,sh=h+this.stagePadding*2;
+    this.canvas.width=sw;this.canvas.height=sh;
+    this.canvas.style.width=(sw*this.zoomLevel)+'px';
+    this.canvas.style.height=(sh*this.zoomLevel)+'px';
+    this.canvas.style.maxWidth='none';
   },
   loadBackground(i){if(i.files&&i.files[0]){const r=new FileReader();r.onload=e=>{const img=new Image();img.onload=()=>{this.bgImage=img;this.render();};img.src=e.target.result;};r.readAsDataURL(i.files[0]);}},
 
@@ -1508,13 +1515,13 @@ const app={
 
   addText(){
     this.saveState();const fig=new Figure();fig.type='text';fig.text='Text';
-    fig.x=this.canvas.width/2;fig.y=this.canvas.height/2;fig.scale=1.0;fig.color='#000000';
+    fig.x=this.docWidth/2;fig.y=this.docHeight/2;fig.scale=1.0;fig.color='#000000';
     fig.joints=[new Joint('root',null,0,0),new Joint('handle','root',20,0)];
     this.figures.push(fig);this.selectFigure(fig);this.render();this.saveLocal();
   },
   createSpeechBubble(){
     const fig=new Figure();fig.type='speech';fig.text='Say something';
-    fig.x=this.canvas.width/2;fig.y=this.canvas.height/2;fig.scale=1.0;fig.color='#000000';
+    fig.x=this.docWidth/2;fig.y=this.docHeight/2;fig.scale=1.0;fig.color='#000000';
     fig.joints=[new Joint('root',null,0,0),new Joint('handle','root',40,0),new Joint('tail','root',92,2.15)];
     return fig;
   },
@@ -1697,7 +1704,7 @@ const app={
     const d=this.frameDelays[this.currentFrameIndex]??1.0;
     const snap=this.figures.map(f=>f.clone());
     if(this.frames.length===0){this.frames.push(snap);this.frameDelays.push(d);this.currentFrameIndex=0;}
-    else{this.frames.splice(this.currentFrameIndex+1,0,snap);this.frameDelays.splice(this.currentFrameIndex+1,0,d);this.currentFrameIndex++;}
+    else{this.frames[this.currentFrameIndex]=snap.map(f=>f.clone());this.frames.splice(this.currentFrameIndex+1,0,snap);this.frameDelays.splice(this.currentFrameIndex+1,0,d);this.currentFrameIndex++;}
     this.updateTimeline();this.render();this.scrollToFrame(this.currentFrameIndex);this.saveLocal();
   },
   duplicateCurrentFrame(){if(this.frames.length===0)return;this.duplicateFrameAtIndex(this.currentFrameIndex);},
@@ -1790,12 +1797,12 @@ const app={
     this.figures=interp;if(draw)this.render();
   },
   updateFps(v){this.fps=parseInt(v);document.getElementById('fps-val').innerText=v;this.saveLocal();},
-  saveProject(){const d={version:3,width:this.canvas.width,height:this.canvas.height,fps:this.fps,frames:this.frames,delays:this.frameDelays,groups:this.groups};const b=new Blob([JSON.stringify(d)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='project.json';a.click();},
+  saveProject(){const d={version:3,width:this.docWidth,height:this.docHeight,fps:this.fps,frames:this.frames,delays:this.frameDelays,groups:this.groups};const b=new Blob([JSON.stringify(d)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='project.json';a.click();},
   loadProject(i){if(i.files&&i.files[0]){this.stop();this.saveState();const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.width){document.getElementById('canvas-w').value=d.width;document.getElementById('canvas-h').value=d.height;this.setCanvasSize();}if(d.fps)this.updateFps(d.fps);this.frames=d.frames.map(fd=>fd.map(figd=>{const fig=new Figure();Object.assign(fig,figd);fig.joints=figd.joints.map(jd=>{const j=new Joint();Object.assign(j,jd);return j;});return fig;}));if(d.delays)this.frameDelays=d.delays;else this.frameDelays=new Array(this.frames.length).fill(1.0);if(d.groups)this.groups=d.groups.map(g=>new FigureGroup(g.id,g.figureIds,g.label));else this.groups=[];this.currentFrameIndex=0;this.loadFrame(0);this.updateTimeline();this.updateGroupsPanel();this.undoStack=[];this.redoStack=[];this.saveLocal();}catch(err){alert('Error: '+err);}};r.readAsText(i.files[0]);}},
 
   exportFrame(){
     const wasPlaying=this.isPlaying;if(wasPlaying)this.stop();
-    this.renderFrameToCtx(false);
+    const exportCanvas=this.renderFrameToCtx(false);
     const name='stickmotion-frame-'+String(this.currentFrameIndex+1).padStart(3,'0')+'.png';
     const download=(url)=>{
       const a=document.createElement('a');a.href=url;a.download=name;a.click();
@@ -1803,10 +1810,10 @@ const app={
       this.render();
       this.showToast('Frame exported');
     };
-    if(this.canvas.toBlob){
-      this.canvas.toBlob(blob=>{if(blob)download(URL.createObjectURL(blob));else{this.render();alert('Frame export failed.');}},'image/png');
+    if(exportCanvas.toBlob){
+      exportCanvas.toBlob(blob=>{if(blob)download(URL.createObjectURL(blob));else{this.render();alert('Frame export failed.');}},'image/png');
     }else{
-      const a=document.createElement('a');a.href=this.canvas.toDataURL('image/png');a.download=name;a.click();
+      const a=document.createElement('a');a.href=exportCanvas.toDataURL('image/png');a.download=name;a.click();
       this.render();this.showToast('Frame exported');
     }
   },
@@ -1817,23 +1824,34 @@ const app={
     try{
       const res=await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
       const blob=await res.blob();const url=URL.createObjectURL(blob);
-      const gif=new GIF({workers:2,quality:10,width:this.canvas.width,height:this.canvas.height,workerScript:url});
+      const gif=new GIF({workers:2,quality:10,width:this.docWidth,height:this.docHeight,workerScript:url});
       const wasPlaying=this.isPlaying;if(wasPlaying)this.stop();
       const origIdx=this.currentFrameIndex;const origFigs=this.figures;
       const baseDelay=1000/this.fps;
       for(let i=0;i<this.frames.length;i++){
         const dm=this.frameDelays[i]||1.0;const steps=this.isSmooth?Math.max(1,Math.round(5*dm)):1;const stepDelay=(baseDelay*dm)/steps;const fA=this.frames[i];const nextIdx=(i+1)%this.frames.length;
-        if(!this.isLooping&&i===this.frames.length-1){this.figures=fA.map(f=>f.clone());this.renderFrameToCtx();gif.addFrame(this.ctx,{copy:true,delay:baseDelay*dm});}
-        else{const fB=this.frames[nextIdx];for(let s=0;s<steps;s++){let t=s/steps;if(!this.isSmooth)t=0;this.renderInterpolated(fA,fB,t,false);this.renderFrameToCtx(false);gif.addFrame(this.ctx,{copy:true,delay:stepDelay});if(!this.isSmooth)break;}}
+        if(!this.isLooping&&i===this.frames.length-1){this.figures=fA.map(f=>f.clone());const c=this.renderFrameToCtx();gif.addFrame(c.getContext('2d'),{copy:true,delay:baseDelay*dm});}
+        else{const fB=this.frames[nextIdx];for(let s=0;s<steps;s++){let t=s/steps;if(!this.isSmooth)t=0;this.renderInterpolated(fA,fB,t,false);const c=this.renderFrameToCtx(false);gif.addFrame(c.getContext('2d'),{copy:true,delay:stepDelay});if(!this.isSmooth)break;}}
       }
       gif.on('finished',b=>{document.getElementById('loading-modal').classList.remove('show');const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='animation.gif';a.click();this.currentFrameIndex=origIdx;this.figures=origFigs;this.render();});
       gif.render();
     }catch(err){document.getElementById('loading-modal').classList.remove('show');alert('GIF Error.');}
   },
-  renderFrameToCtx(h=false){this.ctx.fillStyle='#ffffff';this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height);if(this.bgImage)this.ctx.drawImage(this.bgImage,0,0,this.canvas.width,this.canvas.height);this.figures.forEach(f=>{f.updatePositions();this.drawFigure(f,h);});},
+  renderFrameToCtx(h=false){
+    const c=document.createElement('canvas');c.width=this.docWidth;c.height=this.docHeight;
+    this.renderDocumentToCtx(c.getContext('2d'),h);
+    return c;
+  },
+  renderDocumentToCtx(ctx,h=false){
+    const oldCtx=this.ctx;this.ctx=ctx;
+    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,this.docWidth,this.docHeight);
+    if(this.bgImage)ctx.drawImage(this.bgImage,0,0,this.docWidth,this.docHeight);
+    this.figures.forEach(f=>{f.updatePositions();this.drawFigure(f,h);});
+    this.ctx=oldCtx;
+  },
 
   // ── Pos helpers ───────────────────────────────────────────────
-  getPos(e,isTouch){const r=this.canvas.getBoundingClientRect();let cx=isTouch?e.touches[0].clientX:e.clientX,cy=isTouch?e.touches[0].clientY:e.clientY;return{x:(cx-r.left)*(this.canvas.width/r.width),y:(cy-r.top)*(this.canvas.height/r.height)};},
+  getPos(e,isTouch){const r=this.canvas.getBoundingClientRect();let cx=isTouch?e.touches[0].clientX:e.clientX,cy=isTouch?e.touches[0].clientY:e.clientY;return{x:(cx-r.left)*(this.canvas.width/r.width)-this.stagePadding,y:(cy-r.top)*(this.canvas.height/r.height)-this.stagePadding};},
   getWrapperPos(e,isTouch){const w=document.getElementById('canvas-area');const r=w.getBoundingClientRect();let cx=isTouch?e.touches[0].clientX:e.clientX,cy=isTouch?e.touches[0].clientY:e.clientY;return{x:cx-r.left+w.scrollLeft,y:cy-r.top+w.scrollTop};},
   distToSegment(p,v,w){const l2=Math.pow(v.x-w.x,2)+Math.pow(v.y-w.y,2);if(l2===0)return Math.hypot(p.x-v.x,p.y-v.y);let t=((p.x-v.x)*(w.x-v.x)+(p.y-v.y)*(w.y-v.y))/l2;t=Math.max(0,Math.min(1,t));return Math.hypot(p.x-(v.x+t*(w.x-v.x)),p.y-(v.y+t*(w.y-v.y)));},
   pointInSpeechBubble(fig,pos){
@@ -1939,7 +1957,7 @@ const app={
       const mx2=Math.max(this.marquee.startX,this.marquee.endX),my2=Math.max(this.marquee.startY,this.marquee.endY);
       const ox=cr.left-wr.left+wa.scrollLeft,oy=cr.top-wr.top+wa.scrollTop;
       const sx=this.canvas.width/cr.width,sy=this.canvas.height/cr.height;
-      const cx1=(mx1-ox)*sx,cy1=(my1-oy)*sy,cx2=(mx2-ox)*sx,cy2=(my2-oy)*sy;
+      const cx1=(mx1-ox)*sx-this.stagePadding,cy1=(my1-oy)*sy-this.stagePadding,cx2=(mx2-ox)*sx-this.stagePadding,cy2=(my2-oy)*sy-this.stagePadding;
       if(cx2-cx1>4||cy2-cy1>4){this.figures.forEach(f=>{f.updatePositions();const root=f.joints.find(j=>j.parentId===null);if(root&&root.x>=cx1&&root.x<=cx2&&root.y>=cy1&&root.y<=cy2){this.selectedFigureIds.add(f.id);f.selected=true;}});this.updateGroupPanel();this.render();}
     }
     this.dragTarget=null;this.saveLocal();
@@ -1978,7 +1996,7 @@ const app={
   },
 
   flipFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=Math.PI-j.angle;});this.render();this.saveLocal();},
-  centerFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.x=this.canvas.width/2;f.y=this.canvas.height/2;this.render();this.saveLocal();},
+  centerFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.x=this.docWidth/2;f.y=this.docHeight/2;this.render();this.saveLocal();},
   scaleFigure(s){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.scale*=s;this.render();this.saveLocal();},
   rotateSelectedFigure(d){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle+=d;});this.render();this.saveLocal();},
   setFigureColor(hex){
@@ -1991,8 +2009,14 @@ const app={
 
   // ── Render ────────────────────────────────────────────────────
   render(){
-    this.ctx.fillStyle='#ffffff';this.ctx.fillRect(0,0,this.canvas.width,this.canvas.height);
-    if(this.bgImage)this.ctx.drawImage(this.bgImage,0,0,this.canvas.width,this.canvas.height);
+    this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+    this.ctx.save();
+    this.ctx.shadowColor='rgba(0,0,0,0.45)';this.ctx.shadowBlur=28;this.ctx.shadowOffsetY=10;
+    this.ctx.fillStyle='#ffffff';this.ctx.fillRect(this.stagePadding,this.stagePadding,this.docWidth,this.docHeight);
+    this.ctx.restore();
+    this.ctx.fillStyle='#ffffff';this.ctx.fillRect(this.stagePadding,this.stagePadding,this.docWidth,this.docHeight);
+    if(this.bgImage)this.ctx.drawImage(this.bgImage,this.stagePadding,this.stagePadding,this.docWidth,this.docHeight);
+    this.ctx.save();this.ctx.translate(this.stagePadding,this.stagePadding);
     if(this.showOnion&&!this.isPlaying&&this.frames.length>0){
       let pF=null;
       if(this.currentFrameIndex>0)pF=this.frames[this.currentFrameIndex-1];
@@ -2001,6 +2025,8 @@ const app={
     const showEditing=this.showPivots&&!this.isPlaying;
     this.figures.forEach(f=>{f.updatePositions();this.drawFigure(f,showEditing);});
     if(showEditing)this.drawGroupBounds();
+    this.ctx.restore();
+    this.ctx.strokeStyle='rgba(255,255,255,0.25)';this.ctx.lineWidth=1;this.ctx.strokeRect(this.stagePadding-0.5,this.stagePadding-0.5,this.docWidth+1,this.docHeight+1);
   },
   drawGroupBounds(){
     this.groups.forEach(g=>{
@@ -2133,7 +2159,7 @@ const app={
       const cv=document.createElement('canvas');cv.width=72;cv.height=54;cv.style.width='100%';cv.style.height='100%';
       const ctx=cv.getContext('2d');
       ctx.fillStyle='#fff';ctx.fillRect(0,0,72,54);
-      const sc=Math.min(72/this.canvas.width,54/this.canvas.height);
+      const sc=Math.min(72/this.docWidth,54/this.docHeight);
       ctx.save();ctx.scale(sc,sc);
       frame.forEach(fig=>{
         fig.updatePositions();ctx.lineWidth=10*fig.scale;ctx.lineCap='round';
