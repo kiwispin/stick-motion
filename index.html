@@ -358,7 +358,10 @@
     display: flex; align-items: center; gap: 8px; justify-self: start;
   }
   #frame-counter {
-    font-family: var(--mono); font-size: 11px; color: var(--text3);
+    font-family: var(--font); font-size: 12px; font-weight: 600;
+    color: var(--text); background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 7px;
+    padding: 5px 9px; min-width: 96px; text-align: center;
   }
 
   /* Playback controls center */
@@ -845,7 +848,7 @@
 
     <!-- Left: frame status -->
     <div id="frame-counter-wrap">
-      <span id="frame-counter" style="font-family:var(--mono);font-size:11px;color:var(--text3)">1 / 1</span>
+      <span id="frame-counter">Frame 1</span>
     </div>
 
     <!-- Center: transport + playback settings -->
@@ -2203,7 +2206,8 @@ const app={
     this.updateTimeline();this.loadFrame(this.currentFrameIndex);
   },
   updateTimelineUiState(){
-    document.getElementById('frame-counter').innerText=`${this.currentFrameIndex+1} / ${this.frames.length}`;
+    const count=this.frames.length;
+    document.getElementById('frame-counter').innerText=count>0?`Frame ${this.currentFrameIndex+1} of ${count}`:'Frame 1';
     document.querySelectorAll('.frame-thumb').forEach((t,i)=>{t.classList.toggle('active',i===this.currentFrameIndex);});
   },
   scrollToFrame(i){const thumbs=document.querySelectorAll('.frame-thumb');if(thumbs[i])thumbs[i].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}
