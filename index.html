@@ -477,34 +477,49 @@
     border-radius: 3px; pointer-events: none; z-index: 2;
   }
   .frame-thumb .frame-num {
-    position: absolute; bottom: 4px; left: 6px;
-    font-family: var(--mono); font-size: 9px; color: var(--text3);
+    position: absolute; top: 5px; left: 7px;
+    font-family: var(--mono); font-size: 10px; font-weight: 700;
+    color: #111827;
+    z-index: 2;
   }
   .frame-thumb .frame-delay {
-    position: absolute; top: 0; left: 0;
+    position: absolute; bottom: 5px; left: 5px;
     font-family: var(--mono); font-size: 8px; font-weight: 500;
-    padding: 2px 4px; border-radius: 0 0 4px 0;
+    padding: 2px 4px; border-radius: 4px;
     background: rgba(59,130,246,0.8); color: #fff;
     display: none;
+    z-index: 2;
   }
   .frame-thumb .frame-delay.show { display: block; }
   .frame-thumb .frame-actions {
-    position: absolute; inset: 5px 5px auto 5px;
-    display: flex; align-items: center; justify-content: space-between;
+    position: absolute; inset: 0;
     opacity: 0; transition: opacity 0.15s;
     pointer-events: none; z-index: 3;
   }
-  .frame-thumb:hover .frame-actions { opacity: 1; }
+  .frame-thumb:hover .frame-actions,
+  .frame-thumb.active .frame-actions,
+  .frame-thumb.selected .frame-actions,
+  .frame-thumb:focus-within .frame-actions { opacity: 1; }
   .fa-btn {
-    width: 22px; height: 22px; border-radius: 5px; border: none;
-    background: rgba(17,24,39,0.74); color: #fff;
+    position: absolute;
+    width: 24px; height: 24px; border-radius: 999px; border: none;
+    color: #fff;
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: background 0.1s, transform 0.1s;
+    cursor: pointer; transition: background 0.1s, transform 0.1s, box-shadow 0.1s;
     pointer-events: auto;
+    box-shadow: 0 2px 6px rgba(15,23,42,0.22);
   }
-  .fa-btn:hover { background: rgba(59,130,246,0.85); transform: scale(1.05); }
-  .fa-btn.del { background: rgba(127,29,29,0.72); }
-  .fa-btn.del:hover { background: rgba(239,68,68,0.9); }
+  .fa-btn:hover { transform: scale(1.06); box-shadow: 0 3px 8px rgba(15,23,42,0.28); }
+  .fa-btn.dup {
+    right: 5px; bottom: 5px;
+    background: rgba(59,130,246,0.9);
+  }
+  .fa-btn.dup:hover { background: rgba(37,99,235,0.95); }
+  .fa-btn.del {
+    right: 5px; top: 5px;
+    background: rgba(239,68,68,0.92);
+  }
+  .fa-btn.del:hover { background: rgba(220,38,38,0.96); }
 
   /* Duration bar */
   .frame-dur-bar {
@@ -515,13 +530,13 @@
 
   /* Add frame button in timeline */
   #add-frame-tl {
-    flex-shrink: 0; width: 38px; height: 38px;
-    border-radius: 8px; border: 1.5px dashed var(--border2);
-    background: transparent; color: var(--text3);
+    flex-shrink: 0; width: 54px; height: 54px;
+    border-radius: 999px; border: none;
+    background: var(--bg3); color: var(--text2);
     display: flex; align-items: center; justify-content: center;
-    cursor: pointer; transition: border-color 0.15s, color 0.15s, background 0.15s;
+    cursor: pointer; transition: color 0.15s, background 0.15s, transform 0.15s;
   }
-  #add-frame-tl:hover { border-color: var(--accent); color: var(--accent); background: rgba(59,130,246,0.05); }
+  #add-frame-tl:hover { color: #fff; background: var(--accent); transform: scale(1.04); }
 
   /* ── Modals ─────────────────────────────────── */
   .modal-overlay {
@@ -2195,11 +2210,11 @@ const app={
       // Frame number
       const num=document.createElement('div');num.className='frame-num';num.innerText=idx+1;thumb.appendChild(num);
 
-      // Hover actions
+      // Frame actions
       const acts=document.createElement('div');acts.className='frame-actions';
-      const dupB=document.createElement('button');dupB.className='fa-btn';dupB.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+      const dupB=document.createElement('button');dupB.className='fa-btn dup';dupB.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
       dupB.title='Duplicate';dupB.onclick=e=>{e.stopPropagation();this.duplicateFrameAtIndex(idx);};
-      const delB=document.createElement('button');delB.className='fa-btn del';delB.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>';
+      const delB=document.createElement('button');delB.className='fa-btn del';delB.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
       delB.title='Delete';delB.onclick=e=>{e.stopPropagation();this.deleteFrameAtIndex(idx);};
       acts.appendChild(dupB);acts.appendChild(delB);thumb.appendChild(acts);
 
