@@ -1704,7 +1704,7 @@ const app={
     const d=this.frameDelays[this.currentFrameIndex]??1.0;
     const snap=this.figures.map(f=>f.clone());
     if(this.frames.length===0){this.frames.push(snap);this.frameDelays.push(d);this.currentFrameIndex=0;}
-    else{this.frames[this.currentFrameIndex]=snap.map(f=>f.clone());this.frames.splice(this.currentFrameIndex+1,0,snap);this.frameDelays.splice(this.currentFrameIndex+1,0,d);this.currentFrameIndex++;}
+    else{this.frames.splice(this.currentFrameIndex+1,0,snap);this.frameDelays.splice(this.currentFrameIndex+1,0,d);this.currentFrameIndex++;}
     this.updateTimeline();this.render();this.scrollToFrame(this.currentFrameIndex);this.saveLocal();
   },
   duplicateCurrentFrame(){if(this.frames.length===0)return;this.duplicateFrameAtIndex(this.currentFrameIndex);},
@@ -2018,8 +2018,9 @@ const app={
     if(this.bgImage)this.ctx.drawImage(this.bgImage,this.stagePadding,this.stagePadding,this.docWidth,this.docHeight);
     this.ctx.save();this.ctx.translate(this.stagePadding,this.stagePadding);
     if(this.showOnion&&!this.isPlaying&&this.frames.length>0){
-      let pF=null;
-      if(this.currentFrameIndex>0)pF=this.frames[this.currentFrameIndex-1];
+      const cF=this.frames[this.currentFrameIndex];
+      let pF=cF&&this.figuresChangedForOnion(cF,this.figures)?cF:null;
+      if(!pF&&this.currentFrameIndex>0)pF=this.frames[this.currentFrameIndex-1];
       if(pF){this.ctx.globalAlpha=0.25;pF.forEach(f=>{f.updatePositions();this.drawFigure(f,false);});this.ctx.globalAlpha=1.0;}
     }
     const showEditing=this.showPivots&&!this.isPlaying;
@@ -2027,6 +2028,15 @@ const app={
     if(showEditing)this.drawGroupBounds();
     this.ctx.restore();
     this.ctx.strokeStyle='rgba(255,255,255,0.25)';this.ctx.lineWidth=1;this.ctx.strokeRect(this.stagePadding-0.5,this.stagePadding-0.5,this.docWidth+1,this.docHeight+1);
+  },
+  figuresChangedForOnion(a,b){
+    if(!a||!b||a.length!==b.length)return true;
+    const near=(x,y)=>Math.abs((x||0)-(y||0))<0.01;
+    return a.some((fa,i)=>{
+      const fb=b[i];if(!fb||fa.type!==fb.type||!near(fa.x,fb.x)||!near(fa.y,fb.y)||!near(fa.scale,fb.scale))return true;
+      if((fa.text||'')!==(fb.text||'')||fa.joints.length!==fb.joints.length)return true;
+      return fa.joints.some((ja,j)=>{const jb=fb.joints[j];return !jb||ja.id!==jb.id||ja.parentId!==jb.parentId||ja.type!==jb.type||!near(ja.length,jb.length)||!near(ja.angle,jb.angle)||!near(ja.radius,jb.radius)||!near(ja.thickness,jb.thickness)||ja.filled!==jb.filled;});
+    });
   },
   drawGroupBounds(){
     this.groups.forEach(g=>{
