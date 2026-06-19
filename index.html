@@ -466,6 +466,16 @@
     border-color: var(--accent);
     box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
   }
+  .frame-thumb.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.32);
+  }
+  .frame-thumb.selected::before {
+    content: '';
+    position: absolute; inset: 3px;
+    border: 1px solid rgba(59,130,246,0.85);
+    border-radius: 3px; pointer-events: none; z-index: 2;
+  }
   .frame-thumb .frame-num {
     position: absolute; bottom: 3px; left: 5px;
     font-family: var(--mono); font-size: 8px; color: var(--text3);
@@ -2155,7 +2165,7 @@ const app={
       const isActive=idx===this.currentFrameIndex;
       const delay=this.frameDelays[idx]||1.0;
       const thumb=document.createElement('div');
-      thumb.className='frame-thumb'+(isActive?' active':'');
+      thumb.className='frame-thumb'+(isActive?' active':'')+(this.selectedFrames.has(idx)?' selected':'');
       thumb.onclick=e=>this.loadFrame(idx,true,e);
       thumb.draggable=true;
       thumb.ondragstart=e=>{this._dragFromIdx=idx;e.dataTransfer.effectAllowed='move';};
@@ -2208,7 +2218,7 @@ const app={
   updateTimelineUiState(){
     const count=this.frames.length;
     document.getElementById('frame-counter').innerText=count>0?`Frame ${this.currentFrameIndex+1} of ${count}`:'Frame 1';
-    document.querySelectorAll('.frame-thumb').forEach((t,i)=>{t.classList.toggle('active',i===this.currentFrameIndex);});
+    document.querySelectorAll('.frame-thumb').forEach((t,i)=>{t.classList.toggle('active',i===this.currentFrameIndex);t.classList.toggle('selected',this.selectedFrames.has(i));});
   },
   scrollToFrame(i){const thumbs=document.querySelectorAll('.frame-thumb');if(thumbs[i])thumbs[i].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}
 };
