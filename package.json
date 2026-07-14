@@ -1,0 +1,13 @@
+{
+  "name": "stickmotion",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Offline-first stick figure animation editor",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0"
+  }
+}

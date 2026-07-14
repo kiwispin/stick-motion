@@ -2,31 +2,27 @@
 <html lang="en" id="html-root">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>StickMotion</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<script src="vendor/gif.js"></script>
 <style>
   :root {
     --bg:       #141414;
     --bg2:      #1c1c1c;
-    --bg3:      #242424;
-    --bg4:      #2c2c2c;
-    --border:   #333;
-    --border2:  #3d3d3d;
-    --text:     #e8e8e8;
-    --text2:    #9a9a9a;
-    --text3:    #5a5a5a;
+    --bg3:      #262626;
+    --bg4:      #303030;
+    --border:   #3f3f3f;
+    --border2:  #595959;
+    --text:     #f1f1f1;
+    --text2:    #b8b8b8;
+    --text3:    #929292;
     --accent:   #3b82f6;
     --accent2:  #2563eb;
     --green:    #10b981;
     --red:      #ef4444;
     --amber:    #f59e0b;
-    --font:     'DM Sans', sans-serif;
-    --mono:     'DM Mono', monospace;
+    --font:     system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono:     ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 100%; height: 100%; overflow: hidden; }
@@ -85,9 +81,13 @@
     display: flex; align-items: center; gap: 6px;
     padding: 4px 10px; border-radius: 6px;
     background: var(--bg3); border: 1px solid var(--border);
-    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    font-family: var(--mono); font-size: 11px; color: var(--text3);
   }
   .storage-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .storage-indicator.error { color: var(--red); }
+  .storage-indicator.error .storage-dot { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .project-name-input { width: 148px; min-width: 96px; padding: 6px 8px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--text); font: 500 12px var(--font); }
+  .project-name-input:hover, .project-name-input:focus { border-color: var(--border2); background: var(--bg3); outline: none; }
 
   .top-icon-btn {
     width: 32px; height: 32px; border-radius: 7px; border: none;
@@ -108,6 +108,24 @@
   }
   .export-btn:hover { background: var(--accent2); }
   .export-btn:active { transform: scale(0.97); }
+  #compact-actions { display: none; }
+  .compact-actions-toggle {
+    width: 36px; height: 36px; border: 1px solid var(--border2); border-radius: 7px;
+    background: var(--bg3); color: var(--text); display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .compact-actions-menu {
+    display: none; position: absolute; top: calc(100% + 7px); right: 0; z-index: 220;
+    width: 210px; padding: 6px; border: 1px solid var(--border2); border-radius: 9px;
+    background: var(--bg2); box-shadow: 0 12px 28px rgba(0,0,0,0.4);
+  }
+  .compact-actions-menu.show { display: grid; gap: 2px; }
+  .compact-menu-item {
+    width: 100%; min-height: 36px; padding: 7px 9px; border: 0; border-radius: 6px;
+    background: transparent; color: var(--text); font: 500 13px var(--font); text-align: left; cursor: pointer;
+  }
+  .compact-menu-item:hover { background: var(--bg4); }
+  .compact-menu-divider { height: 1px; margin: 4px 2px; background: var(--border); }
 
   /* ── Main workspace ─────────────────────────── */
   #workspace {
@@ -139,7 +157,7 @@
     content: attr(data-tip);
     position: absolute; left: calc(100% + 10px); top: 50%; transform: translateY(-50%);
     background: var(--bg4); border: 1px solid var(--border2);
-    color: var(--text); font-family: var(--font); font-size: 11px; font-weight: 500;
+    color: var(--text); font-family: var(--font); font-size: 12px; font-weight: 500;
     padding: 4px 8px; border-radius: 5px; white-space: nowrap;
     pointer-events: none; opacity: 0; transition: opacity 0.15s;
     z-index: 200;
@@ -202,7 +220,7 @@
     padding: 14px;
   }
   .panel-label {
-    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
     color: var(--text3); text-transform: uppercase; margin-bottom: 10px;
   }
 
@@ -269,7 +287,7 @@
   .panel-btn.danger:hover { background: rgba(239,68,68,0.15); color: var(--red); }
   .panel-btn.accent { background: var(--accent); color: #fff; }
   .panel-btn.accent:hover { background: var(--accent2); }
-  .panel-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .panel-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
   .btn-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 5px; }
   .btn-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-bottom: 5px; }
@@ -312,8 +330,9 @@
   }
   .group-row:hover { border-color: var(--border2); }
   .group-row:hover .group-del { opacity: 1; }
+  .group-select { display:flex; align-items:center; gap:7px; flex:1; min-width:0; padding:0; border:0; background:none; color:inherit; cursor:pointer; text-align:left; font:inherit; }
   .group-name { flex: 1; font-size: 12px; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .group-count { font-family: var(--mono); font-size: 10px; color: var(--text3); flex-shrink: 0; }
+  .group-count { font-family: var(--mono); font-size: 11px; color: var(--text3); flex-shrink: 0; }
   .group-del { opacity: 0; background: none; border: none; color: var(--text3); cursor: pointer; padding: 2px; border-radius: 3px; transition: opacity 0.15s, color 0.15s; flex-shrink: 0; }
   .group-del:hover { color: var(--red); }
   .group-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
@@ -484,7 +503,7 @@
   }
   .frame-thumb .frame-delay {
     position: absolute; bottom: 5px; left: 5px;
-    font-family: var(--mono); font-size: 8px; font-weight: 500;
+    font-family: var(--mono); font-size: 10px; font-weight: 500;
     padding: 2px 4px; border-radius: 4px;
     background: rgba(59,130,246,0.8); color: #fff;
     display: none;
@@ -563,6 +582,14 @@
   .modal-btn.cancel:hover { background: var(--border2); color: var(--text); }
   .modal-btn.confirm { background: var(--red); color: #fff; }
   .modal-btn.confirm:hover { background: #dc2626; }
+  .shortcut-list { display:grid; gap:8px; margin:16px 0; }
+  .shortcut-row { display:flex; align-items:center; justify-content:space-between; gap:16px; color:var(--text2); font-size:12px; }
+  .shortcut-row kbd { flex-shrink:0; border:1px solid var(--border2); border-bottom-width:2px; border-radius:5px; padding:2px 6px; background:var(--bg3); color:var(--text); font:600 11px var(--mono); white-space:nowrap; }
+  .welcome-steps { display:grid; gap:10px; margin:18px 0; }
+  .welcome-step { display:flex; gap:10px; align-items:flex-start; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--bg3); }
+  .welcome-step-num { width:20px; height:20px; flex:0 0 20px; display:grid; place-items:center; border-radius:50%; background:var(--accent); color:#fff; font:700 11px var(--mono); }
+  .welcome-step strong { display:block; margin-bottom:2px; color:var(--text); font-size:12px; }
+  .welcome-step span { color:var(--text2); font-size:12px; line-height:1.4; }
 
   /* Builder modal */
   #builder-modal .modal-overlay { align-items: stretch; padding: 0; }
@@ -580,14 +607,16 @@
     padding: 14px 8px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--bg3); cursor: pointer; gap: 6px;
     transition: border-color 0.15s, background 0.15s;
+    color: var(--text); font: inherit; text-align: center;
   }
   .lib-item:hover { border-color: var(--accent); background: rgba(59,130,246,0.05); }
   .lib-item span { font-size: 20px; }
   .lib-item p { font-size: 11px; color: var(--text2); font-weight: 500; }
+  .color-swatch { appearance: none; }
 
   /* Settings fields */
   .field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-  .field-label { font-size: 10px; font-weight: 600; letter-spacing: 0.07em; color: var(--text3); text-transform: uppercase; margin-bottom: 4px; }
+  .field-label { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; color: var(--text3); text-transform: uppercase; margin-bottom: 4px; }
   .field-input {
     width: 100%; background: var(--bg3); border: 1px solid var(--border2);
     border-radius: 6px; color: var(--text); font-family: var(--mono);
@@ -602,6 +631,9 @@
     border-top-color: var(--accent); border-radius: 50%;
     animation: spin 0.7s linear infinite; margin: 0 auto 12px;
   }
+  .export-progress { height: 7px; overflow: hidden; border-radius: 999px; background: var(--bg3); margin: 16px 0 8px; }
+  .export-progress > div { width: 0; height: 100%; background: var(--accent); border-radius: inherit; transition: width 0.16s ease-out; }
+  #gif-export-status { min-height: 18px; font-size: 12px; color: var(--text2); }
   @keyframes spin { to { transform: rotate(360deg); } }
 
   /* Number input in settings */
@@ -611,8 +643,74 @@
   .no-select { user-select: none; -webkit-user-select: none; }
 
   /* ── Always-visible panel: dim when no figure selected ── */
-  .panel-inactive { opacity: 0.35; pointer-events: none; transition: opacity 0.18s; }
+  .panel-inactive { opacity: 0.55; pointer-events: none; transition: opacity 0.18s; }
   .panel-active   { opacity: 1;    pointer-events: auto;  transition: opacity 0.18s; }
+
+  button:focus-visible, input:focus-visible, textarea:focus-visible, [role=button]:focus-visible {
+    outline: 3px solid #93c5fd; outline-offset: 2px;
+  }
+  #zoom-label {
+    border: none; background: transparent; cursor: pointer; border-radius: 4px;
+    font-family: var(--mono); font-size: 11px; color: var(--text2);
+    min-width: 36px; text-align: center; padding: 2px;
+  }
+  #zoom-label:hover { background: var(--bg4); color: var(--text); }
+  #inspector-toggle, #inspector-close { display: none; }
+
+  @media (max-width: 1100px) {
+    #right-panel { width: 220px; }
+    .panel-section { padding: 12px; }
+    #playback-bar { grid-template-columns: minmax(88px,auto) auto minmax(200px,auto); gap: 8px; padding: 0 10px; }
+    #pb-center { gap: 5px; }
+    .pb-sep { margin: 0 4px; }
+  }
+
+  @media (max-width: 780px) {
+    #topbar { height: 52px; padding: 0 8px; overflow: visible; }
+    .wordmark { margin-right: 10px; }
+    #topbar > .top-divider, #topbar > .top-btn, #topbar > .project-name-input, #topbar > .storage-indicator,
+    #topbar > .top-spacer, #topbar > .top-icon-btn, #topbar > .export-btn { display: none; }
+    #compact-actions { display: block; position: relative; margin-left: auto; }
+    #workspace { min-width: 0; }
+    #left-toolbar { width: 48px; padding-top: 8px; }
+    .tool-btn { width: 40px; height: 40px; }
+    #right-panel {
+      position: absolute; inset: 0 0 0 auto; width: min(320px, calc(100vw - 56px));
+      transform: translateX(100%); transition: transform 0.2s ease;
+      box-shadow: -16px 0 32px rgba(0,0,0,0.35); z-index: 50;
+    }
+    #right-panel.open { transform: translateX(0); }
+    #inspector-toggle {
+      display: flex; position: absolute; top: 12px; right: 12px; z-index: 30;
+      width: 40px; height: 40px; align-items: center; justify-content: center;
+      border: 1px solid var(--border2); border-radius: 8px; background: var(--bg3); color: var(--text);
+    }
+    #inspector-close {
+      display: flex; position: sticky; top: 0; margin-left: auto; width: 40px; height: 40px;
+      align-items: center; justify-content: center; border: 0; background: var(--bg2); color: var(--text2);
+      font-size: 22px; z-index: 2;
+    }
+    #bottom-container { height: 178px; }
+    #playback-bar {
+      display: flex; align-items: center; overflow-x: auto; gap: 8px; padding: 0 10px;
+      scrollbar-width: none;
+    }
+    #playback-bar::-webkit-scrollbar { display: none; }
+    #frame-counter-wrap, #pb-center, #pb-right { flex-shrink: 0; }
+    #pb-center, #pb-right { justify-self: auto; }
+    #timeline-track { padding: 8px 12px; }
+    #zoom-pill { right: 12px; bottom: 12px; }
+  }
+
+  @media (pointer: coarse) {
+    .top-icon-btn { width: 40px; height: 40px; }
+    .tool-btn { min-width: 44px; min-height: 44px; }
+    .zoom-btn { width: 32px; height: 32px; }
+    .pb-frame-btn { width: 36px; height: 36px; }
+    .pb-tag, .onion-btn { min-height: 32px; padding: 5px 10px; }
+    .color-swatch { width: 30px; height: 30px; }
+    .panel-btn { min-height: 36px; }
+  }
 </style>
 </head>
 <body>
@@ -645,22 +743,27 @@
 
   <div class="top-divider"></div>
 
-  <div class="storage-indicator">
+  <input id="project-name" class="project-name-input" type="text" maxlength="80" value="Untitled animation" aria-label="Project name" title="Project name" oninput="app.setProjectName(this.value)">
+
+  <div class="storage-indicator" id="storage-indicator" title="Your work is saved in this browser">
     <div class="storage-dot"></div>
-    Storage
+    <span id="storage-status" aria-live="polite">Saved</span>
   </div>
 
   <div class="top-spacer"></div>
 
-  <button class="top-icon-btn" onclick="app.undo()" title="Undo (Ctrl+Z)">
+  <button class="top-icon-btn" aria-label="Undo" onclick="app.undo()" title="Undo (Ctrl+Z)">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
   </button>
-  <button class="top-icon-btn" onclick="app.redo()" title="Redo (Ctrl+Y)" style="margin-right:8px">
+  <button class="top-icon-btn" aria-label="Redo" onclick="app.redo()" title="Redo (Ctrl+Y)" style="margin-right:8px">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6"/></svg>
   </button>
 
-  <button class="top-icon-btn" onclick="app.openSettings()" title="Settings" style="margin-right:4px">
+  <button class="top-icon-btn" aria-label="Open settings" onclick="app.openSettings()" title="Settings" style="margin-right:4px">
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+  </button>
+  <button class="top-icon-btn" aria-label="Open help and shortcuts" onclick="app.openHelp()" title="Help and shortcuts" style="margin-right:4px">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.7 2.7 0 115 1.5c-.8.8-2.5 1.3-2.5 3"/><path d="M12 17h.01"/></svg>
   </button>
 
   <button class="top-btn" onclick="app.exportFrame()" title="Export current frame as PNG" style="margin-right:6px">
@@ -668,10 +771,27 @@
     Export Frame
   </button>
 
-  <button class="export-btn" onclick="app.exportGif()">
+  <button class="export-btn" id="btn-export-gif" onclick="app.exportGif()">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
     Export GIF
   </button>
+
+  <div id="compact-actions">
+    <button class="compact-actions-toggle" id="compact-actions-toggle" type="button" aria-label="Open project and export actions" aria-expanded="false" aria-controls="compact-actions-menu" onclick="app.toggleCompactActions()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="5" cy="12" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="19" cy="12" r="1" fill="currentColor"/></svg>
+    </button>
+    <div class="compact-actions-menu" id="compact-actions-menu" aria-label="Project and export actions">
+      <button class="compact-menu-item" type="button" onclick="app.runCompactAction('new')">New project</button>
+      <button class="compact-menu-item" type="button" onclick="app.runCompactAction('save')">Save project</button>
+      <button class="compact-menu-item" type="button" onclick="app.runCompactAction('open')">Open project</button>
+      <div class="compact-menu-divider" role="separator"></div>
+      <button class="compact-menu-item" type="button" onclick="app.runCompactAction('settings')">Settings</button>
+      <button class="compact-menu-item" type="button" onclick="app.runCompactAction('help')">Help and shortcuts</button>
+      <div class="compact-menu-divider" role="separator"></div>
+      <button class="compact-menu-item" type="button" onclick="app.runCompactAction('frame')">Export current frame (PNG)</button>
+      <button class="compact-menu-item" type="button" onclick="app.runCompactAction('gif')">Export GIF</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══════════════════════ MAIN WORKSPACE ═════════════════════════ -->
@@ -679,24 +799,24 @@
 
   <!-- LEFT TOOLBAR -->
   <div id="left-toolbar" class="no-select">
-    <button class="tool-btn" id="tool-select" data-tip="Select" onclick="app.setTool('select')">
+    <button class="tool-btn active" id="tool-select" data-tip="Select & move" aria-label="Select and move figures" onclick="app.setTool('select')">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 3l14 9-7 1-3 7L5 3z"/></svg>
     </button>
     <div class="tool-separator"></div>
-    <button class="tool-btn active" id="tool-stick" data-tip="Add Stickman" onclick="app.addFigure()">
+    <button class="tool-btn" id="tool-stick" data-tip="Add Stickman" aria-label="Add stickman" onclick="app.addFigure()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="4" r="2" fill="currentColor" stroke="none"/><path d="M12 6v8M12 10L8 8M12 10L16 8M12 14L10 19M12 14L14 19"/></svg>
     </button>
-    <button class="tool-btn" id="tool-library" data-tip="Library" onclick="app.openLibrary()">
+    <button class="tool-btn" id="tool-library" data-tip="Library" aria-label="Open model library" onclick="app.openLibrary()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
     </button>
-    <button class="tool-btn" id="tool-builder" data-tip="Figure Designer" onclick="app.openBuilder()">
+    <button class="tool-btn" id="tool-builder" data-tip="Figure Designer" aria-label="Open figure designer" onclick="app.openBuilder()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
     </button>
-    <button class="tool-btn" id="tool-text" data-tip="Add Text" onclick="app.addText()">
+    <button class="tool-btn" id="tool-text" data-tip="Add Text" aria-label="Add text" onclick="app.addText()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
     </button>
     <div class="tool-separator"></div>
-    <button class="tool-btn" id="tool-group" data-tip="Group selected (Ctrl+G)" onclick="app.groupSelected()">
+    <button class="tool-btn" id="tool-group" data-tip="Group selected (Ctrl+G)" aria-label="Group selected figures" onclick="app.groupSelected()">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
     </button>
   </div>
@@ -704,22 +824,27 @@
   <!-- CANVAS AREA -->
   <div id="canvas-area">
     <div id="marquee"></div>
-    <canvas id="main-canvas" width="800" height="500"></canvas>
+    <canvas id="main-canvas" width="800" height="500" aria-label="Animation stage. Select, move, and pose figures here."></canvas>
+    <button id="inspector-toggle" type="button" aria-label="Open figure controls" aria-controls="right-panel" aria-expanded="false" onclick="app.toggleInspector()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M4 12h16M4 19h16"/><circle cx="8" cy="5" r="2" fill="var(--bg3)"/><circle cx="16" cy="12" r="2" fill="var(--bg3)"/><circle cx="10" cy="19" r="2" fill="var(--bg3)"/></svg>
+    </button>
     <div id="zoom-pill" class="no-select">
-      <button class="zoom-btn" onclick="app.changeZoom(-0.1)">−</button>
-      <span id="zoom-label">100%</span>
-      <button class="zoom-btn" onclick="app.changeZoom(0.1)">+</button>
+      <button class="zoom-btn" type="button" aria-label="Zoom out" onclick="app.changeZoom(-0.1)">−</button>
+      <button id="zoom-label" type="button" aria-label="Reset zoom" onclick="app.resetZoom()">100%</button>
+      <button class="zoom-btn" type="button" aria-label="Zoom in" onclick="app.changeZoom(0.1)">+</button>
+      <button class="zoom-btn" type="button" aria-label="Fit stage to workspace" title="Fit stage" onclick="app.fitStage()">⤢</button>
     </div>
   </div>
 
   <!-- RIGHT PANEL — all controls always visible, dimmed when nothing selected -->
   <div id="right-panel" class="no-select">
+    <button id="inspector-close" type="button" aria-label="Close figure controls" onclick="app.toggleInspector(false)">×</button>
 
     <!-- Selected figure name badge -->
     <div id="panel-selection-badge" class="panel-section" style="padding:10px 14px">
       <div style="display:flex;align-items:center;gap:8px">
         <div id="panel-sel-dot" style="width:7px;height:7px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:background 0.2s"></div>
-        <span id="panel-sel-label" style="font-size:12px;color:var(--text3);transition:color 0.2s">No figure selected</span>
+        <span id="panel-sel-label" style="font-size:12px;color:var(--text3);transition:color 0.2s">Select a figure on the stage</span>
       </div>
     </div>
 
@@ -791,7 +916,7 @@
       <!-- Text editor — only shown for text figures -->
       <div id="panel-text-section" class="panel-section" style="display:none">
         <div class="panel-label">Text Content</div>
-        <textarea class="panel-textarea" id="text-figure-input" rows="3" oninput="app.updateText(this.value)"></textarea>
+        <textarea class="panel-textarea" id="text-figure-input" rows="3" onfocus="app.beginTextEdit()" onblur="app.endTextEdit()" oninput="app.updateText(this.value)"></textarea>
       </div>
 
       <!-- Clipboard -->
@@ -856,7 +981,7 @@
           <span id="duration-display">1.0×</span>
         </div>
         <input type="range" min="0.1" max="10.0" step="0.1" value="1.0" id="frame-duration"
-          onmousedown="event.stopPropagation()" oninput="app.setFrameDuration(this.value)">
+          onmousedown="event.stopPropagation();app.beginFrameDurationEdit()" onfocus="app.beginFrameDurationEdit()" oninput="app.setFrameDuration(this.value)" onchange="app.endFrameDurationEdit()">
         <div style="display:flex;justify-content:space-between;margin-top:3px">
           <span style="font-size:10px;color:var(--text3)">Fast</span>
           <span style="font-size:10px;color:var(--text3)">Slow</span>
@@ -881,19 +1006,19 @@
     <!-- Center: transport + playback settings -->
     <div id="pb-center">
       <div class="pb-group">
-        <button class="pb-frame-btn" onclick="app.goToFirstFrame()" title="Go to start">
+        <button class="pb-frame-btn" aria-label="Go to first frame" onclick="app.goToFirstFrame()" title="Go to start">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
         </button>
-        <button class="pb-frame-btn" onclick="app.prevFrame()" title="Previous (<)">
+        <button class="pb-frame-btn" aria-label="Previous frame" onclick="app.prevFrame()" title="Previous (<)">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 19l-7-7 7-7"/></svg>
         </button>
-        <button class="pb-frame-btn" onclick="app.nextFrame()" title="Next (>)">
+        <button class="pb-frame-btn" aria-label="Next frame" onclick="app.nextFrame()" title="Next (>)">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
         </button>
-        <button id="btn-play" class="pb-play" onclick="app.play()" title="Play">
+        <button id="btn-play" class="pb-play" aria-label="Play animation" onclick="app.play()" title="Play">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         </button>
-        <button id="btn-stop" class="pb-play" style="display:none;background:var(--red)" onclick="app.stop()">
+        <button id="btn-stop" class="pb-play" aria-label="Stop animation" style="display:none;background:var(--red)" onclick="app.stop()">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
         </button>
       </div>
@@ -930,23 +1055,23 @@
     <!-- Right: frame actions -->
     <div id="pb-right">
       <div class="pb-action-group">
-        <button class="pb-frame-btn" onclick="app.moveFrame(-1)" title="Move frame left">
+        <button class="pb-frame-btn" aria-label="Move frame left" onclick="app.moveFrame(-1)" title="Move frame left">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 19l-7-7 7-7"/></svg>
         </button>
-        <button class="pb-frame-btn" onclick="app.moveFrame(1)" title="Move frame right">
+        <button class="pb-frame-btn" aria-label="Move frame right" onclick="app.moveFrame(1)" title="Move frame right">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M9 5l7 7-7 7"/></svg>
         </button>
       </div>
       <div class="pb-sep"></div>
-      <button class="pb-frame-btn" onclick="app.duplicateCurrentFrame()" title="Duplicate frame">
+      <button class="pb-frame-btn" aria-label="Duplicate frame" onclick="app.duplicateCurrentFrame()" title="Duplicate frame">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
       </button>
-      <button class="add-frame-btn" onclick="app.addFrame()" title="Add frame (Space)">
+      <button class="add-frame-btn" aria-label="Add frame" onclick="app.addFrame()" title="Add frame (Space)">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         Add Frame
       </button>
       <div class="pb-sep"></div>
-      <button class="pb-frame-btn pb-danger-btn" onclick="app.deleteFrame()" title="Delete frame">
+      <button class="pb-frame-btn pb-danger-btn" aria-label="Delete frame" onclick="app.deleteFrame()" title="Delete frame">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
       </button>
     </div>
@@ -955,7 +1080,7 @@
   <!-- Timeline -->
   <div id="timeline-track">
     <!-- Frames inserted here by JS -->
-    <button id="add-frame-tl" onclick="app.addFrame()" title="Add frame (Space)">
+    <button id="add-frame-tl" aria-label="Add frame" onclick="app.addFrame()" title="Add frame (Space)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
   </div>
@@ -964,30 +1089,32 @@
 <!-- ════════════════════════ MODALS ════════════════════════════════ -->
 
 <!-- Confirm -->
-<div class="modal-overlay" id="confirm-modal">
+<div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
   <div class="modal-box">
     <div class="modal-title" id="confirm-title">Confirm</div>
     <div class="modal-msg" id="confirm-msg">Are you sure?</div>
     <div class="modal-btns">
-      <button class="modal-btn cancel" onclick="app.closeModal()">Cancel</button>
+      <button class="modal-btn cancel" id="confirm-cancel" onclick="app.closeModal()">Cancel</button>
       <button class="modal-btn confirm" onclick="app.executeConfirm()">Confirm</button>
     </div>
   </div>
 </div>
 
 <!-- Loading -->
-<div class="modal-overlay" id="loading-modal">
+<div class="modal-overlay" id="loading-modal" role="dialog" aria-modal="true" aria-labelledby="gif-export-title">
   <div class="modal-box">
     <div class="spinner"></div>
-    <div class="modal-title">Generating GIF</div>
-    <div class="modal-msg" style="margin-bottom:0">Rendering frames, please wait…</div>
+    <div class="modal-title" id="gif-export-title">Generating GIF</div>
+    <div class="export-progress" aria-hidden="true"><div id="gif-export-progress-bar"></div></div>
+    <div class="modal-msg" id="gif-export-status" role="status" aria-live="polite">Preparing frames…</div>
+    <div class="modal-btns"><button class="modal-btn cancel" id="gif-export-cancel" onclick="app.cancelGifExport()">Cancel export</button></div>
   </div>
 </div>
 
 <!-- Settings -->
-<div class="modal-overlay" id="settings-modal">
+<div class="modal-overlay" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
   <div class="modal-box">
-    <div class="modal-title">Settings</div>
+    <div class="modal-title" id="settings-title">Settings</div>
     <div style="margin-top:16px">
       <div class="field-group">
         <div>
@@ -1003,7 +1130,7 @@
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
         Set Background Image
       </button>
-      <input type="file" id="bg-input" style="display:none" accept="image/*" onchange="app.loadBackground(this)">
+      <input type="file" id="bg-input" style="display:none" accept="image/png,image/jpeg,image/gif,image/webp" onchange="app.loadBackground(this)">
       <button class="panel-btn danger" onclick="app.confirmClearStage()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
         Clear Stage
@@ -1015,35 +1142,73 @@
   </div>
 </div>
 
+<!-- Help and shortcuts -->
+<div class="modal-overlay" id="help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
+  <div class="modal-box">
+    <div class="modal-title" id="help-title">Help &amp; Shortcuts</div>
+    <div class="modal-msg">Select and drag a figure or a red pivot to pose it. Use Ctrl/Cmd-click to select more than one figure.</div>
+    <div class="welcome-steps" style="margin:14px 0">
+      <div class="welcome-step"><div class="welcome-step-num">1</div><div><strong>Pose</strong><span>Move the orange root to place a figure, or drag a red pivot to bend it.</span></div></div>
+      <div class="welcome-step"><div class="welcome-step-num">2</div><div><strong>Animate</strong><span>Press Space to add the next frame, then change the pose.</span></div></div>
+      <div class="welcome-step"><div class="welcome-step-num">3</div><div><strong>Preview</strong><span>Use Play to watch the movement before exporting.</span></div></div>
+    </div>
+    <div class="shortcut-list" aria-label="Keyboard shortcuts">
+      <div class="shortcut-row"><span>Add a frame / stop playback</span><kbd>Space</kbd></div>
+      <div class="shortcut-row"><span>Previous / next frame</span><kbd>, &nbsp; .</kbd></div>
+      <div class="shortcut-row"><span>Undo / redo</span><kbd>Ctrl/Cmd + Z / Y</kbd></div>
+      <div class="shortcut-row"><span>Group / ungroup</span><kbd>Ctrl/Cmd + G / Shift + G</kbd></div>
+      <div class="shortcut-row"><span>Copy, cut, paste</span><kbd>Ctrl/Cmd + C / X / V</kbd></div>
+      <div class="shortcut-row"><span>Delete selected figure(s)</span><kbd>Delete</kbd></div>
+      <div class="shortcut-row"><span>Clear the current selection</span><kbd>Esc</kbd></div>
+    </div>
+    <div class="modal-msg" style="margin-bottom:16px">Use the zoom controls to fit the stage. Pan with the middle mouse button or two fingers on touch devices.</div>
+    <div class="modal-btns"><button class="modal-btn cancel" id="help-close" onclick="app.closeHelp()">Close</button><button class="modal-btn confirm" onclick="app.reopenWelcome()">Show quick start</button></div>
+  </div>
+</div>
+
+<!-- First-run orientation -->
+<div class="modal-overlay" id="welcome-modal" role="dialog" aria-modal="true" aria-labelledby="welcome-title">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-title" id="welcome-title">Welcome to StickMotion</div>
+    <div class="modal-msg">Make a tiny animation in three moves. Start with the orange root, then use the red pivots to bend the figure. You can revisit this guide from Help at any time.</div>
+    <div class="welcome-steps">
+      <div class="welcome-step"><div class="welcome-step-num">1</div><div><strong>Make pose 1</strong><span>Drag the orange root to place the figure. Drag red pivots to bend it.</span></div></div>
+      <div class="welcome-step"><div class="welcome-step-num">2</div><div><strong>Make pose 2</strong><span>Press Space to add a frame, then move one or more pivots.</span></div></div>
+      <div class="welcome-step"><div class="welcome-step-num">3</div><div><strong>Check your motion</strong><span>Press Play. When it feels right, export a GIF or a single frame.</span></div></div>
+    </div>
+    <div class="modal-btns"><button class="modal-btn confirm" id="welcome-start" onclick="app.closeWelcome()">Start animating</button></div>
+  </div>
+</div>
+
 <!-- Library -->
-<div class="modal-overlay" id="library-modal">
+<div class="modal-overlay" id="library-modal" role="dialog" aria-modal="true" aria-labelledby="library-title">
   <div class="modal-box" style="max-width:340px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div class="modal-title" style="margin-bottom:0">Model Library</div>
-      <button onclick="app.closeLibrary()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:18px;line-height:1">×</button>
+      <div class="modal-title" id="library-title" style="margin-bottom:0">Model Library</div>
+      <button type="button" aria-label="Close model library" onclick="app.closeLibrary()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:18px;line-height:1">×</button>
     </div>
     <div class="lib-grid">
-      <div class="lib-item" onclick="app.addFromLibrary('stickman')"><span>🏃</span><p>Stickman</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('snake')"><span>🐍</span><p>Snake</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('ball')"><span>⚽</span><p>Ball</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('sword')"><span>⚔️</span><p>Sword</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('racket')"><span>🎾</span><p>Racket</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('bike')"><span>🚲</span><p>Bike</p></div>
-      <div class="lib-item" onclick="app.addFromLibrary('speech')"><span>💬</span><p>Speech</p></div>
+      <button type="button" class="lib-item" onclick="app.addFromLibrary('stickman')"><span aria-hidden="true">🏃</span><p>Stickman</p></button>
+      <button type="button" class="lib-item" onclick="app.addFromLibrary('snake')"><span aria-hidden="true">🐍</span><p>Snake</p></button>
+      <button type="button" class="lib-item" onclick="app.addFromLibrary('ball')"><span aria-hidden="true">⚽</span><p>Ball</p></button>
+      <button type="button" class="lib-item" onclick="app.addFromLibrary('sword')"><span aria-hidden="true">⚔️</span><p>Sword</p></button>
+      <button type="button" class="lib-item" onclick="app.addFromLibrary('racket')"><span aria-hidden="true">🎾</span><p>Racket</p></button>
+      <button type="button" class="lib-item" onclick="app.addFromLibrary('bike')"><span aria-hidden="true">🚲</span><p>Bike</p></button>
+      <button type="button" class="lib-item" onclick="app.addFromLibrary('speech')"><span aria-hidden="true">💬</span><p>Speech</p></button>
     </div>
   </div>
 </div>
 
 <!-- Figure Builder -->
-<div class="modal-overlay" id="builder-modal">
+<div class="modal-overlay" id="builder-modal" role="dialog" aria-modal="true" aria-labelledby="builder-title">
   <div id="builder-modal-inner">
     <div style="flex:1;background:#e5e5e5;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:crosshair">
-      <canvas id="builder-canvas" width="600" height="550" style="max-width:100%;max-height:100%"></canvas>
+      <canvas id="builder-canvas" width="600" height="550" tabindex="0" aria-label="Figure designer canvas" style="max-width:100%;max-height:100%"></canvas>
       <div style="position:absolute;top:12px;left:12px;font-size:10px;font-weight:700;letter-spacing:0.08em;color:#aaa;pointer-events:none">DESIGNER MODE</div>
     </div>
     <div style="width:220px;background:var(--bg2);border-left:1px solid var(--border);display:flex;flex-direction:column">
       <div style="padding:16px;border-bottom:1px solid var(--border)">
-        <div style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">Figure Designer</div>
+        <div id="builder-title" style="font-size:14px;font-weight:600;color:var(--text);margin-bottom:4px">Figure Designer</div>
         <div style="font-size:11px;color:var(--text3)">Build custom figure skeletons</div>
       </div>
       <div style="padding:14px;flex:1;overflow-y:auto">
@@ -1094,50 +1259,17 @@
   </div>
 </div>
 
-<script>
-const SEGMENT_LINE = 'line', SEGMENT_CIRCLE = 'circle';
+<script type="module">
+import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './src/models.js';
+import { MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, clampDimension, cloneFigures, normaliseProject, serializeProject } from './src/project.js';
+import { History } from './src/history.js';
+import { renderDocument } from './src/renderer.js';
+import { distanceToSegment, getCanvasPosition, getWrapperPosition, isPointInSpeechBubble } from './src/canvas-interaction.js';
+import { isMeaningfulMarquee } from './src/marquee.js';
+import { beginMarquee, endMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, showMarqueeElement, updateCursor, updateMarqueeElement } from './src/drag-controller.js';
 
 // Color palette
 const PALETTE = ['#000000','#ffffff','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#6b7280','#0ea5e9','#14b8a6','#84cc16','#f43f5e','#a78bfa'];
-
-class Joint {
-  constructor(id,parentId,length,angle,type=SEGMENT_LINE,radius=20,thickness=14,filled=true,color=null){
-    this.id=id;this.parentId=parentId;this.length=length;this.angle=angle;
-    this.type=type;this.radius=radius;this.thickness=thickness;this.filled=filled;
-    this.color=color;
-    this.x=0;this.y=0;
-  }
-  clone(){return new Joint(this.id,this.parentId,this.length,this.angle,this.type,this.radius,this.thickness,this.filled,this.color);}
-}
-
-class Figure {
-  constructor(){
-    this.id=Math.random().toString(36).substr(2,9);
-    this.x=400;this.y=300;this.joints=[];this.scale=1.0;
-    this.color='#000000';this.selected=false;this.type='figure';
-    this.text='';this.groupId=null;
-  }
-  clone(){
-    const f=new Figure();f.id=this.id;f.x=this.x;f.y=this.y;
-    f.scale=this.scale;f.color=this.color;f.selected=this.selected;
-    f.type=this.type;f.text=this.text;f.groupId=this.groupId;
-    f.joints=this.joints.map(j=>j.clone());return f;
-  }
-  updatePositions(){
-    const m={};this.joints.forEach(j=>m[j.id]=j);
-    const calc=(j)=>{
-      if(j.parentId===null){j.x=this.x;j.y=this.y;}
-      else{const p=m[j.parentId];if(p){j.x=p.x+Math.cos(j.angle)*(j.length*this.scale);j.y=p.y+Math.sin(j.angle)*(j.length*this.scale);}}
-    };
-    const proc=(j)=>{calc(j);this.joints.filter(c=>c.parentId===j.id).forEach(proc);};
-    this.joints.filter(j=>j.parentId===null).forEach(proc);
-  }
-}
-
-class FigureGroup {
-  constructor(id,figureIds,label){this.id=id;this.figureIds=[...figureIds];this.label=label||('Group '+id.substr(0,4));}
-  clone(){return new FigureGroup(this.id,[...this.figureIds],this.label);}
-}
 
 // ══════════════════════════════════════════════════════════════════
 // BUILDER
@@ -1154,11 +1286,11 @@ const builder={
     window.addEventListener('touchmove',e=>this.handleMove(e,true),{passive:false});
   },
   open(){
-    this.isOpen=true;document.getElementById('builder-modal').classList.add('show');
+    this.isOpen=true;app.openDialog('builder-modal','#builder-canvas');
     this.figure=new Figure();this.figure.x=this.canvas.width/2;this.figure.y=this.canvas.height/2;
     this.figure.joints=[new Joint('root',null,0,0)];this.selectedId='root';this.updateUI();this.render();
   },
-  close(){this.isOpen=false;document.getElementById('builder-modal').classList.remove('show');},
+  close(){this.isOpen=false;app.closeDialog('builder-modal');},
   addSegment(type){if(!this.selectedId)return;const id=Math.random().toString(36).substr(2,9);const j=new Joint(id,this.selectedId,40,Math.PI/2,type,20,14,true);this.figure.joints.push(j);this.selectedId=id;this.updateUI();this.render();},
   deleteSegment(){if(!this.selectedId||this.selectedId==='root')return;const rem=[this.selectedId];const gc=(pid)=>{this.figure.joints.filter(j=>j.parentId===pid).forEach(c=>{rem.push(c.id);gc(c.id);});};gc(this.selectedId);this.figure.joints=this.figure.joints.filter(j=>!rem.includes(j.id));this.selectedId=this.figure.joints[0].id;this.updateUI();this.render();},
   updateProp(prop,val){if(!this.selectedId||this.selectedId==='root')return;const j=this.figure.joints.find(j=>j.id===this.selectedId);if(j){if(prop==='thickness'){j.thickness=parseInt(val);document.getElementById('b-thick-val').innerText=j.thickness;}else if(prop==='length'){j.length=parseInt(val);document.getElementById('b-len-val').innerText=j.length;}else if(prop==='radius'){j.radius=parseInt(val);document.getElementById('b-rad-val').innerText=j.radius;}this.render();}},
@@ -1181,30 +1313,42 @@ const app={
   ctx:document.getElementById('main-canvas').getContext('2d'),
   docWidth:800,docHeight:500,stagePadding:400,
   frames:[],frameDelays:[],currentFrameIndex:0,
-  figures:[],groups:[],bgImage:null,
+  figures:[],groups:[],bgImage:null,backgroundData:null,
+  projectName:'Untitled animation',
   fps:12,isPlaying:false,lastTime:0,playbackAccumulator:0,
   isLooping:true,isSmooth:true,showOnion:true,showPivots:true,
-  zoomLevel:1.0,dragTarget:null,
+  zoomLevel:1.0,dragTarget:null,isPanning:false,panStart:null,
+  activeTool:'select',
   selectedFigureIds:new Set(),
   selectedFrames:new Set(),
   handleRadius:4,
-  pendingAction:null,undoStack:[],redoStack:[],
+  pendingAction:null,history:new History(),dialogFocusStack:[],
   clipboard:[], // ← array of cloned Figure objects
+  isEditingText:false,isEditingFrameDuration:false,
   marquee:{active:false,startX:0,startY:0,endX:0,endY:0},
 
   init(){
     builder.init();
     this.buildColorSwatches();
     this.applyCanvasSize(this.docWidth,this.docHeight);
-    if(!this.loadFromLocal()) this.addFigure();
+    const restored=this.loadFromLocal();if(!restored)this.addFigure();
     this.canvas.addEventListener('mousedown',e=>this.handleStart(e,false));
     window.addEventListener('mousemove',e=>this.handleMove(e,false));
     window.addEventListener('mouseup',e=>this.handleEnd(e));
+    const canvasArea=document.getElementById('canvas-area');
+    canvasArea.addEventListener('mousedown',e=>this.startPan(e));
+    canvasArea.addEventListener('touchstart',e=>this.startTouchPan(e),{passive:false,capture:true});
+    canvasArea.addEventListener('touchmove',e=>this.handleTouchPanMove(e),{passive:false,capture:true});
+    canvasArea.addEventListener('touchend',e=>this.endTouchPan(e),{passive:false,capture:true});
+    window.addEventListener('mousemove',e=>this.handlePanMove(e));
+    window.addEventListener('mouseup',()=>this.endPan());
     this.canvas.addEventListener('touchstart',e=>this.handleStart(e,true),{passive:false});
     window.addEventListener('touchmove',e=>this.handleMove(e,true),{passive:false});
     window.addEventListener('touchend',e=>this.handleEnd(e));
     document.getElementById('timeline-track').addEventListener('wheel',e=>{if(e.deltaY!==0){e.preventDefault();e.currentTarget.scrollLeft+=e.deltaY;}},{passive:false});
     window.addEventListener('keydown',e=>{
+      if(this.handleDialogKeydown(e))return;
+      if(e.key==='Escape'&&this.closeCompactActions()){e.preventDefault();return;}
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
       if(e.code==='Space'){e.preventDefault();if(this.isPlaying)this.stop();else this.addFrame();}
       if(e.key===','||e.key==='<')this.prevFrame();
@@ -1216,23 +1360,23 @@ const app={
       if((e.ctrlKey||e.metaKey)&&e.key==='x'){e.preventDefault();this.cutSelected();}
       if((e.ctrlKey||e.metaKey)&&e.key==='v'){e.preventDefault();this.paste();}
       if(e.key==='Escape'){this.selectedFigureIds.clear();this.deselectAll();this.render();}
-      if(e.key==='Delete'||e.key==='Backspace'){if(this.figures.some(f=>f.selected))this.deleteSelectedFigure();}
+      if(e.key==='Delete'||e.key==='Backspace'){if(this._getSelectedFigureIds().length)this.deleteSelectedFigure();}
     });
+    document.addEventListener('pointerdown',e=>{const actions=document.getElementById('compact-actions');if(actions&&!actions.contains(e.target))this.closeCompactActions();});
     this.updateZoomDisplay();
     if(this.frames.length===0)this.render();
-    // Init toggle states
-    document.getElementById('btn-loop').classList.toggle('on',this.isLooping);
-    document.getElementById('btn-smooth').classList.toggle('on',this.isSmooth);
-    document.getElementById('btn-onion').classList.toggle('on',this.showOnion);
-    document.getElementById('btn-pivots').classList.toggle('on',this.showPivots);
+    this.updateToggleControls();
+    if(restored)this.showToast('Recovered your last draft');else this.showWelcomeIfNeeded();
   },
 
   buildColorSwatches(){
     const grid=document.getElementById('color-swatches');
     grid.innerHTML='';
     PALETTE.forEach(c=>{
-      const s=document.createElement('div');
+      const s=document.createElement('button');
+      s.type='button';
       s.className='color-swatch';
+      s.setAttribute('aria-label',`Set figure color to ${c}`);
       s.style.background=c;
       s.style.border=c==='#ffffff'?'2px solid var(--border2)':'2px solid transparent';
       s.onclick=()=>this.setFigureColor(c);
@@ -1240,65 +1384,282 @@ const app={
     });
   },
 
-  setTool(t){ /* visual feedback only for now */ },
+  setTool(t){
+    this.activeTool=t;
+    document.querySelectorAll('.tool-btn').forEach(button=>button.classList.toggle('active',button.id===`tool-${t}`));
+  },
+  toggleCompactActions(){
+    const menu=document.getElementById('compact-actions-menu');
+    const isOpen=menu.classList.toggle('show');
+    document.getElementById('compact-actions-toggle').setAttribute('aria-expanded',String(isOpen));
+    if(isOpen)menu.querySelector('button')?.focus();
+  },
+  closeCompactActions(){
+    const menu=document.getElementById('compact-actions-menu');if(!menu||!menu.classList.contains('show'))return false;
+    menu.classList.remove('show');document.getElementById('compact-actions-toggle').setAttribute('aria-expanded','false');return true;
+  },
+  runCompactAction(action){
+    this.closeCompactActions();
+    document.getElementById('compact-actions-toggle').focus();
+    if(action==='new')this.confirmNewProject();
+    else if(action==='save')this.saveProject();
+    else if(action==='open')document.getElementById('load-input').click();
+    else if(action==='settings')this.openSettings();
+    else if(action==='help')this.openHelp();
+    else if(action==='frame')this.exportFrame();
+    else if(action==='gif')this.exportGif();
+  },
 
   // ── Persistence ───────────────────────────────────────────────
+  cloneFigures(figures=this.figures){return cloneFigures(figures);},
+  clampDimension(value,fallback){return clampDimension(value,fallback);},
+  isPlainObject(value){return value!==null&&typeof value==='object'&&!Array.isArray(value);},
+  safeNumber(value,fallback,min,max,label){
+    if(value===undefined||value===null)return fallback;
+    const n=Number(value);if(!Number.isFinite(n)||n<min||n>max)throw new Error(`Invalid ${label}.`);return n;
+  },
+  safeId(value,label){if(typeof value!=='string'||!/^[A-Za-z0-9_-]{1,80}$/.test(value))throw new Error(`Invalid ${label} id.`);return value;},
+  safeText(value,fallback,max,label){
+    if(value===undefined||value===null)return fallback;
+    if(typeof value!=='string'||value.length>max||/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(value))throw new Error(`Invalid ${label}.`);return value;
+  },
+  safeColor(value,fallback,label){
+    if(value===undefined||value===null)return fallback;
+    if(typeof value!=='string'||!/^#[0-9a-f]{6}$/i.test(value))throw new Error(`Invalid ${label}.`);return value;
+  },
+  validateJointTree(joints){
+    const byId=new Map(joints.map(j=>[j.id,j]));if(byId.size!==joints.length)throw new Error('Joint ids must be unique.');
+    joints.forEach(j=>{if(j.parentId!==null&&!byId.has(j.parentId))throw new Error('A joint has an unknown parent.');});
+    joints.forEach(j=>{const visited=new Set();let current=j;while(current.parentId!==null){if(visited.has(current.id))throw new Error('Joint hierarchy contains a cycle.');visited.add(current.id);current=byId.get(current.parentId);}});
+  },
+  commitActiveFrame(){
+    const snapshot=this.cloneFigures();
+    if(this.frames.length===0){
+      this.frames=[snapshot];this.frameDelays=[1.0];this.currentFrameIndex=0;
+      return true;
+    }
+    this.currentFrameIndex=Math.max(0,Math.min(this.currentFrameIndex,this.frames.length-1));
+    this.frames[this.currentFrameIndex]=snapshot;
+    while(this.frameDelays.length<this.frames.length)this.frameDelays.push(1.0);
+    return false;
+  },
+  serializeProject(){
+    this.commitActiveFrame();
+    return serializeProject(this);
+  },
+  rehydrateFigures(data){
+    if(!Array.isArray(data))throw new Error('A frame is not a figure list.');
+    if(data.length>MAX_FIGURES_PER_FRAME)throw new Error(`A frame can contain at most ${MAX_FIGURES_PER_FRAME} figures.`);
+    const figures=data.map((figd,index)=>{
+      if(!this.isPlainObject(figd))throw new Error('A figure is malformed.');
+      const fig=new Figure();fig.id=this.safeId(figd.id,`figure ${index+1}`);fig.x=this.safeNumber(figd.x,400,-100000,100000,'figure position');fig.y=this.safeNumber(figd.y,300,-100000,100000,'figure position');
+      fig.scale=this.safeNumber(figd.scale,1,0.05,100,'figure scale');fig.color=this.safeColor(figd.color,'#000000','figure color');fig.selected=figd.selected===true;
+      fig.type=this.safeText(figd.type,'figure',32,'figure type');fig.text=this.safeText(figd.text,'',MAX_TEXT_LENGTH,'figure text');fig.groupId=figd.groupId===null||figd.groupId===undefined?null:this.safeId(figd.groupId,'group');
+      if(!Array.isArray(figd.joints)||figd.joints.length===0||figd.joints.length>MAX_JOINTS_PER_FIGURE)throw new Error(`Figure ${index+1} has an invalid number of joints.`);
+      fig.joints=figd.joints.map((jd,jointIndex)=>{
+        if(!this.isPlainObject(jd))throw new Error('A joint is malformed.');
+        const id=this.safeId(jd.id,`joint ${jointIndex+1}`),parentId=jd.parentId===null||jd.parentId===undefined?null:this.safeId(jd.parentId,'parent');
+        const type=jd.type===undefined?SEGMENT_LINE:jd.type;if(type!==SEGMENT_LINE&&type!==SEGMENT_CIRCLE)throw new Error('Invalid joint type.');
+        return new Joint(id,parentId,this.safeNumber(jd.length,0,0,10000,'joint length'),this.safeNumber(jd.angle,0,-Math.PI*2,Math.PI*2,'joint angle'),type,this.safeNumber(jd.radius,20,0,5000,'joint radius'),this.safeNumber(jd.thickness,14,1,500,'joint thickness'),jd.filled!==false,this.safeColor(jd.color,null,'joint color'));
+      });
+      this.validateJointTree(fig.joints);return fig;
+    });
+    if(new Set(figures.map(fig=>fig.id)).size!==figures.length)throw new Error('Figure ids must be unique within a frame.');
+    return figures;
+  },
+  normaliseProject(data){
+    return normaliseProject(data);
+    if(!this.isPlainObject(data))throw new Error('Project data is missing.');
+    const width=this.clampDimension(data.width,800),height=this.clampDimension(data.height,500);
+    if(Array.isArray(data.frames)&&data.frames.length>MAX_PROJECT_FRAMES)throw new Error(`Projects can contain at most ${MAX_PROJECT_FRAMES} frames.`);
+    let frames=Array.isArray(data.frames)?data.frames.map(frame=>this.rehydrateFigures(frame)):[];
+    // Version 3 local saves could contain an unsynchronised live figure list.
+    if(frames.length===0&&Array.isArray(data.figures))frames=[this.rehydrateFigures(data.figures)];
+    if(frames.length===0)frames=[[]];
+    const delays=frames.map((_,index)=>{
+      const value=Array.isArray(data.delays)?Number(data.delays[index]):1;
+      return Number.isFinite(value)?Math.max(0.1,Math.min(10,value)):1;
+    });
+    const index=Math.max(0,Math.min(Number.isInteger(data.currentFrameIndex)?data.currentFrameIndex:0,frames.length-1));
+    if(Array.isArray(data.groups)&&data.groups.length>MAX_PROJECT_GROUPS)throw new Error(`Projects can contain at most ${MAX_PROJECT_GROUPS} groups.`);
+    const groups=Array.isArray(data.groups)?data.groups.map((group,index)=>{
+      if(!this.isPlainObject(group)||!Array.isArray(group.figureIds)||group.figureIds.length>MAX_FIGURES_PER_FRAME)throw new Error('A group is malformed.');
+      const ids=group.figureIds.map(id=>this.safeId(id,'group member'));if(new Set(ids).size!==ids.length)throw new Error('Group member ids must be unique.');
+      return new FigureGroup(this.safeId(group.id,`group ${index+1}`),ids,this.safeText(group.label,undefined,80,'group label'));
+    }):[];
+    if(new Set(groups.map(group=>group.id)).size!==groups.length)throw new Error('Group ids must be unique.');
+    const settings=this.isPlainObject(data.settings)?data.settings:{};
+    const backgroundData=typeof data.backgroundData==='string'&&data.backgroundData.length<=MAX_BACKGROUND_DATA_LENGTH&&/^data:image\/(png|jpeg|gif|webp);base64,/i.test(data.backgroundData)?data.backgroundData:null;
+    return {width,height,fps:Math.max(1,Math.min(30,parseInt(data.fps,10)||12)),frames,delays,index,groups,backgroundData,settings};
+  },
+  restoreBackground(data){
+    this.bgImage=null;this.backgroundData=null;
+    if(!data)return;
+    const img=new Image();
+    img.onload=()=>{this.bgImage=img;this.backgroundData=data;this.render();this.updateTimeline();};
+    img.onerror=()=>{console.warn('Background image could not be restored.');};
+    img.src=data;
+  },
+  applyProjectData(data){
+    const d=this.normaliseProject(data);
+    this.projectName=d.name;document.getElementById('project-name').value=d.name;
+    this.docWidth=d.width;this.docHeight=d.height;
+    document.getElementById('canvas-w').value=d.width;document.getElementById('canvas-h').value=d.height;
+    this.applyCanvasSize(d.width,d.height);
+    this.fps=d.fps;document.getElementById('fps-val').innerText=d.fps;
+    this.frames=d.frames;this.frameDelays=d.delays;this.currentFrameIndex=d.index;this.groups=d.groups;
+    this.isLooping=d.settings.isLooping!==undefined?!!d.settings.isLooping:true;
+    this.isSmooth=d.settings.isSmooth!==undefined?!!d.settings.isSmooth:true;
+    this.showOnion=d.settings.showOnion!==undefined?!!d.settings.showOnion:true;
+    this.showPivots=d.settings.showPivots!==undefined?!!d.settings.showPivots:true;
+    this.figures=this.cloneFigures(this.frames[this.currentFrameIndex]);
+    this.selectedFigureIds=new Set(this.figures.filter(f=>f.selected).map(f=>f.id));
+    this.restoreBackground(d.backgroundData);
+    const delay=this.frameDelays[this.currentFrameIndex]||1;
+    document.getElementById('frame-duration').value=delay;document.getElementById('duration-display').innerText=delay.toFixed(1)+'×';
+    this.updateToggleControls();this.syncSelectionUI();this.render();this.updateTimeline();this.updateGroupsPanel();
+  },
+  updateToggleControls(){
+    document.getElementById('btn-loop').classList.toggle('on',this.isLooping);
+    document.getElementById('btn-smooth').classList.toggle('on',this.isSmooth);
+    document.getElementById('btn-onion').classList.toggle('on',this.showOnion);
+    document.getElementById('btn-pivots').classList.toggle('on',this.showPivots);
+    document.getElementById('btn-loop').setAttribute('aria-pressed',String(this.isLooping));
+    document.getElementById('btn-smooth').setAttribute('aria-pressed',String(this.isSmooth));
+    document.getElementById('btn-onion').setAttribute('aria-pressed',String(this.showOnion));
+    document.getElementById('btn-pivots').setAttribute('aria-pressed',String(this.showPivots));
+  },
+  updateSaveStatus(label='Saved',isError=false){
+    const indicator=document.getElementById('storage-indicator');
+    const status=document.getElementById('storage-status');
+    if(!indicator||!status)return;
+    indicator.classList.toggle('error',isError);status.textContent=label;
+    indicator.title=isError?'Work could not be saved in this browser. Download a project copy.':label==='Recovered draft'?'Recovered from this browser. Choose New to start fresh.':'Your work is saved in this browser';
+  },
   saveLocal(){
-    const d={version:3,width:this.docWidth,height:this.docHeight,fps:this.fps,frames:this.frames,delays:this.frameDelays,figures:this.figures,currentFrameIndex:this.currentFrameIndex,groups:this.groups};
-    try{localStorage.setItem('stickmotion_data',JSON.stringify(d));}catch(e){console.error(e);}
+    try{
+      const createdInitialFrame=this.commitActiveFrame();
+      const project=serializeProject(this);
+      localStorage.setItem('stickmotion_data',JSON.stringify(project));
+      if(createdInitialFrame)this.updateTimeline();
+      this.updateSaveStatus('Saved');
+    }catch(e){console.error(e);this.updateSaveStatus('Save failed',true);this.showToast('Local save failed — download a project copy.','error');}
   },
   loadFromLocal(){
     try{
       const data=localStorage.getItem('stickmotion_data');if(!data)return false;
-      const d=JSON.parse(data);
-      if(d.width){document.getElementById('canvas-w').value=d.width;document.getElementById('canvas-h').value=d.height;this.applyCanvasSize(d.width,d.height);}
-      if(d.fps){this.updateFps(d.fps);}
-      const rf=(fd)=>fd.map(figd=>{const fig=new Figure();Object.assign(fig,figd);fig.joints=figd.joints.map(jd=>{const j=new Joint();Object.assign(j,jd);return j;});return fig;});
-      if(d.frames)this.frames=d.frames.map(f=>rf(f));
-      if(d.figures)this.figures=rf(d.figures);
-      if(d.delays)this.frameDelays=d.delays;else this.frameDelays=new Array(this.frames.length).fill(1.0);
-      if(d.groups)this.groups=d.groups.map(g=>new FigureGroup(g.id,g.figureIds,g.label));
-      this.currentFrameIndex=d.currentFrameIndex||0;
-      if(this.currentFrameIndex>=this.frames.length)this.currentFrameIndex=Math.max(0,this.frames.length-1);
-      if(this.frames.length>0)this.loadFrame(this.currentFrameIndex,false);
-      this.updateTimeline();this.updateGroupsPanel();return true;
+      this.applyProjectData(JSON.parse(data));this.updateSaveStatus('Recovered draft');return true;
     }catch(e){console.error(e);return false;}
+  },
+  setProjectName(value){
+    const name=String(value).replace(/[\u0000-\u001F]/g,'').trim().slice(0,80)||'Untitled animation';
+    this.projectName=name;
+    const input=document.getElementById('project-name');if(input&&input.value!==name)input.value=name;
+    this.saveLocal();
   },
 
   // ── Undo/Redo ─────────────────────────────────────────────────
-  saveState(){
-    if(this.undoStack.length>50)this.undoStack.shift();
-    this.undoStack.push({frames:this.frames.map(f=>f.map(x=>x.clone())),frameDelays:[...this.frameDelays],currentFrameIndex:this.currentFrameIndex,figures:this.figures.map(f=>f.clone()),groups:this.groups.map(g=>g.clone())});
-    this.redoStack=[];
-  },
-  undo(){if(!this.undoStack.length)return;this.redoStack.push({frames:this.frames.map(f=>f.map(x=>x.clone())),frameDelays:[...this.frameDelays],currentFrameIndex:this.currentFrameIndex,figures:this.figures.map(f=>f.clone()),groups:this.groups.map(g=>g.clone())});this.restoreState(this.undoStack.pop());},
-  redo(){if(!this.redoStack.length)return;this.undoStack.push({frames:this.frames.map(f=>f.map(x=>x.clone())),frameDelays:[...this.frameDelays],currentFrameIndex:this.currentFrameIndex,figures:this.figures.map(f=>f.clone()),groups:this.groups.map(g=>g.clone())});this.restoreState(this.redoStack.pop());},
+  saveState(){this.history.capture(this);},
+  undo(){const snapshot=this.history.undo(this);if(snapshot)this.restoreState(snapshot);},
+  redo(){const snapshot=this.history.redo(this);if(snapshot)this.restoreState(snapshot);},
   restoreState(s){this.frames=s.frames.map(f=>f.map(x=>x.clone()));this.frameDelays=[...s.frameDelays];this.currentFrameIndex=s.currentFrameIndex;this.figures=s.figures.map(f=>f.clone());if(s.groups)this.groups=s.groups.map(g=>g.clone());const d=this.frameDelays[this.currentFrameIndex]||1.0;document.getElementById('frame-duration').value=d;document.getElementById('duration-display').innerText=d.toFixed(1)+'×';this.render();this.updateTimeline();this.updateGroupsPanel();this.saveLocal();},
 
   // ── Modals ────────────────────────────────────────────────────
-  showModal(t,m,a){document.getElementById('confirm-title').innerText=t;document.getElementById('confirm-msg').innerText=m;this.pendingAction=a;document.getElementById('confirm-modal').classList.add('show');},
-  closeModal(){document.getElementById('confirm-modal').classList.remove('show');this.pendingAction=null;},
+  getDialogFocusable(dialog){return Array.from(dialog.querySelectorAll('button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(el=>el.offsetParent!==null);},
+  openDialog(id,focusSelector){
+    const dialog=document.getElementById(id);if(!dialog)return;
+    this.dialogFocusStack.push({id,opener:document.activeElement});dialog.classList.add('show');
+    requestAnimationFrame(()=>{const target=focusSelector&&dialog.querySelector(focusSelector)||this.getDialogFocusable(dialog)[0];if(target)target.focus();});
+  },
+  closeDialog(id){
+    const dialog=document.getElementById(id);if(!dialog)return;
+    dialog.classList.remove('show');const i=this.dialogFocusStack.map(item=>item.id).lastIndexOf(id);const entry=i>=0?this.dialogFocusStack.splice(i,1)[0]:null;
+    if(entry&&entry.opener&&document.contains(entry.opener))requestAnimationFrame(()=>entry.opener.focus());
+  },
+  handleDialogKeydown(e){
+    const dialog=document.querySelector('.modal-overlay.show[role="dialog"]');if(!dialog)return false;
+    if(e.key==='Escape'){e.preventDefault();if(dialog.id==='confirm-modal')this.closeModal();else if(dialog.id==='settings-modal')this.closeSettings();else if(dialog.id==='library-modal')this.closeLibrary();else if(dialog.id==='builder-modal')builder.close();else if(dialog.id==='help-modal')this.closeHelp();else if(dialog.id==='welcome-modal')this.closeWelcome();else if(dialog.id==='loading-modal')this.cancelGifExport();return true;}
+    if(e.key==='Tab'){
+      const items=this.getDialogFocusable(dialog);if(items.length){const first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
+    }
+    return true;
+  },
+  showModal(t,m,a){document.getElementById('confirm-title').innerText=t;document.getElementById('confirm-msg').innerText=m;this.pendingAction=a;this.openDialog('confirm-modal','#confirm-cancel');},
+  closeModal(){this.closeDialog('confirm-modal');this.pendingAction=null;},
   executeConfirm(){if(this.pendingAction)this.pendingAction();this.closeModal();},
-  openSettings(){document.getElementById('settings-modal').classList.add('show');},
-  closeSettings(){document.getElementById('settings-modal').classList.remove('show');},
-  confirmClearStage(){this.showModal('Clear Stage?','Remove all figures from the canvas?',()=>{this.saveState();this.figures=[];this.render();this.saveLocal();});},
-  confirmNewProject(){this.showModal('New Project?','This will discard the current animation.',()=>{this.saveState();this.newProject();});},
+  openSettings(){this.openDialog('settings-modal','#canvas-w');},
+  closeSettings(){this.closeDialog('settings-modal');},
+  openHelp(){this.openDialog('help-modal','#help-close');},
+  closeHelp(){this.closeDialog('help-modal');},
+  openWelcome(){this.openDialog('welcome-modal','#welcome-start');},
+  showWelcomeIfNeeded(){try{if(localStorage.getItem('stickmotion_welcome_seen'))return;localStorage.setItem('stickmotion_welcome_seen','1');this.openWelcome();}catch(e){console.warn('Welcome preference could not be saved.',e);}},
+  reopenWelcome(){this.closeHelp();this.openWelcome();},
+  closeWelcome(){this.closeDialog('welcome-modal');},
+  confirmClearStage(){this.showModal('Clear Stage?','Remove all figures from the current frame? You can Undo this.',()=>{this.saveState();this.figures=[];this.render();this.saveLocal();this.showToast('Stage cleared. Add a figure to continue.');});},
+  confirmNewProject(){this.showModal('New Project?','Start over with a new animation? Your current local draft will be replaced.',()=>{this.saveState();this.newProject();this.showToast('New project started');});},
 
   newProject(){
     this.stop();this.frames=[];this.frameDelays=[];this.figures=[];this.groups=[];
-    this.currentFrameIndex=0;this.bgImage=null;this.undoStack=[];this.redoStack=[];
+    this.projectName='Untitled animation';document.getElementById('project-name').value=this.projectName;
+    this.currentFrameIndex=0;this.bgImage=null;this.backgroundData=null;this.history.clear();
     this.selectedFigureIds.clear();
     document.getElementById('canvas-w').value=800;document.getElementById('canvas-h').value=500;
     this.setCanvasSize();this.addFigure();this.render();this.updateTimeline();this.updateGroupsPanel();this.saveLocal();
   },
 
   // ── Zoom ──────────────────────────────────────────────────────
-  changeZoom(d){this.zoomLevel=Math.max(0.1,Math.min(5,this.zoomLevel+d));this.updateZoomDisplay();this.setCanvasSize();},
+  changeZoom(d){this.setZoom(this.zoomLevel+d);},
+  setZoom(level,centerStage=true){
+    this.zoomLevel=Math.max(0.1,Math.min(5,level));this.updateZoomDisplay();this.setCanvasSize();
+    if(centerStage)requestAnimationFrame(()=>this.centerStage());
+  },
+  resetZoom(){this.setZoom(1);},
+  fitStage(){
+    const area=document.getElementById('canvas-area');
+    const availableWidth=Math.max(120,area.clientWidth-48),availableHeight=Math.max(120,area.clientHeight-48);
+    this.setZoom(Math.min(5,Math.max(0.1,Math.min(availableWidth/this.docWidth,availableHeight/this.docHeight))));
+  },
+  centerStage(){
+    const area=document.getElementById('canvas-area');
+    const stageWidth=this.docWidth*this.zoomLevel,stageHeight=this.docHeight*this.zoomLevel;
+    area.scrollLeft=Math.max(0,this.stagePadding*this.zoomLevel-(area.clientWidth-stageWidth)/2);
+    area.scrollTop=Math.max(0,this.stagePadding*this.zoomLevel-(area.clientHeight-stageHeight)/2);
+  },
   updateZoomDisplay(){document.getElementById('zoom-label').innerText=Math.round(this.zoomLevel*100)+'%';},
+  startPan(e){
+    if(e.button!==1)return;
+    e.preventDefault();const area=document.getElementById('canvas-area');
+    this.isPanning=true;this.panStart={x:e.clientX,y:e.clientY,left:area.scrollLeft,top:area.scrollTop};
+    this.canvas.style.cursor='grabbing';
+  },
+  startTouchPan(e){
+    if(e.touches.length!==2)return;
+    e.preventDefault();e.stopPropagation();const area=document.getElementById('canvas-area');const [a,b]=e.touches;
+    this.isPanning=true;this.panStart={x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2,left:area.scrollLeft,top:area.scrollTop};
+  },
+  handlePanMove(e){
+    if(!this.isPanning||!this.panStart)return;
+    const area=document.getElementById('canvas-area');
+    area.scrollLeft=this.panStart.left-(e.clientX-this.panStart.x);
+    area.scrollTop=this.panStart.top-(e.clientY-this.panStart.y);
+  },
+  handleTouchPanMove(e){
+    if(!this.isPanning||e.touches.length<2)return;
+    e.preventDefault();e.stopPropagation();const [a,b]=e.touches;this.handlePanMove({clientX:(a.clientX+b.clientX)/2,clientY:(a.clientY+b.clientY)/2});
+  },
+  endTouchPan(e){if(this.isPanning&&e.touches.length<2){e.preventDefault();e.stopPropagation();this.endPan();}},
+  endPan(){if(this.isPanning){this.isPanning=false;this.panStart=null;this.canvas.style.cursor='crosshair';}},
+  toggleInspector(force){
+    const panel=document.getElementById('right-panel');
+    const open=typeof force==='boolean'?force:!panel.classList.contains('open');
+    panel.classList.toggle('open',open);
+    document.getElementById('inspector-toggle').setAttribute('aria-expanded',String(open));
+  },
 
   setCanvasSize(){
-    const w=parseInt(document.getElementById('canvas-w').value)||800;
-    const h=parseInt(document.getElementById('canvas-h').value)||500;
+    const w=this.clampDimension(document.getElementById('canvas-w').value,800);
+    const h=this.clampDimension(document.getElementById('canvas-h').value,500);
+    document.getElementById('canvas-w').value=w;document.getElementById('canvas-h').value=h;
     this.applyCanvasSize(w,h);
     this.render();this.saveLocal();
   },
@@ -1310,11 +1671,18 @@ const app={
     this.canvas.style.height=(sh*this.zoomLevel)+'px';
     this.canvas.style.maxWidth='none';
   },
-  loadBackground(i){if(i.files&&i.files[0]){const r=new FileReader();r.onload=e=>{const img=new Image();img.onload=()=>{this.bgImage=img;this.render();};img.src=e.target.result;};r.readAsDataURL(i.files[0]);}},
+  loadBackground(i){
+    if(!i.files||!i.files[0])return;
+    const file=i.files[0];
+    if(file.size>6*1024*1024||!['image/png','image/jpeg','image/gif','image/webp'].includes(file.type)){this.showToast('Choose a PNG, JPEG, GIF, or WebP under 6 MB');i.value='';return;}
+    const r=new FileReader();
+    r.onload=e=>{const data=e.target.result;if(typeof data!=='string'||data.length>MAX_BACKGROUND_DATA_LENGTH||!/^data:image\/(png|jpeg|gif|webp);base64,/i.test(data)){this.showToast('That background image is not supported');return;}const img=new Image();img.onload=()=>{this.bgImage=img;this.backgroundData=data;this.render();this.updateTimeline();this.saveLocal();this.showToast('Background added');};img.onerror=()=>this.showToast('That background image could not be opened');img.src=data;};
+    r.readAsDataURL(file);i.value='';
+  },
 
   // ── Library ───────────────────────────────────────────────────
-  openLibrary(){document.getElementById('library-modal').classList.add('show');},
-  closeLibrary(){document.getElementById('library-modal').classList.remove('show');},
+  openLibrary(){this.openDialog('library-modal','.lib-item');},
+  closeLibrary(){this.closeDialog('library-modal');},
   addFromLibrary(type){
     this.saveState();
     let fig;
@@ -1555,7 +1923,19 @@ const app={
     fig.joints=[new Joint('root',null,0,0),new Joint('handle','root',40,0),new Joint('tail','root',92,2.15)];
     return fig;
   },
-  updateText(val){const fig=this.figures.find(f=>f.selected);if(fig&&(fig.type==='text'||fig.type==='speech')){fig.text=val;this.render();this.saveLocal();}},
+  beginTextEdit(){
+    if(this.isEditingText)return;
+    const fig=this.figures.find(f=>f.selected);
+    if(fig&&(fig.type==='text'||fig.type==='speech')){this.saveState();this.isEditingText=true;}
+  },
+  endTextEdit(){this.isEditingText=false;},
+  updateText(val){
+    const fig=this.figures.find(f=>f.selected);
+    if(fig&&(fig.type==='text'||fig.type==='speech')){
+      if(!this.isEditingText)this.beginTextEdit();
+      fig.text=val;this.render();this.saveLocal();
+    }
+  },
 
   addFigure(){
     this.saveState();const fig=this.createStickman();
@@ -1563,10 +1943,10 @@ const app={
     this.figures.push(fig);this.selectFigure(fig);this.render();this.saveLocal();
   },
   deleteSelectedFigure(){
-    const idx=this.figures.findIndex(f=>f.selected);if(idx===-1)return;
-    this.saveState();const fig=this.figures[idx];
-    if(fig.groupId){const g=this.groups.find(g=>g.id===fig.groupId);if(g){g.figureIds=g.figureIds.filter(id=>id!==fig.id);if(g.figureIds.length<2)this.ungroupSelected(g.id);}}
-    this.figures.splice(idx,1);this.render();this.updateGroupsPanel();this.saveLocal();
+    const ids=new Set(this._getSelectedFigureIds());if(!ids.size)return;
+    this.saveState();this.figures=this.figures.filter(f=>!ids.has(f.id));
+    this.deselectAll();this.render();this.updateGroupsPanel();this.saveLocal();
+    this.showToast(`Deleted ${ids.size} figure${ids.size>1?'s':''}`);
   },
 
   // ── Clipboard ─────────────────────────────────────────────────
@@ -1598,7 +1978,7 @@ const app={
     this.figures = this.figures.filter(f => !removedIds.has(f.id));
     this.selectedFigureIds.clear();
     this.deselectAll();
-    this.render(); this.saveLocal();
+    this.render();this.updateGroupsPanel();this.saveLocal();
     this.showToast(`Cut ${removedIds.size} figure${removedIds.size>1?'s':''}`);
   },
 
@@ -1627,7 +2007,7 @@ const app={
 
     // If only one pasted, fully select it in the panel too
     if(pasted.length === 1) this.selectFigure(pasted[0]);
-    else this.updateGroupPanel();
+    else this.syncSelectionUI();
 
     // Also paste into the current saved frame so it persists on frame switch
     if(this.frames[this.currentFrameIndex]){
@@ -1639,11 +2019,12 @@ const app={
   },
 
   // Lightweight toast notification
-  showToast(msg){
+  showToast(msg,type='info'){
     let t = document.getElementById('sm-toast');
     if(!t){
       t = document.createElement('div');
       t.id = 'sm-toast';
+      t.setAttribute('role','status');t.setAttribute('aria-live','polite');
       t.style.cssText = `position:fixed;bottom:180px;left:50%;transform:translateX(-50%);
         background:var(--bg4);border:1px solid var(--border2);color:var(--text);
         font-family:var(--font);font-size:12px;font-weight:500;
@@ -1651,10 +2032,12 @@ const app={
         opacity:0;transition:opacity 0.15s;z-index:9999;white-space:nowrap;`;
       document.body.appendChild(t);
     }
+    const isError=type==='error';t.setAttribute('aria-live',isError?'assertive':'polite');
+    t.style.borderColor=isError?'rgba(239,68,68,0.8)':'var(--border2)';t.style.color=isError?'#fecaca':'var(--text)';
     t.textContent = msg;
     t.style.opacity = '1';
     clearTimeout(this._toastTimer);
-    this._toastTimer = setTimeout(()=>{ t.style.opacity='0'; }, 1600);
+    this._toastTimer = setTimeout(()=>{ t.style.opacity='0'; }, isError?3200:1800);
   },
   raiseFigure(){const i=this.figures.findIndex(f=>f.selected);if(i!==-1&&i<this.figures.length-1){this.saveState();const t=this.figures[i];this.figures[i]=this.figures[i+1];this.figures[i+1]=t;this.render();this.saveLocal();}},
   lowerFigure(){const i=this.figures.findIndex(f=>f.selected);if(i>0){this.saveState();const t=this.figures[i];this.figures[i]=this.figures[i-1];this.figures[i-1]=t;this.render();this.saveLocal();}},
@@ -1662,7 +2045,7 @@ const app={
   // ── Grouping ──────────────────────────────────────────────────
   groupSelected(){
     const ids=this.selectedFigureIds.size>0?Array.from(this.selectedFigureIds):this.figures.filter(f=>f.selected).map(f=>f.id);
-    if(ids.length<2){alert('Select 2 or more figures to group (Ctrl+click).');return;}
+    if(ids.length<2){this.showToast('Select 2 or more figures to group (Ctrl/Cmd-click).','error');return;}
     this.saveState();
     const gid=Math.random().toString(36).substr(2,9);
     const group=new FigureGroup(gid,ids,'Group '+(this.groups.length+1));
@@ -1671,35 +2054,40 @@ const app={
       const fig=this.figures.find(f=>f.id===fid);if(fig)fig.groupId=gid;
       this.frames.forEach(frame=>{const ff=frame.find(f=>f.id===fid);if(ff)ff.groupId=gid;});
     });
-    this.selectedFigureIds.clear();this.render();this.updateGroupsPanel();this.saveLocal();
+    this.selectedFigureIds=new Set(ids);this.syncSelectionUI();this.render();this.updateGroupsPanel();this.saveLocal();this.showToast(`Grouped ${ids.length} figures`);
   },
   ungroupSelected(groupId=null){
     let gid=groupId;
     if(!gid){const sel=this.figures.find(f=>f.selected||this.selectedFigureIds.has(f.id));if(!sel||!sel.groupId)return;gid=sel.groupId;}
     this.saveState();
+    const memberCount=this.figures.filter(f=>f.groupId===gid).length;
     this.figures.forEach(f=>{if(f.groupId===gid)f.groupId=null;});
     this.frames.forEach(frame=>{frame.forEach(f=>{if(f.groupId===gid)f.groupId=null;});});
     this.groups=this.groups.filter(g=>g.id!==gid);
-    this.selectedFigureIds.clear();this.render();this.updateGroupsPanel();this.saveLocal();
+    this.syncSelectionUI();this.render();this.updateGroupsPanel();this.saveLocal();this.showToast(`Ungrouped ${memberCount} figures`);
   },
   selectGroup(gid){
-    this.deselectAll();const group=this.groups.find(g=>g.id===gid);if(!group)return;
-    this.selectedFigureIds=new Set(group.figureIds);
-    this.figures.forEach(f=>{if(group.figureIds.includes(f.id))f.selected=true;});
-    this.render();this.updateGroupPanel();
+    const group=this.groups.find(g=>g.id===gid);if(!group)return;
+    this.selectedFigureIds=new Set(this.figures.filter(f=>group.figureIds.includes(f.id)).map(f=>f.id));
+    this.syncSelectionUI();this.render();
   },
   _getSelectedFigureIds(){if(this.selectedFigureIds.size>0)return Array.from(this.selectedFigureIds);return this.figures.filter(f=>f.selected).map(f=>f.id);},
 
   updateGroupsPanel(){
     const list=document.getElementById('groups-list');
     if(this.groups.length===0){
-      list.innerHTML='<div class="empty-state" style="padding:12px 0 4px"><p style="font-size:11px">No groups yet.<br>Ctrl+click figures, then group.</p></div>';
+      list.innerHTML='<div class="empty-state" style="padding:12px 0 4px"><p style="font-size:11px">No groups yet.<br>Select figures with Ctrl/Cmd-click, then choose Group.</p></div>';
     } else {
       list.innerHTML='';
       this.groups.forEach(g=>{
         const memberCount=this.figures.filter(f=>f.groupId===g.id).length;
-        const row=document.createElement('div');row.className='group-row';row.onclick=()=>this.selectGroup(g.id);
-        row.innerHTML=`<div class="group-dot"></div><span class="group-name">${g.label}</span><span class="group-count">${memberCount} fig</span><button class="group-del" onclick="event.stopPropagation();app.ungroupSelected('${g.id}')" title="Ungroup"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></button>`;
+        const row=document.createElement('div');row.className='group-row';
+        const select=document.createElement('button');select.type='button';select.className='group-select';select.setAttribute('aria-label',`Select ${g.label}, ${memberCount} figures`);select.onclick=()=>this.selectGroup(g.id);
+        const dot=document.createElement('div');dot.className='group-dot';
+        const name=document.createElement('span');name.className='group-name';name.textContent=g.label;
+        const count=document.createElement('span');count.className='group-count';count.textContent=`${memberCount} fig`;
+        const remove=document.createElement('button');remove.type='button';remove.className='group-del';remove.title='Ungroup';remove.setAttribute('aria-label',`Ungroup ${g.label}`);remove.innerHTML='<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>';remove.onclick=()=>this.ungroupSelected(g.id);
+        select.append(dot,name,count);row.append(select,remove);
         list.appendChild(row);
       });
     }
@@ -1717,24 +2105,31 @@ const app={
   },
 
   // ── Toggle states ─────────────────────────────────────────────
-  toggleLoop(){this.isLooping=!this.isLooping;document.getElementById('btn-loop').classList.toggle('on',this.isLooping);},
-  toggleSmooth(){this.isSmooth=!this.isSmooth;document.getElementById('btn-smooth').classList.toggle('on',this.isSmooth);},
-  toggleOnion(){this.showOnion=!this.showOnion;document.getElementById('btn-onion').classList.toggle('on',this.showOnion);this.render();},
-  togglePivots(){this.showPivots=!this.showPivots;document.getElementById('btn-pivots').classList.toggle('on',this.showPivots);this.render();},
+  toggleLoop(){this.isLooping=!this.isLooping;this.updateToggleControls();this.saveLocal();},
+  toggleSmooth(){this.isSmooth=!this.isSmooth;this.updateToggleControls();this.saveLocal();},
+  toggleOnion(){this.showOnion=!this.showOnion;this.updateToggleControls();this.render();this.saveLocal();},
+  togglePivots(){this.showPivots=!this.showPivots;this.updateToggleControls();this.render();this.saveLocal();},
 
   // ── Frames ────────────────────────────────────────────────────
-  prevFrame(){if(this.frames.length>0&&this.currentFrameIndex>0)this.loadFrame(this.currentFrameIndex-1);},
-  nextFrame(){if(this.frames.length>0&&this.currentFrameIndex<this.frames.length-1)this.loadFrame(this.currentFrameIndex+1);},
+  prevFrame(){if(this.frames.length>0&&this.currentFrameIndex>0){this.loadFrame(this.currentFrameIndex-1);this.scrollToFrame(this.currentFrameIndex);}},
+  nextFrame(){if(this.frames.length>0&&this.currentFrameIndex<this.frames.length-1){this.loadFrame(this.currentFrameIndex+1);this.scrollToFrame(this.currentFrameIndex);}},
   goToFirstFrame(){if(this.frames.length>0){this.loadFrame(0);this.scrollToFrame(0);}},
   setFrameDuration(val){
     const d=parseFloat(val);document.getElementById('duration-display').innerText=d.toFixed(1)+'×';
-    if(this.frameDelays[this.currentFrameIndex]!==undefined){this.frameDelays[this.currentFrameIndex]=d;this.updateTimeline();this.saveLocal();}
+    if(this.frameDelays[this.currentFrameIndex]!==undefined){
+      if(!this.isEditingFrameDuration)this.beginFrameDurationEdit();
+      this.frameDelays[this.currentFrameIndex]=d;this.updateFrameTimingPreview(this.currentFrameIndex);this.saveLocal();
+    }
   },
+  beginFrameDurationEdit(){if(!this.isEditingFrameDuration){this.saveState();this.isEditingFrameDuration=true;}},
+  endFrameDurationEdit(){this.isEditingFrameDuration=false;},
   addFrame(){
+    this.saveState();
     const d=this.frameDelays[this.currentFrameIndex]??1.0;
     const snap=this.figures.map(f=>f.clone());
     if(this.frames.length===0){this.frames.push(snap);this.frameDelays.push(d);this.currentFrameIndex=0;}
     else{this.frames.splice(this.currentFrameIndex+1,0,snap);this.frameDelays.splice(this.currentFrameIndex+1,0,d);this.currentFrameIndex++;}
+    this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);
     this.updateTimeline();this.render();this.scrollToFrame(this.currentFrameIndex);this.saveLocal();
   },
   duplicateCurrentFrame(){if(this.frames.length===0)return;this.duplicateFrameAtIndex(this.currentFrameIndex);},
@@ -1742,7 +2137,7 @@ const app={
     if(idx<0||idx>=this.frames.length)return;this.saveState();
     const snap=this.frames[idx].map(f=>f.clone());const d=this.frameDelays[idx];
     this.frames.splice(idx+1,0,snap);this.frameDelays.splice(idx+1,0,d);
-    this.currentFrameIndex=idx+1;this.loadFrame(this.currentFrameIndex);this.updateTimeline();this.saveLocal();
+    this.currentFrameIndex=idx+1;this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);this.loadFrame(this.currentFrameIndex);this.updateTimeline();this.saveLocal();
   },
   deleteFrameAtIndex(idx){
     if(this.frames.length===0)return;this.saveState();
@@ -1750,7 +2145,7 @@ const app={
     this.frames.splice(idx,1);this.frameDelays.splice(idx,1);
     if(this.currentFrameIndex===idx){if(this.currentFrameIndex>=this.frames.length)this.currentFrameIndex=this.frames.length-1;}
     else if(this.currentFrameIndex>idx)this.currentFrameIndex--;
-    this.loadFrame(this.currentFrameIndex,false);this.updateTimeline();this.saveLocal();
+    this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);this.loadFrame(this.currentFrameIndex,false);this.updateTimeline();this.saveLocal();
   },
   deleteFrame(){
     if(this.frames.length===0)return;
@@ -1827,45 +2222,98 @@ const app={
     this.figures=interp;if(draw)this.render();
   },
   updateFps(v){this.fps=parseInt(v);document.getElementById('fps-val').innerText=v;this.saveLocal();},
-  saveProject(){const d={version:3,width:this.docWidth,height:this.docHeight,fps:this.fps,frames:this.frames,delays:this.frameDelays,groups:this.groups};const b=new Blob([JSON.stringify(d)],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='project.json';a.click();},
-  loadProject(i){if(i.files&&i.files[0]){this.stop();this.saveState();const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.width){document.getElementById('canvas-w').value=d.width;document.getElementById('canvas-h').value=d.height;this.setCanvasSize();}if(d.fps)this.updateFps(d.fps);this.frames=d.frames.map(fd=>fd.map(figd=>{const fig=new Figure();Object.assign(fig,figd);fig.joints=figd.joints.map(jd=>{const j=new Joint();Object.assign(j,jd);return j;});return fig;}));if(d.delays)this.frameDelays=d.delays;else this.frameDelays=new Array(this.frames.length).fill(1.0);if(d.groups)this.groups=d.groups.map(g=>new FigureGroup(g.id,g.figureIds,g.label));else this.groups=[];this.currentFrameIndex=0;this.loadFrame(0);this.updateTimeline();this.updateGroupsPanel();this.undoStack=[];this.redoStack=[];this.saveLocal();}catch(err){alert('Error: '+err);}};r.readAsText(i.files[0]);}},
+  projectFilename(){return this.projectName.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'stickmotion-project';},
+  saveProject(){
+    const b=new Blob([JSON.stringify(this.serializeProject())],{type:'application/json'});
+    const filename=this.projectFilename()+'.json';
+    const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;a.click();
+    setTimeout(()=>URL.revokeObjectURL(u),1000);this.showToast(`Saved ${filename}`);
+  },
+  loadProject(i){
+    if(!i.files||!i.files[0])return;
+    const file=i.files[0];
+    if(file.size>MAX_PROJECT_FILE_BYTES){this.showToast('This project file is too large to open.','error');i.value='';return;}
+    this.stop();this.saveState();const r=new FileReader();
+    r.onload=e=>{try{this.applyProjectData(JSON.parse(e.target.result));this.history.clear();this.saveLocal();this.showToast(`Opened ${this.projectName}`);}catch(err){console.error(err);this.showToast('This project file could not be opened.','error');}finally{i.value='';}};
+    r.onerror=()=>{this.showToast('This project file could not be read.','error');i.value='';};r.readAsText(file);
+  },
 
   exportFrame(){
     const wasPlaying=this.isPlaying;if(wasPlaying)this.stop();
     const exportCanvas=this.renderFrameToCtx(false);
-    const name='stickmotion-frame-'+String(this.currentFrameIndex+1).padStart(3,'0')+'.png';
+    const name=this.projectFilename()+'-frame-'+String(this.currentFrameIndex+1).padStart(3,'0')+'.png';
     const download=(url)=>{
       const a=document.createElement('a');a.href=url;a.download=name;a.click();
       setTimeout(()=>URL.revokeObjectURL(url),1000);
       this.render();
-      this.showToast('Frame exported');
+      this.showToast(`Exported ${name}`);
     };
     if(exportCanvas.toBlob){
-      exportCanvas.toBlob(blob=>{if(blob)download(URL.createObjectURL(blob));else{this.render();alert('Frame export failed.');}},'image/png');
+      exportCanvas.toBlob(blob=>{if(blob)download(URL.createObjectURL(blob));else{this.render();this.showToast('Frame export failed.','error');}},'image/png');
     }else{
       const a=document.createElement('a');a.href=exportCanvas.toDataURL('image/png');a.download=name;a.click();
-      this.render();this.showToast('Frame exported');
+      this.render();this.showToast(`Exported ${name}`);
     }
   },
 
+  updateGifExportProgress(progress,message){
+    document.getElementById('gif-export-progress-bar').style.width=Math.round(Math.max(0,Math.min(1,progress))*100)+'%';
+    document.getElementById('gif-export-status').textContent=message;
+  },
+  finishGifExport(session){
+    if(this.gifExport!==session)return false;
+    this.gifExport=null;
+    document.getElementById('loading-modal').classList.remove('show');
+    document.getElementById('btn-export-gif').disabled=false;
+    this.currentFrameIndex=session.originalIndex;this.figures=session.originalFigures;this.render();
+    if(session.opener&&typeof session.opener.focus==='function')session.opener.focus();
+    return true;
+  },
+  cancelGifExport(){
+    const session=this.gifExport;if(!session)return;
+    session.cancelled=true;
+    try{if(session.gif&&typeof session.gif.abort==='function')session.gif.abort();}catch(err){console.warn('GIF export cancellation could not stop the encoder.',err);}
+    if(this.finishGifExport(session))this.showToast('GIF export cancelled');
+  },
   async exportGif(){
+    if(this.gifExport)return;
+    this.commitActiveFrame();
     if(this.frames.length===0)return;
+    if(this.isPlaying)this.stop();
+    const session={cancelled:false,gif:null,originalIndex:this.currentFrameIndex,originalFigures:this.figures,opener:document.activeElement};
+    this.gifExport=session;
     document.getElementById('loading-modal').classList.add('show');
+    document.getElementById('btn-export-gif').disabled=true;
+    this.updateGifExportProgress(0,'Preparing frames…');
+    document.getElementById('gif-export-cancel').focus();
     try{
-      const res=await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
-      const blob=await res.blob();const url=URL.createObjectURL(blob);
-      const gif=new GIF({workers:2,quality:10,width:this.docWidth,height:this.docHeight,workerScript:url});
-      const wasPlaying=this.isPlaying;if(wasPlaying)this.stop();
-      const origIdx=this.currentFrameIndex;const origFigs=this.figures;
+      if(typeof GIF!=='function')throw new Error('The local GIF encoder is unavailable.');
+      const gif=new GIF({workers:2,quality:10,width:this.docWidth,height:this.docHeight,workerScript:'vendor/gif.worker.js'});
+      session.gif=gif;
       const baseDelay=1000/this.fps;
       for(let i=0;i<this.frames.length;i++){
+        if(session.cancelled)return;
         const dm=this.frameDelays[i]||1.0;const steps=this.isSmooth?Math.max(1,Math.round(5*dm)):1;const stepDelay=(baseDelay*dm)/steps;const fA=this.frames[i];const nextIdx=(i+1)%this.frames.length;
         if(!this.isLooping&&i===this.frames.length-1){this.figures=fA.map(f=>f.clone());const c=this.renderFrameToCtx();gif.addFrame(c.getContext('2d'),{copy:true,delay:baseDelay*dm});}
         else{const fB=this.frames[nextIdx];for(let s=0;s<steps;s++){let t=s/steps;if(!this.isSmooth)t=0;this.renderInterpolated(fA,fB,t,false);const c=this.renderFrameToCtx(false);gif.addFrame(c.getContext('2d'),{copy:true,delay:stepDelay});if(!this.isSmooth)break;}}
+        this.updateGifExportProgress((i+1)/this.frames.length*0.1,`Preparing frame ${i+1} of ${this.frames.length}…`);
+        await new Promise(resolve=>requestAnimationFrame(resolve));
       }
-      gif.on('finished',b=>{document.getElementById('loading-modal').classList.remove('show');const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='animation.gif';a.click();this.currentFrameIndex=origIdx;this.figures=origFigs;this.render();});
+      if(session.cancelled)return;
+      gif.on('progress',progress=>{if(this.gifExport===session&&!session.cancelled)this.updateGifExportProgress(0.1+progress*0.9,`Encoding GIF: ${Math.round(progress*100)}%`);});
+      gif.on('finished',blob=>{
+        if(this.gifExport!==session||session.cancelled)return;
+        const name=this.projectFilename()+'.gif';
+        if(!this.finishGifExport(session))return;
+        const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+        this.showToast(`Exported ${name}`);
+      });
       gif.render();
-    }catch(err){document.getElementById('loading-modal').classList.remove('show');alert('GIF Error.');}
+    }catch(err){
+      if(session.cancelled)return;
+      console.error(err);
+      if(this.finishGifExport(session))this.showToast('GIF export failed. Please try again.','error');
+    }
   },
   renderFrameToCtx(h=false){
     const c=document.createElement('canvas');c.width=this.docWidth;c.height=this.docHeight;
@@ -1874,24 +2322,22 @@ const app={
   },
   renderDocumentToCtx(ctx,h=false){
     const oldCtx=this.ctx;this.ctx=ctx;
-    ctx.fillStyle='#ffffff';ctx.fillRect(0,0,this.docWidth,this.docHeight);
-    if(this.bgImage)ctx.drawImage(this.bgImage,0,0,this.docWidth,this.docHeight);
-    this.figures.forEach(f=>{f.updatePositions();this.drawFigure(f,h);});
-    this.ctx=oldCtx;
+    try{renderDocument({context:ctx,width:this.docWidth,height:this.docHeight,backgroundImage:this.bgImage,figures:this.figures,showHandles:h,drawFigure:(figure,showHandles)=>this.drawFigure(figure,showHandles)});}finally{this.ctx=oldCtx;}
   },
 
   // ── Pos helpers ───────────────────────────────────────────────
-  getPos(e,isTouch){const r=this.canvas.getBoundingClientRect();let cx=isTouch?e.touches[0].clientX:e.clientX,cy=isTouch?e.touches[0].clientY:e.clientY;return{x:(cx-r.left)*(this.canvas.width/r.width)-this.stagePadding,y:(cy-r.top)*(this.canvas.height/r.height)-this.stagePadding};},
-  getWrapperPos(e,isTouch){const w=document.getElementById('canvas-area');const r=w.getBoundingClientRect();let cx=isTouch?e.touches[0].clientX:e.clientX,cy=isTouch?e.touches[0].clientY:e.clientY;return{x:cx-r.left+w.scrollLeft,y:cy-r.top+w.scrollTop};},
-  distToSegment(p,v,w){const l2=Math.pow(v.x-w.x,2)+Math.pow(v.y-w.y,2);if(l2===0)return Math.hypot(p.x-v.x,p.y-v.y);let t=((p.x-v.x)*(w.x-v.x)+(p.y-v.y)*(w.y-v.y))/l2;t=Math.max(0,Math.min(1,t));return Math.hypot(p.x-(v.x+t*(w.x-v.x)),p.y-(v.y+t*(w.y-v.y)));},
+  getPos(e,isTouch){return getCanvasPosition(this.canvas,e,isTouch,this.stagePadding);},
+  getWrapperPos(e,isTouch){return getWrapperPosition(document.getElementById('canvas-area'),e,isTouch);},
+  distToSegment(p,v,w){return distanceToSegment(p,v,w);},
   pointInSpeechBubble(fig,pos){
+    return isPointInSpeechBubble(fig,pos);/*
     if(fig.type!=='speech')return false;
     const handle=fig.joints.find(j=>j.id==='handle');
     let angle=0,scale=fig.scale||1;
     if(handle){const dx=handle.x-fig.x,dy=handle.y-fig.y;angle=Math.atan2(dy,dx);scale=Math.max(0.1,Math.hypot(dx,dy)/40);}
     const dx=pos.x-fig.x,dy=pos.y-fig.y,cos=Math.cos(angle),sin=Math.sin(angle);
     const lx=(cos*dx+sin*dy)/scale,ly=(-sin*dx+cos*dy)/scale;
-    return (lx>=-90&&lx<=90&&ly>=-47&&ly<=47)||(lx>=-72&&lx<=-10&&ly>=36&&ly<=77);
+    return (lx>=-90&&lx<=90&&ly>=-47&&ly<=47)||(lx>=-72&&lx<=-10&&ly>=36&&ly<=77);*/
   },
   updateFreeJointFromPos(fig,joint,pos){
     const handle=fig.joints.find(j=>j.id==='handle');
@@ -1904,100 +2350,68 @@ const app={
 
   // ── Interaction ───────────────────────────────────────────────
   handleStart(e,isTouch){
-    if(this.isPlaying)return;if(isTouch)e.preventDefault();
+    if(this.isPlaying||(!isTouch&&e.button!==0))return;if(isTouch)e.preventDefault();
     const pos=this.getPos(e,isTouch);const isCtrl=e.ctrlKey||e.metaKey;
-    // Joint handles
-    for(let i=this.figures.length-1;i>=0;i--){
-      const fig=this.figures[i];fig.updatePositions();
-      const root=fig.joints.find(j=>j.parentId===null);
-      if(Math.hypot(pos.x-root.x,pos.y-root.y)<(this.handleRadius+10)){
-        this.saveState();
+    const target=findDragTarget({figures:this.figures,position:pos,handleRadius:this.handleRadius,distanceToSegment:(point,start,end)=>this.distToSegment(point,start,end),isPointInSpeechBubble:(fig,point)=>this.pointInSpeechBubble(fig,point)});
+    if(target){
+      this.saveState();
+      if(target.type==='root'){
+        const fig=target.figure;
         if(isCtrl){if(this.selectedFigureIds.has(fig.id))this.selectedFigureIds.delete(fig.id);else this.selectedFigureIds.add(fig.id);fig.selected=this.selectedFigureIds.has(fig.id);}
-        else{if(!this.selectedFigureIds.has(fig.id)){this.selectedFigureIds.clear();this.selectFigure(fig);}this.dragTarget={figure:fig,type:'root',joint:root,offsetX:pos.x-fig.x,offsetY:pos.y-fig.y};}
-        this.updateGroupPanel();this.render();return;
-      }
-      for(let j of fig.joints){
-        if(j.parentId===null)continue;
-        if(Math.hypot(pos.x-j.x,pos.y-j.y)<(this.handleRadius+10)){
-          this.saveState();this.dragTarget={figure:fig,type:'joint',joint:j};
-          if(!isCtrl){this.selectedFigureIds.clear();this.selectFigure(fig);}
-          this.updateGroupPanel();this.render();return;
-        }
-      }
-    }
-    // Speech bubble body
-    for(let i=this.figures.length-1;i>=0;i--){
-      const fig=this.figures[i];fig.updatePositions();
-      if(this.pointInSpeechBubble(fig,pos)){
-        this.saveState();
-        if(isCtrl){if(this.selectedFigureIds.has(fig.id))this.selectedFigureIds.delete(fig.id);else this.selectedFigureIds.add(fig.id);fig.selected=this.selectedFigureIds.has(fig.id);}
-        else{if(!this.selectedFigureIds.has(fig.id)){this.selectedFigureIds.clear();this.selectFigure(fig);}const root=fig.joints.find(x=>x.parentId===null);this.dragTarget={figure:fig,type:'root',joint:root,offsetX:pos.x-fig.x,offsetY:pos.y-fig.y};}
-        this.updateGroupPanel();this.render();return;
-      }
-    }
-    // Segment body
-    for(let i=this.figures.length-1;i>=0;i--){
-      const fig=this.figures[i];
-      for(let j of fig.joints){
-        if(!j.parentId)continue;const parent=fig.joints.find(p=>p.id===j.parentId);if(!parent)continue;
-        const dist=this.distToSegment(pos,{x:parent.x,y:parent.y},{x:j.x,y:j.y});
-        if(dist<(j.thickness||14)*fig.scale/2+5){
-          this.saveState();
-          if(isCtrl){if(this.selectedFigureIds.has(fig.id))this.selectedFigureIds.delete(fig.id);else this.selectedFigureIds.add(fig.id);fig.selected=this.selectedFigureIds.has(fig.id);}
-          else{if(!this.selectedFigureIds.has(fig.id)){this.selectedFigureIds.clear();this.selectFigure(fig);}const root=fig.joints.find(x=>x.parentId===null);this.dragTarget={figure:fig,type:'root',joint:root,offsetX:pos.x-fig.x,offsetY:pos.y-fig.y};}
-          this.updateGroupPanel();this.render();return;
-        }
-      }
+        else{if(!this.selectedFigureIds.has(fig.id)){this.selectedFigureIds.clear();this.selectFigure(fig);}this.dragTarget=target;}
+      }else{this.dragTarget=target;if(!isCtrl){this.selectedFigureIds.clear();this.selectFigure(target.figure);}}
+      this.syncSelectionUI();this.render();return;
     }
     // Miss — marquee or deselect
     if(!isCtrl){this.selectedFigureIds.clear();this.deselectAll();}
     const wpos=this.getWrapperPos(e,isTouch);
-    this.marquee={active:true,startX:wpos.x,startY:wpos.y,endX:wpos.x,endY:wpos.y};
-    const m=document.getElementById('marquee');m.style.display='block';m.style.left=wpos.x+'px';m.style.top=wpos.y+'px';m.style.width='0';m.style.height='0';
+    this.marquee=beginMarquee(wpos);
+    showMarqueeElement(document.getElementById('marquee'),this.marquee);
     this.render();
   },
   handleMove(e,isTouch){
     const pos=this.getPos(e,isTouch);
-    if(!isTouch&&!this.dragTarget&&!this.isPlaying){let h=false;for(const f of this.figures){f.updatePositions();for(const j of f.joints){if(Math.hypot(pos.x-j.x,pos.y-j.y)<this.handleRadius*2){h=true;break;}}}this.canvas.style.cursor=h?'pointer':'crosshair';}
+    if(!isTouch&&!this.dragTarget&&!this.isPlaying)updateCursor(this.canvas,this.figures,pos,this.handleRadius);
     if(this.marquee.active&&!this.dragTarget){
       if(isTouch&&e.cancelable)e.preventDefault();
-      const wpos=this.getWrapperPos(e,isTouch);this.marquee.endX=wpos.x;this.marquee.endY=wpos.y;
-      const m=document.getElementById('marquee');const x=Math.min(this.marquee.startX,wpos.x),y=Math.min(this.marquee.startY,wpos.y);
-      m.style.left=x+'px';m.style.top=y+'px';m.style.width=Math.abs(wpos.x-this.marquee.startX)+'px';m.style.height=Math.abs(wpos.y-this.marquee.startY)+'px';
+      updateMarqueeElement(document.getElementById('marquee'),this.marquee,this.getWrapperPos(e,isTouch));
       return;
     }
     if(!this.dragTarget)return;if(isTouch&&e.cancelable)e.preventDefault();
     if(this.dragTarget.type==='root'){
-      const fig=this.dragTarget.figure;const newX=pos.x-this.dragTarget.offsetX,newY=pos.y-this.dragTarget.offsetY;const dx=newX-fig.x,dy=newY-fig.y;
-      if(fig.groupId){const group=this.groups.find(g=>g.id===fig.groupId);if(group){group.figureIds.forEach(fid=>{const gf=this.figures.find(f=>f.id===fid);if(gf){gf.x+=dx;gf.y+=dy;}});}}
-      else if(this.selectedFigureIds.size>1){this.selectedFigureIds.forEach(fid=>{const gf=this.figures.find(f=>f.id===fid);if(gf){gf.x+=dx;gf.y+=dy;}});}
-      else{fig.x=newX;fig.y=newY;}
-    }else{
-      const joint=this.dragTarget.joint;const fig=this.dragTarget.figure;const parent=fig.joints.find(j=>j.id===joint.parentId);
-      if(fig.type==='speech'&&joint.id==='tail')this.updateFreeJointFromPos(fig,joint,pos);
-      else if(parent){const newA=Math.atan2(pos.y-parent.y,pos.x-parent.x);const delta=newA-joint.angle;joint.angle=newA;this.rotateHierarchy(fig,joint.id,delta);}
-    }
+      moveRootDrag({target:this.dragTarget,position:pos,figures:this.figures,groups:this.groups,selectedIds:this.selectedFigureIds});
+    }else moveJointDrag({target:this.dragTarget,position:pos,updateFreeJoint:(fig,joint,nextPos)=>this.updateFreeJointFromPos(fig,joint,nextPos),rotateHierarchy:(fig,jointId,delta)=>this.rotateHierarchy(fig,jointId,delta)});
     this.render();
   },
   handleEnd(e){
     if(this.marquee.active){
-      this.marquee.active=false;document.getElementById('marquee').style.display='none';
       const ca=this.canvas;const cr=ca.getBoundingClientRect();const wa=document.getElementById('canvas-area');const wr=wa.getBoundingClientRect();
-      const mx1=Math.min(this.marquee.startX,this.marquee.endX),my1=Math.min(this.marquee.startY,this.marquee.endY);
-      const mx2=Math.max(this.marquee.startX,this.marquee.endX),my2=Math.max(this.marquee.startY,this.marquee.endY);
-      const ox=cr.left-wr.left+wa.scrollLeft,oy=cr.top-wr.top+wa.scrollTop;
-      const sx=this.canvas.width/cr.width,sy=this.canvas.height/cr.height;
-      const cx1=(mx1-ox)*sx-this.stagePadding,cy1=(my1-oy)*sy-this.stagePadding,cx2=(mx2-ox)*sx-this.stagePadding,cy2=(my2-oy)*sy-this.stagePadding;
-      if(cx2-cx1>4||cy2-cy1>4){this.figures.forEach(f=>{f.updatePositions();const root=f.joints.find(j=>j.parentId===null);if(root&&root.x>=cx1&&root.x<=cx2&&root.y>=cy1&&root.y<=cy2){this.selectedFigureIds.add(f.id);f.selected=true;}});this.updateGroupPanel();this.render();}
+      const bounds=marqueeCanvasBounds({marquee:this.marquee,canvasRect:cr,wrapperRect:wr,scrollLeft:wa.scrollLeft,scrollTop:wa.scrollTop,canvasWidth:this.canvas.width,canvasHeight:this.canvas.height,stagePadding:this.stagePadding});
+      endMarquee(document.getElementById('marquee'),this.marquee);
+      const cx1=bounds.left,cy1=bounds.top,cx2=bounds.right,cy2=bounds.bottom;
+      if(isMeaningfulMarquee(this.marquee)){this.figures.forEach(f=>{f.updatePositions();const root=f.joints.find(j=>j.parentId===null);if(root&&root.x>=cx1&&root.x<=cx2&&root.y>=cy1&&root.y<=cy2){this.selectedFigureIds.add(f.id);f.selected=true;}});this.syncSelectionUI();this.render();}
     }
     this.dragTarget=null;this.saveLocal();
   },
   rotateHierarchy(fig,pid,delta){fig.joints.forEach(j=>{if(j.parentId===pid){j.angle+=delta;this.rotateHierarchy(fig,j.id,delta);}});},
 
   // ── Selection ─────────────────────────────────────────────────
+  syncSelectionUI(){
+    const ids=this._getSelectedFigureIds().filter(id=>this.figures.some(f=>f.id===id));
+    if(ids.length===0){this.deselectAll();return;}
+    if(ids.length===1){const fig=this.figures.find(f=>f.id===ids[0]);if(fig)this.selectFigure(fig);return;}
+    this.selectedFigureIds=new Set(ids);this.figures.forEach(f=>f.selected=this.selectedFigureIds.has(f.id));
+    document.getElementById('panel-figure-controls').className='panel-inactive';
+    document.getElementById('panel-text-section').style.display='none';
+    document.getElementById('panel-sel-dot').style.background='var(--accent)';
+    document.getElementById('panel-sel-label').style.color='var(--text)';
+    document.getElementById('panel-sel-label').textContent=`${ids.length} figures selected`;
+    this.updateGroupPanel();
+  },
   selectFigure(fig){
     this.figures.forEach(f=>f.selected=false);fig.selected=true;
     this.selectedFigureIds.clear();this.selectedFigureIds.add(fig.id);
+    this.setTool('select');
     document.getElementById('color-picker').value=fig.color;
     document.getElementById('color-dot').style.background=fig.color;
     document.querySelectorAll('.color-swatch').forEach(s=>s.classList.toggle('active',s.style.background===fig.color||this.rgbToHex(s.style.background)===fig.color));
@@ -2021,7 +2435,7 @@ const app={
     // Selection badge reset
     document.getElementById('panel-sel-dot').style.background='var(--text3)';
     document.getElementById('panel-sel-label').style.color='var(--text3)';
-    document.getElementById('panel-sel-label').textContent='No figure selected';
+    document.getElementById('panel-sel-label').textContent='Select a figure on the stage';
     this.updateGroupPanel();
   },
 
@@ -2047,26 +2461,16 @@ const app={
     this.ctx.fillStyle='#ffffff';this.ctx.fillRect(this.stagePadding,this.stagePadding,this.docWidth,this.docHeight);
     if(this.bgImage)this.ctx.drawImage(this.bgImage,this.stagePadding,this.stagePadding,this.docWidth,this.docHeight);
     this.ctx.save();this.ctx.translate(this.stagePadding,this.stagePadding);
-    if(this.showOnion&&!this.isPlaying&&this.frames.length>0){
-      const cF=this.frames[this.currentFrameIndex];
-      let pF=cF&&this.figuresChangedForOnion(cF,this.figures)?cF:null;
-      if(!pF&&this.currentFrameIndex>0)pF=this.frames[this.currentFrameIndex-1];
-      if(pF){this.ctx.globalAlpha=0.25;pF.forEach(f=>{f.updatePositions();this.drawFigure(f,false);});this.ctx.globalAlpha=1.0;}
+    if(this.showOnion&&!this.isPlaying&&this.currentFrameIndex>0){
+      const previousFrame=this.frames[this.currentFrameIndex-1];
+      if(previousFrame){this.ctx.globalAlpha=0.25;previousFrame.forEach(f=>{f.updatePositions();this.drawFigure(f,false);});this.ctx.globalAlpha=1.0;}
     }
     const showEditing=this.showPivots&&!this.isPlaying;
     this.figures.forEach(f=>{f.updatePositions();this.drawFigure(f,showEditing);});
     if(showEditing)this.drawGroupBounds();
     this.ctx.restore();
     this.ctx.strokeStyle='rgba(255,255,255,0.25)';this.ctx.lineWidth=1;this.ctx.strokeRect(this.stagePadding-0.5,this.stagePadding-0.5,this.docWidth+1,this.docHeight+1);
-  },
-  figuresChangedForOnion(a,b){
-    if(!a||!b||a.length!==b.length)return true;
-    const near=(x,y)=>Math.abs((x||0)-(y||0))<0.01;
-    return a.some((fa,i)=>{
-      const fb=b[i];if(!fb||fa.type!==fb.type||!near(fa.x,fb.x)||!near(fa.y,fb.y)||!near(fa.scale,fb.scale))return true;
-      if((fa.text||'')!==(fb.text||'')||fa.joints.length!==fb.joints.length)return true;
-      return fa.joints.some((ja,j)=>{const jb=fb.joints[j];return !jb||ja.id!==jb.id||ja.parentId!==jb.parentId||ja.type!==jb.type||!near(ja.length,jb.length)||!near(ja.angle,jb.angle)||!near(ja.radius,jb.radius)||!near(ja.thickness,jb.thickness)||ja.filled!==jb.filled;});
-    });
+    this.scheduleActiveThumbnailRefresh();
   },
   drawGroupBounds(){
     this.groups.forEach(g=>{
@@ -2173,6 +2577,37 @@ const app={
   },
 
   // ── Timeline ──────────────────────────────────────────────────
+  renderTimelineThumbnail(canvas,figures){
+    const context=canvas.getContext('2d');
+    context.setTransform(1,0,0,1,0,0);context.clearRect(0,0,canvas.width,canvas.height);
+    context.fillStyle='#fff';context.fillRect(0,0,canvas.width,canvas.height);
+    const scale=Math.min(canvas.width/this.docWidth,canvas.height/this.docHeight);
+    const offsetX=(canvas.width-this.docWidth*scale)/2,offsetY=(canvas.height-this.docHeight*scale)/2;
+    context.save();context.translate(offsetX,offsetY);context.scale(scale,scale);
+    if(this.bgImage)context.drawImage(this.bgImage,0,0,this.docWidth,this.docHeight);
+    const stageContext=this.ctx;
+    try{
+      this.ctx=context;
+      figures.forEach(figure=>{figure.updatePositions();this.drawFigure(figure,false);});
+    }finally{this.ctx=stageContext;context.restore();}
+  },
+  scheduleActiveThumbnailRefresh(){
+    if(this.isPlaying||this._thumbnailRefreshQueued)return;
+    this._thumbnailRefreshQueued=true;
+    requestAnimationFrame(()=>{
+      this._thumbnailRefreshQueued=false;
+      const thumb=document.querySelector(`.frame-thumb[data-frame-index="${this.currentFrameIndex}"] canvas`);
+      if(thumb)this.renderTimelineThumbnail(thumb,this.figures);
+    });
+  },
+  updateFrameTimingPreview(index){
+    const thumb=document.querySelector(`.frame-thumb[data-frame-index="${index}"]`);if(!thumb)return;
+    const delay=this.frameDelays[index]||1;
+    let badge=thumb.querySelector('.frame-delay');
+    if(delay>1){if(!badge){badge=document.createElement('div');badge.className='frame-delay';thumb.appendChild(badge);}badge.classList.add('show');badge.textContent=delay.toFixed(1)+'×';}
+    else if(badge)badge.remove();
+    const bar=thumb.querySelector('.frame-dur-bar');if(bar)bar.style.width=Math.max(8,(delay/10)*100)+'%';
+  },
   updateTimeline(){
     const track=document.getElementById('timeline-track');
     const addBtn=document.getElementById('add-frame-tl');
@@ -2183,7 +2618,12 @@ const app={
       const delay=this.frameDelays[idx]||1.0;
       const thumb=document.createElement('div');
       thumb.className='frame-thumb'+(isActive?' active':'')+(this.selectedFrames.has(idx)?' selected':'');
+      thumb.dataset.frameIndex=idx;
       thumb.onclick=e=>this.loadFrame(idx,true,e);
+      thumb.tabIndex=0;
+      thumb.setAttribute('role','button');
+      thumb.setAttribute('aria-label',`Frame ${idx+1}${isActive?', current frame':''}`);
+      thumb.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();this.loadFrame(idx,true,e);}};
       thumb.draggable=true;
       thumb.ondragstart=e=>{this._dragFromIdx=idx;e.dataTransfer.effectAllowed='move';};
       thumb.ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect='move';};
@@ -2197,24 +2637,16 @@ const app={
 
       // Mini canvas
       const cv=document.createElement('canvas');cv.width=92;cv.height=68;cv.style.width='100%';cv.style.height='100%';
-      const ctx=cv.getContext('2d');
-      ctx.fillStyle='#fff';ctx.fillRect(0,0,92,68);
-      const sc=Math.min(92/this.docWidth,68/this.docHeight);
-      ctx.save();ctx.scale(sc,sc);
-      frame.forEach(fig=>{
-        fig.updatePositions();ctx.lineWidth=10*fig.scale;ctx.lineCap='round';
-        fig.joints.forEach(j=>{if(!j.parentId)return;const p=fig.joints.find(x=>x.id===j.parentId);if(!p)return;const c=j.color||fig.color;ctx.strokeStyle=c;ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(j.x,j.y);ctx.stroke();if(j.type===SEGMENT_CIRCLE){ctx.beginPath();ctx.arc(j.x,j.y,j.radius*fig.scale,0,Math.PI*2);if(j.filled!==false)ctx.fill();else ctx.stroke();}});
-      });
-      ctx.restore();thumb.appendChild(cv);
+      this.renderTimelineThumbnail(cv,isActive?this.figures:frame);thumb.appendChild(cv);
 
       // Frame number
       const num=document.createElement('div');num.className='frame-num';num.innerText=idx+1;thumb.appendChild(num);
 
       // Frame actions
       const acts=document.createElement('div');acts.className='frame-actions';
-      const dupB=document.createElement('button');dupB.className='fa-btn dup';dupB.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
+      const dupB=document.createElement('button');dupB.type='button';dupB.className='fa-btn dup';dupB.setAttribute('aria-label',`Duplicate frame ${idx+1}`);dupB.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
       dupB.title='Duplicate';dupB.onclick=e=>{e.stopPropagation();this.duplicateFrameAtIndex(idx);};
-      const delB=document.createElement('button');delB.className='fa-btn del';delB.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+      const delB=document.createElement('button');delB.type='button';delB.className='fa-btn del';delB.setAttribute('aria-label',`Delete frame ${idx+1}`);delB.innerHTML='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>';
       delB.title='Delete';delB.onclick=e=>{e.stopPropagation();this.deleteFrameAtIndex(idx);};
       acts.appendChild(dupB);acts.appendChild(delB);thumb.appendChild(acts);
 
@@ -2240,6 +2672,8 @@ const app={
   scrollToFrame(i){const thumbs=document.querySelectorAll('.frame-thumb');if(thumbs[i])thumbs[i].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}
 };
 
+window.app=app;
+window.builder=builder;
 window.onload=()=>app.init();
 </script>
 </body>
