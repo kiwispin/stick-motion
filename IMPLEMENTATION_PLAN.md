@@ -319,6 +319,11 @@ Turn StickMotion into a dependable, accessible, classroom-ready animation editor
 - Added browser coverage at 768px for no top-bar horizontal overflow, each compact action’s reachability, Help dialog launch, and Escape dismissal.
 - All twenty-one browser and module regression tests pass.
 
+### Released — GitHub Pages
+
+- Published the verified StickMotion build to the `main` branch, which GitHub Pages serves from the repository root.
+- Confirmed the GitHub Pages build for commit `6be67dc` completed successfully at `https://kiwispin.github.io/stick-motion/`.
+
 ### Next
 
 Close the remaining original-audit usability gaps with Pivot compatibility preserved, beginning with reviewing transport/navigation controls and identifying only changes that improve clarity without changing established shortcuts.
