@@ -743,7 +743,7 @@
 
   <div class="top-divider"></div>
 
-  <input id="project-name" class="project-name-input" type="text" maxlength="80" value="Untitled animation" aria-label="Project name" title="Project name" oninput="app.setProjectName(this.value)">
+  <input id="project-name" class="project-name-input" type="text" maxlength="80" value="Untitled animation" aria-label="Project name" title="Project name" oninput="app.setProjectName(this.value)" onblur="app.finalizeProjectName()">
 
   <div class="storage-indicator" id="storage-indicator" title="Your work is saved in this browser">
     <div class="storage-dot"></div>
@@ -1552,10 +1552,17 @@ const app={
     }catch(e){console.error(e);return false;}
   },
   setProjectName(value){
-    const name=String(value).replace(/[\u0000-\u001F]/g,'').trim().slice(0,80)||'Untitled animation';
-    this.projectName=name;
-    const input=document.getElementById('project-name');if(input&&input.value!==name)input.value=name;
+    this.projectName=String(value).replace(/[\u0000-\u001F]/g,'').trim().slice(0,80);
+    const input=document.getElementById('project-name');if(input&&input.value!==this.projectName)input.value=this.projectName;
     this.saveLocal();
+  },
+  finalizeProjectName(){
+    if(!this.projectName){
+      const input=document.getElementById('project-name');
+      this.projectName='Untitled animation';
+      if(input)input.value=this.projectName;
+      this.saveLocal();
+    }
   },
 
   // ── Undo/Redo ─────────────────────────────────────────────────
