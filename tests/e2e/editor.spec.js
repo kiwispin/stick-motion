@@ -33,6 +33,18 @@ test('names and recovers the latest local project after reload', async ({ page }
   await expect(page.locator('#storage-indicator')).toHaveAttribute('title', /Choose New to start fresh/);
 });
 
+test('allows spaces while typing a project name', async ({ page }) => {
+  await openEditor(page);
+  const projectName = page.locator('#project-name');
+  await projectName.fill('Rocket');
+  await projectName.press('Space');
+  await expect(projectName).toHaveValue('Rocket ');
+  await projectName.pressSequentially('rehearsal');
+  await expect(projectName).toHaveValue('Rocket rehearsal');
+  await projectName.press('Tab');
+  await expect(projectName).toHaveValue('Rocket rehearsal');
+});
+
 test('help provides a repeatable student quick-start walkthrough', async ({ page }) => {
   await openEditor(page);
   await page.getByRole('button', { name: 'Open help and shortcuts' }).click();

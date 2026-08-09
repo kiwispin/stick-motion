@@ -1552,17 +1552,15 @@ const app={
     }catch(e){console.error(e);return false;}
   },
   setProjectName(value){
-    this.projectName=String(value).replace(/[\u0000-\u001F]/g,'').trim().slice(0,80);
+    this.projectName=String(value).replace(/[\u0000-\u001F]/g,'').slice(0,80);
     const input=document.getElementById('project-name');if(input&&input.value!==this.projectName)input.value=this.projectName;
     this.saveLocal();
   },
   finalizeProjectName(){
-    if(!this.projectName){
-      const input=document.getElementById('project-name');
-      this.projectName='Untitled animation';
-      if(input)input.value=this.projectName;
-      this.saveLocal();
-    }
+    this.projectName=this.projectName.trim()||'Untitled animation';
+    const input=document.getElementById('project-name');
+    if(input)input.value=this.projectName;
+    this.saveLocal();
   },
 
   // ── Undo/Redo ─────────────────────────────────────────────────
