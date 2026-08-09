@@ -29,6 +29,15 @@ test('project module rebuilds validated model instances', () => {
   expect(project.frames[0][0].joints[1].parentId).toBe('root');
 });
 
+test('project module accepts and normalises accumulated multi-turn joint angles', () => {
+  const projectData = validProject();
+  projectData.frames[0][0].joints[1].angle = -8.566402320633376;
+
+  const project = normaliseProject(projectData);
+
+  expect(project.frames[0][0].joints[1].angle).toBeCloseTo(-2.2832170134537895);
+});
+
 test('project module rejects cyclic joint imports and serializes app state', () => {
   const invalid = validProject();
   invalid.frames[0][0].joints[0].parentId = 'arm';

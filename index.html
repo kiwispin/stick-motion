@@ -1261,7 +1261,7 @@
 
 <script type="module">
 import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './src/models.js';
-import { MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, clampDimension, cloneFigures, normaliseProject, serializeProject } from './src/project.js';
+import { MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
 import { History } from './src/history.js';
 import { renderDocument } from './src/renderer.js';
 import { distanceToSegment, getCanvasPosition, getWrapperPosition, isPointInSpeechBubble } from './src/canvas-interaction.js';
@@ -2400,7 +2400,7 @@ const app={
     }
     this.dragTarget=null;this.saveLocal();
   },
-  rotateHierarchy(fig,pid,delta){fig.joints.forEach(j=>{if(j.parentId===pid){j.angle+=delta;this.rotateHierarchy(fig,j.id,delta);}});},
+  rotateHierarchy(fig,pid,delta){fig.joints.forEach(j=>{if(j.parentId===pid){j.angle=normaliseAngle(j.angle+delta);this.rotateHierarchy(fig,j.id,delta);}});},
 
   // ── Selection ─────────────────────────────────────────────────
   syncSelectionUI(){
@@ -2446,10 +2446,10 @@ const app={
     this.updateGroupPanel();
   },
 
-  flipFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=Math.PI-j.angle;});this.render();this.saveLocal();},
+  flipFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=normaliseAngle(Math.PI-j.angle);});this.render();this.saveLocal();},
   centerFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.x=this.docWidth/2;f.y=this.docHeight/2;this.render();this.saveLocal();},
   scaleFigure(s){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.scale*=s;this.render();this.saveLocal();},
-  rotateSelectedFigure(d){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle+=d;});this.render();this.saveLocal();},
+  rotateSelectedFigure(d){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=normaliseAngle(j.angle+d);});this.render();this.saveLocal();},
   setFigureColor(hex){
     const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.color=hex;
     document.getElementById('color-dot').style.background=hex;

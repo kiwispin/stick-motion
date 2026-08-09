@@ -28,6 +28,13 @@ function safeNumber(value, fallback, min, max, label) {
   return number;
 }
 
+export function normaliseAngle(value, fallback = 0) {
+  if (value === undefined || value === null) return fallback;
+  const angle = Number(value);
+  if (!Number.isFinite(angle)) throw new Error('Invalid joint angle.');
+  return Math.atan2(Math.sin(angle), Math.cos(angle));
+}
+
 function safeId(value, label) {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,80}$/.test(value)) throw new Error(`Invalid ${label} id.`);
   return value;
@@ -84,7 +91,7 @@ export function rehydrateFigures(data) {
       const parentId = jointData.parentId === null || jointData.parentId === undefined ? null : safeId(jointData.parentId, 'parent');
       const type = jointData.type === undefined ? SEGMENT_LINE : jointData.type;
       if (type !== SEGMENT_LINE && type !== SEGMENT_CIRCLE) throw new Error('Invalid joint type.');
-      return new Joint(id, parentId, safeNumber(jointData.length, 0, 0, 10000, 'joint length'), safeNumber(jointData.angle, 0, -Math.PI * 2, Math.PI * 2, 'joint angle'), type, safeNumber(jointData.radius, 20, 0, 5000, 'joint radius'), safeNumber(jointData.thickness, 14, 1, 500, 'joint thickness'), jointData.filled !== false, safeColor(jointData.color, null, 'joint color'));
+      return new Joint(id, parentId, safeNumber(jointData.length, 0, 0, 10000, 'joint length'), normaliseAngle(jointData.angle), type, safeNumber(jointData.radius, 20, 0, 5000, 'joint radius'), safeNumber(jointData.thickness, 14, 1, 500, 'joint thickness'), jointData.filled !== false, safeColor(jointData.color, null, 'joint color'));
     });
     validateJointTree(figure.joints);
     return figure;

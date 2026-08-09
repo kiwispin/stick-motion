@@ -269,6 +269,32 @@ test('rejects malformed project files through the normal file-open path', async 
   await expect(page.locator('#sm-toast')).toHaveAttribute('aria-live', 'assertive');
 });
 
+test('opens projects containing accumulated multi-turn joint angles', async ({ page }) => {
+  await openEditor(page);
+  const project = {
+    version: 5,
+    name: 'Recovered student project',
+    width: 800,
+    height: 500,
+    fps: 12,
+    frames: [[{
+      id: 'figure1', x: 400, y: 300, scale: 1, color: '#000000', type: 'figure', text: '',
+      joints: [
+        { id: 'root', parentId: null, length: 0, angle: 0, type: 'line', radius: 20, thickness: 14 },
+        { id: 'arm', parentId: 'root', length: 30, angle: -8.566402320633376, type: 'line', radius: 20, thickness: 14 }
+      ]
+    }]],
+    delays: [1], currentFrameIndex: 0, groups: [], settings: {}
+  };
+  await page.locator('#load-input').setInputFiles({
+    name: 'recovered-student-project.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(project))
+  });
+  await expect(page.locator('#sm-toast')).toContainText('Opened Recovered student project');
+  await expect.poll(() => page.evaluate(() => app.frames[0][0].joints[1].angle)).toBeCloseTo(-2.2832170134537895);
+});
+
 test('compact top-bar actions remain reachable without horizontal scrolling', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 1024 });
   await openEditor(page);
