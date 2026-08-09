@@ -3,6 +3,7 @@ import { Figure } from '../../src/models.js';
 import { normaliseProject, serializeProject } from '../../src/project.js';
 import { History } from '../../src/history.js';
 import { renderDocument } from '../../src/renderer.js';
+import { createStoredZip, createSvgArtwork, pickWebmMimeType } from '../../src/export-utils.js';
 import { beginMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, updateMarqueeElement } from '../../src/drag-controller.js';
 
 function validProject() {
@@ -72,6 +73,33 @@ test('renderer module paints the document and delegates each figure', () => {
   expect(context.fillStyle).toBe('#ffffff');
   expect(calls.map(call => call[0])).toEqual(['fill', 'background', 'position', 'figure']);
   expect(calls[3][2]).toBe(true);
+});
+
+test('renderer can omit the stage and background for transparent artwork', () => {
+  const calls = [];
+  const context = { clearRect: (...args) => calls.push(['clear', ...args]), drawImage: (...args) => calls.push(['background', ...args]) };
+  renderDocument({ context, width: 800, height: 500, backgroundImage: { id: 'background' }, figures: [{ updatePositions: () => calls.push(['position']) }], transparent: true, drawFigure: () => calls.push(['figure']) });
+  expect(calls.map(call => call[0])).toEqual(['clear', 'position', 'figure']);
+});
+
+test('export utilities create vector artwork and a standards-shaped ZIP archive', async () => {
+  const figure = normaliseProject(validProject()).frames[0][0];
+  const svg = createSvgArtwork({ width: 800, height: 500, figures: [figure] });
+  expect(svg).toContain('<svg xmlns="http://www.w3.org/2000/svg"');
+  expect(svg).toContain('<line');
+  expect(svg).toContain('viewBox="0 0 800 500"');
+
+  const zip = await createStoredZip([{ name: 'frame-001.png', data: new Uint8Array([137, 80, 78, 71]) }], new Date(2026, 0, 1));
+  const bytes = new Uint8Array(await zip.arrayBuffer());
+  expect(new DataView(bytes.buffer).getUint32(0, true)).toBe(0x04034b50);
+  expect(new DataView(bytes.buffer).getUint32(bytes.length - 22, true)).toBe(0x06054b50);
+  expect(zip.type).toBe('application/zip');
+});
+
+test('WebM export chooses the best browser-supported codec', () => {
+  const recorder = { isTypeSupported: type => type.includes('vp8') || type === 'video/webm' };
+  expect(pickWebmMimeType(recorder)).toBe('video/webm;codecs=vp8');
+  expect(pickWebmMimeType(null)).toBe('');
 });
 
 test('drag controller moves selected groups, joints, and marquee bounds', () => {

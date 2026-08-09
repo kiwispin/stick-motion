@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { stat } from 'node:fs/promises';
 
 async function openEditor(page) {
   await page.goto('/index.html');
@@ -66,9 +67,47 @@ test('project handoff files use the student project name', async ({ page }) => {
   await expect(page.locator('#sm-toast')).toContainText('Saved rocket-rehearsal.json');
 
   const frameDownload = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export Frame' }).click();
+  await page.getByRole('button', { name: 'Open export options' }).click();
+  await page.getByRole('button', { name: 'Current frame PNG', exact: true }).click();
   expect((await frameDownload).suggestedFilename()).toBe('rocket-rehearsal-frame-001.png');
   await expect(page.locator('#sm-toast')).toContainText('Exported rocket-rehearsal-frame-001.png');
+});
+
+test('export menu provides transparent PNG, SVG, PNG ZIP, and WebM downloads', async ({ page }) => {
+  await openEditor(page);
+  await page.evaluate(() => { app.newProject(); app.setProjectName('Export demo'); app.isSmooth=false; app.isLooping=false; app.fps=30; app.frameDelays=[3]; });
+
+  await page.getByRole('button', { name: 'Open export options' }).click();
+  for (const name of ['GIF animation', 'Video (WebM)', 'Current frame PNG', 'Transparent PNG', 'SVG artwork', 'PNG frames ZIP']) {
+    await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
+  }
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#export-menu')).toBeHidden();
+  expect(await page.evaluate(() => app.renderFrameToCtx(false,true).getContext('2d').getImageData(0,0,1,1).data[3])).toBe(0);
+
+  let downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Open export options' }).click();
+  await page.getByRole('button', { name: 'Transparent PNG', exact: true }).click();
+  expect((await downloadPromise).suggestedFilename()).toBe('export-demo-transparent.png');
+
+  downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Open export options' }).click();
+  await page.getByRole('button', { name: 'SVG artwork', exact: true }).click();
+  expect((await downloadPromise).suggestedFilename()).toBe('export-demo-artwork.svg');
+
+  downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Open export options' }).click();
+  await page.getByRole('button', { name: 'PNG frames ZIP', exact: true }).click();
+  const zipDownload = await downloadPromise;
+  expect(zipDownload.suggestedFilename()).toBe('export-demo-png-frames.zip');
+  expect((await stat(await zipDownload.path())).size).toBeGreaterThan(100);
+
+  downloadPromise = page.waitForEvent('download', { timeout: 10_000 });
+  await page.getByRole('button', { name: 'Open export options' }).click();
+  await page.getByRole('button', { name: 'Video (WebM)', exact: true }).click();
+  const videoDownload = await downloadPromise;
+  expect(videoDownload.suggestedFilename()).toBe('export-demo.webm');
+  expect((await stat(await videoDownload.path())).size).toBeGreaterThan(100);
 });
 
 test('selection and grouping feedback gives students a clear next action', async ({ page }) => {
@@ -178,7 +217,7 @@ test('GIF export shows progress, cancels safely, and allows a later export', asy
       const beforeCancel = {
         modalVisible: document.getElementById('loading-modal').classList.contains('show'),
         status: document.getElementById('gif-export-status').textContent,
-        disabled: document.getElementById('btn-export-gif').disabled,
+        disabled: document.getElementById('btn-export').disabled,
         focusedCancel: document.activeElement.id === 'gif-export-cancel'
       };
       document.getElementById('gif-export-cancel').click();
@@ -189,7 +228,7 @@ test('GIF export shows progress, cancels safely, and allows a later export', asy
         encoderAborted: first.aborted,
         restoredX: app.figures[0].x,
         toast: document.getElementById('sm-toast').textContent,
-        exportEnabled: !document.getElementById('btn-export-gif').disabled
+        exportEnabled: !document.getElementById('btn-export').disabled
       };
       app.exportGif();
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -320,7 +359,7 @@ test('compact top-bar actions remain reachable without horizontal scrolling', as
   await page.getByRole('button', { name: 'Open project and export actions' }).click();
   await expect(page.locator('#compact-actions-menu')).toBeVisible();
   await expect(page.locator('#compact-actions-toggle')).toHaveAttribute('aria-expanded', 'true');
-  for (const name of ['New project', 'Save project', 'Open project', 'Settings', 'Help and shortcuts', 'Export current frame (PNG)', 'Export GIF']) {
+  for (const name of ['New project', 'Save project', 'Open project', 'Settings', 'Help and shortcuts', 'GIF animation', 'Video (WebM)', 'Current frame PNG', 'Transparent PNG', 'SVG artwork', 'PNG frames ZIP']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
   await page.getByRole('button', { name: 'Help and shortcuts', exact: true }).click();
@@ -367,7 +406,8 @@ test('runs with external network requests blocked and local GIF assets present',
   await expect(page.locator('script[src="vendor/gif.js"]')).toHaveCount(1);
   await expect.poll(() => page.evaluate(() => typeof GIF)).toBe('function');
   const downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Export GIF' }).click();
+  await page.getByRole('button', { name: 'Open export options' }).click();
+  await page.getByRole('button', { name: 'GIF animation', exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe('untitled-animation.gif');
   expect(externalRequests).toEqual([]);
