@@ -2,6 +2,7 @@ import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './mode
 
 export const MAX_PROJECT_FILE_BYTES = 25 * 1024 * 1024;
 export const MAX_PROJECT_FRAMES = 2000;
+export const GIF_WARNING_FRAME_COUNT = 150;
 export const MAX_FIGURES_PER_FRAME = 250;
 export const MAX_JOINTS_PER_FIGURE = 100;
 export const MAX_PROJECT_GROUPS = 250;

@@ -109,6 +109,40 @@ test('export menu provides GIF, WebM, PNG, and PNG ZIP downloads', async ({ page
   expect((await stat(await videoDownload.path())).size).toBeGreaterThan(100);
 });
 
+test('long GIF exports explain the tradeoff and offer video', async ({ page }) => {
+  await openEditor(page);
+  await page.evaluate(() => {
+    app.newProject();
+    const frame = app.frames[0].map(figure => figure.clone());
+    app.frames = Array.from({ length: 151 }, () => frame.map(figure => figure.clone()));
+    app.frameDelays = Array(151).fill(1);
+    app.__gifWarningVideoChoice = false;
+    app.exportVideo = () => { app.__gifWarningVideoChoice = true; };
+  });
+  expect(await page.evaluate(() => app.shouldWarnForGif())).toBe(true);
+
+  await page.getByRole('button', { name: 'Open export options' }).click();
+  await page.getByRole('button', { name: 'GIF animation', exact: true }).click();
+  const warning = page.getByRole('dialog', { name: 'Long GIF warning' });
+  await expect(warning).toBeVisible();
+  await expect(warning).toContainText('151 frames');
+  await expect(warning).toContainText('Google Classroom');
+  await expect(warning.getByRole('button', { name: 'Export Video (recommended)' })).toBeEnabled();
+  await expect(warning.getByRole('button', { name: 'Export GIF Anyway' })).toBeVisible();
+
+  await warning.getByRole('button', { name: 'Cancel' }).click();
+  await expect(warning).not.toBeVisible();
+  await page.evaluate(() => app.showGifWarning());
+  await warning.getByRole('button', { name: 'Export Video (recommended)' }).click();
+  await expect(warning).not.toBeVisible();
+  expect(await page.evaluate(() => app.__gifWarningVideoChoice)).toBe(true);
+  expect(await page.evaluate(() => app.shouldWarnForGif())).toBe(true);
+  expect(await page.evaluate(() => {
+    app.frames = app.frames.slice(0, 150);
+    return app.shouldWarnForGif();
+  })).toBe(false);
+});
+
 test('selection and grouping feedback gives students a clear next action', async ({ page }) => {
   await openEditor(page);
   const result = await page.evaluate(() => {

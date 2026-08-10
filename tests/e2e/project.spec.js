@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { Figure } from '../../src/models.js';
-import { MAX_PROJECT_FILE_BYTES, normaliseProject, serializeProject } from '../../src/project.js';
+import { GIF_WARNING_FRAME_COUNT, MAX_PROJECT_FILE_BYTES, normaliseProject, serializeProject } from '../../src/project.js';
 import { History } from '../../src/history.js';
 import { renderDocument } from '../../src/renderer.js';
 import { createFrameSchedule, createStoredZip, pickWebmMimeType } from '../../src/export-utils.js';
@@ -115,10 +115,18 @@ test('export frame schedules preserve FPS and per-frame duration', () => {
   expect(smoothGif.every(delay => delay >= 10)).toBe(true);
 });
 
-test('WebM export chooses the best browser-supported codec', () => {
-  const recorder = { isTypeSupported: type => type.includes('vp8') || type === 'video/webm' };
-  expect(pickWebmMimeType(recorder)).toBe('video/webm;codecs=vp8');
+test('WebM export prefers VP8 and falls back to VP9 or generic WebM', () => {
+  const both = { isTypeSupported: type => type === 'video/webm;codecs=vp8' || type === 'video/webm;codecs=vp9' };
+  const vp9Only = { isTypeSupported: type => type === 'video/webm;codecs=vp9' };
+  const generic = { isTypeSupported: type => type === 'video/webm' };
+  expect(pickWebmMimeType(both)).toBe('video/webm;codecs=vp8');
+  expect(pickWebmMimeType(vp9Only)).toBe('video/webm;codecs=vp9');
+  expect(pickWebmMimeType(generic)).toBe('video/webm');
   expect(pickWebmMimeType(null)).toBe('');
+});
+
+test('long GIF warning threshold is above 150 frames', () => {
+  expect(GIF_WARNING_FRAME_COUNT).toBe(150);
 });
 
 test('drag controller moves selected groups, joints, and marquee bounds', () => {

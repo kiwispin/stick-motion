@@ -98,6 +98,6 @@ export async function createStoredZip(files, modifiedAt = new Date()) {
 
 export function pickWebmMimeType(MediaRecorderClass = globalThis.MediaRecorder) {
   if (!MediaRecorderClass) return '';
-  const candidates = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+  const candidates = ['video/webm;codecs=vp8', 'video/webm;codecs=vp9', 'video/webm'];
   return candidates.find(type => !MediaRecorderClass.isTypeSupported || MediaRecorderClass.isTypeSupported(type)) || '';
 }

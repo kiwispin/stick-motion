@@ -1124,6 +1124,19 @@
   </div>
 </div>
 
+<!-- Long GIF warning -->
+<div class="modal-overlay" id="gif-warning-modal" role="dialog" aria-modal="true" aria-labelledby="gif-warning-title">
+  <div class="modal-box">
+    <div class="modal-title" id="gif-warning-title">Long GIF warning</div>
+    <div class="modal-msg" id="gif-warning-msg"></div>
+    <div class="modal-btns">
+      <button class="modal-btn cancel" id="gif-warning-cancel" onclick="app.closeGifWarning()">Cancel</button>
+      <button class="modal-btn cancel" id="gif-warning-gif" onclick="app.exportGifAnyway()">Export GIF Anyway</button>
+      <button class="modal-btn confirm" id="gif-warning-video" onclick="app.exportVideoFromGifWarning()">Export Video (recommended)</button>
+    </div>
+  </div>
+</div>
+
 <!-- Loading -->
 <div class="modal-overlay" id="loading-modal" role="dialog" aria-modal="true" aria-labelledby="gif-export-title">
   <div class="modal-box">
@@ -1285,7 +1298,7 @@
 
 <script type="module">
 import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './src/models.js';
-import { MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
+import { GIF_WARNING_FRAME_COUNT, MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
 import { History } from './src/history.js';
 import { renderDocument } from './src/renderer.js';
 import { createFrameSchedule, createStoredZip, pickWebmMimeType } from './src/export-utils.js';
@@ -1426,7 +1439,7 @@ const app={
   },
   runExportAction(action){
     this.closeExportMenu();
-    if(action==='gif')this.exportGif();
+    if(action==='gif')this.confirmGifExport();
     else if(action==='video')this.exportVideo();
     else if(action==='frame')this.exportFrame();
     else if(action==='zip')this.exportPngFramesZip();
@@ -1630,7 +1643,7 @@ const app={
   },
   handleDialogKeydown(e){
     const dialog=document.querySelector('.modal-overlay.show[role="dialog"]');if(!dialog)return false;
-    if(e.key==='Escape'){e.preventDefault();if(dialog.id==='confirm-modal')this.closeModal();else if(dialog.id==='settings-modal')this.closeSettings();else if(dialog.id==='library-modal')this.closeLibrary();else if(dialog.id==='builder-modal')builder.close();else if(dialog.id==='help-modal')this.closeHelp();else if(dialog.id==='welcome-modal')this.closeWelcome();else if(dialog.id==='loading-modal')this.cancelActiveExport();return true;}
+    if(e.key==='Escape'){e.preventDefault();if(dialog.id==='confirm-modal')this.closeModal();else if(dialog.id==='gif-warning-modal')this.closeGifWarning();else if(dialog.id==='settings-modal')this.closeSettings();else if(dialog.id==='library-modal')this.closeLibrary();else if(dialog.id==='builder-modal')builder.close();else if(dialog.id==='help-modal')this.closeHelp();else if(dialog.id==='welcome-modal')this.closeWelcome();else if(dialog.id==='loading-modal')this.cancelActiveExport();return true;}
     if(e.key==='Tab'){
       const items=this.getDialogFocusable(dialog);if(items.length){const first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
     }
@@ -1639,6 +1652,26 @@ const app={
   showModal(t,m,a){document.getElementById('confirm-title').innerText=t;document.getElementById('confirm-msg').innerText=m;this.pendingAction=a;this.openDialog('confirm-modal','#confirm-cancel');},
   closeModal(){this.closeDialog('confirm-modal');this.pendingAction=null;},
   executeConfirm(){if(this.pendingAction)this.pendingAction();this.closeModal();},
+  shouldWarnForGif(){return this.frames.length>GIF_WARNING_FRAME_COUNT;},
+  videoExportSupported(){
+    const canvas=document.createElement('canvas');
+    return typeof MediaRecorder==='function'&&typeof canvas.captureStream==='function'&&Boolean(pickWebmMimeType());
+  },
+  confirmGifExport(){if(this.shouldWarnForGif())this.showGifWarning();else this.exportGif();},
+  showGifWarning(){
+    const count=this.frames.length.toLocaleString();
+    const videoButton=document.getElementById('gif-warning-video');
+    const supported=this.videoExportSupported();
+    document.getElementById('gif-warning-msg').innerText=supported
+      ? `This animation has ${count} frames. Long GIFs can be very large and may not preview correctly in Google Classroom. Video is recommended for smoother, more reliable playback.`
+      : `This animation has ${count} frames. Long GIFs can be very large and may not preview correctly in Google Classroom. Video export is not supported by this browser, so GIF is the available option.`;
+    videoButton.disabled=!supported;
+    videoButton.title=supported?'':'Video export is not supported by this browser';
+    this.openDialog('gif-warning-modal','#gif-warning-cancel');
+  },
+  closeGifWarning(){this.closeDialog('gif-warning-modal');},
+  exportGifAnyway(){this.closeGifWarning();this.exportGif();},
+  exportVideoFromGifWarning(){if(!this.videoExportSupported())return;this.closeGifWarning();this.exportVideo();},
   openSettings(){this.openDialog('settings-modal','#canvas-w');},
   closeSettings(){this.closeDialog('settings-modal');},
   openHelp(){this.openDialog('help-modal','#help-close');},
