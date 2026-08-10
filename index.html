@@ -2415,10 +2415,8 @@ const app={
       const exportCanvas=document.createElement('canvas');exportCanvas.width=this.docWidth;exportCanvas.height=this.docHeight;
       if(!mimeType||typeof exportCanvas.captureStream!=='function')throw new Error('WebM export is not supported by this browser.');
       const firstFrame=this.frames[0];this.figures=firstFrame.map(figure=>figure.clone());this.renderDocumentToCtx(exportCanvas.getContext('2d'),false,false);
-      const videoFps=Math.min(60,Math.max(1,this.isSmooth?this.fps*5:this.fps));
-      stream=exportCanvas.captureStream(0);
-      let videoTrack=stream.getVideoTracks()[0];const manualFrames=typeof videoTrack?.requestFrame==='function';
-      if(!manualFrames){stream.getTracks().forEach(track=>track.stop());stream=exportCanvas.captureStream(videoFps);videoTrack=stream.getVideoTracks()[0];}
+      const videoFps=Math.min(60,Math.max(1,this.isSmooth?this.fps*2:this.fps));
+      stream=exportCanvas.captureStream(videoFps);
       const recorder=new MediaRecorder(stream,{mimeType,videoBitsPerSecond:Math.max(2000000,this.docWidth*this.docHeight*8)});session.recorder=recorder;
       const chunks=[];
       const started=new Promise((resolve,reject)=>{
@@ -2432,7 +2430,8 @@ const app={
       });
       recorder.start(250);
       await started;
-      const schedules=this.frames.map((_,index)=>createFrameSchedule({fps:this.fps,multiplier:this.frameDelays[index]||1,smooth:this.isSmooth,maxStepDurationMs:100}));
+      const samplesPerFrame=this.isSmooth?videoFps/this.fps:1;
+      const schedules=this.frames.map((_,index)=>createFrameSchedule({fps:this.fps,multiplier:this.frameDelays[index]||1,smooth:this.isSmooth,samplesPerFrame,maxStepDurationMs:100}));
       const totalSteps=schedules.reduce((total,schedule)=>total+schedule.length,0);let completed=0;
       for(let i=0;i<this.frames.length;i++){
         const frameA=this.frames[i],nextIndex=(i+1)%this.frames.length,schedule=schedules[i];
@@ -2443,11 +2442,15 @@ const app={
           else this.figures=frameA.map(figure=>figure.clone());
           this.renderDocumentToCtx(exportCanvas.getContext('2d'),false,false);
           completed+=1;this.updateGifExportProgress(completed/totalSteps,`Recording video frame ${completed} of ${totalSteps}…`);
-          if(manualFrames)videoTrack.requestFrame();
           await new Promise(resolve=>setTimeout(resolve,schedule[step]));
         }
       }
-      if(session.cancelled)return;if(manualFrames){videoTrack.requestFrame();await new Promise(resolve=>requestAnimationFrame(resolve));}recorder.stop();await stopped;if(session.cancelled)return;
+      if(session.cancelled)return;
+      if(typeof recorder.requestData==='function'){
+        const flushed=new Promise(resolve=>recorder.addEventListener('dataavailable',resolve,{once:true}));
+        recorder.requestData();await flushed;
+      }
+      recorder.stop();await stopped;if(session.cancelled)return;
       const blob=new Blob(chunks,{type:mimeType.split(';')[0]});const name=this.projectFilename()+'.webm';
       if(this.finishAsyncExport(session)){this.downloadBlob(blob,name);this.showToast(`Exported ${name}`);}
     }catch(err){

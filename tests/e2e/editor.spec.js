@@ -2,8 +2,16 @@ import { expect, test } from '@playwright/test';
 import { stat } from 'node:fs/promises';
 
 async function openEditor(page) {
-  await page.goto('/index.html');
-  await expect(page.locator('#main-canvas')).toBeVisible();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.goto('/index.html');
+    await expect(page.locator('#main-canvas')).toBeVisible();
+    try {
+      await page.waitForFunction(() => window.app?.frames?.length > 0, null, { timeout: 5_000 });
+      break;
+    } catch (error) {
+      if (attempt === 1) throw error;
+    }
+  }
   const welcome = page.locator('#welcome-modal');
   if (await welcome.isVisible()) await page.getByRole('button', { name: 'Start animating' }).click();
 }
@@ -255,9 +263,19 @@ test('GIF and WebM exports use FPS and frame duration timing', async ({ page }) 
 
     class TimingRecorder extends EventTarget {
       static isTypeSupported() { return true; }
-      constructor() { super(); this.state = 'inactive'; }
+      static instances = [];
+      constructor() { super(); this.state = 'inactive'; this.actions = []; TimingRecorder.instances.push(this); }
       start() { this.state = 'recording'; queueMicrotask(() => this.dispatchEvent(new Event('start'))); }
+      requestData() {
+        this.actions.push('requestData');
+        queueMicrotask(() => {
+          const dataEvent = new Event('dataavailable');
+          Object.defineProperty(dataEvent, 'data', { value: new Blob(['webm'], { type: 'video/webm' }) });
+          this.dispatchEvent(dataEvent);
+        });
+      }
       stop() {
+        this.actions.push('stop');
         this.state = 'inactive';
         const dataEvent = new Event('dataavailable');
         Object.defineProperty(dataEvent, 'data', { value: new Blob(['webm'], { type: 'video/webm' }) });
@@ -267,9 +285,10 @@ test('GIF and WebM exports use FPS and frame duration timing', async ({ page }) 
     }
 
     const track = { requestFrame() {}, stop() {} };
+    const captureRates = [];
     window.GIF = TimingGIF;
     window.MediaRecorder = TimingRecorder;
-    HTMLCanvasElement.prototype.captureStream = () => ({ getVideoTracks: () => [track], getTracks: () => [track] });
+    HTMLCanvasElement.prototype.captureStream = rate => { captureRates.push(rate); return { getVideoTracks: () => [track], getTracks: () => [track] }; };
     HTMLAnchorElement.prototype.click = () => {};
     app.downloadBlob = () => {};
 
@@ -293,9 +312,9 @@ test('GIF and WebM exports use FPS and frame duration timing', async ({ page }) 
       app.exportGif();
       const gifFast = await waitForGif();
 
-      const runVideo = async (fps, multiplier) => {
+      const runVideo = async (fps, multiplier, smooth = false) => {
         prepare(fps, multiplier);
-        app.isSmooth = false;
+        app.isSmooth = smooth;
         const waits = [];
         window.setTimeout = (callback, delay, ...args) => {
           waits.push(delay);
@@ -303,10 +322,10 @@ test('GIF and WebM exports use FPS and frame duration timing', async ({ page }) 
         };
         await app.exportVideo();
         window.setTimeout = nativeSetTimeout;
-        return waits.filter(delay => delay <= 1000);
+        return { waits: waits.filter(delay => delay <= 1000), captureRate: captureRates.at(-1), actions: TimingRecorder.instances.at(-1).actions };
       };
 
-      return { gifSlow, gifFast, videoSlow: await runVideo(10, 2), videoFast: await runVideo(20, 2) };
+      return { gifSlow, gifFast, videoSlow: await runVideo(10, 2), videoFast: await runVideo(20, 2), videoSmooth: await runVideo(20, 1, true) };
     } finally {
       window.GIF = nativeGIF;
       window.MediaRecorder = nativeMediaRecorder;
@@ -319,8 +338,11 @@ test('GIF and WebM exports use FPS and frame duration timing', async ({ page }) 
 
   expect(result.gifSlow.reduce((total, delay) => total + delay, 0)).toBe(200);
   expect(result.gifFast.reduce((total, delay) => total + delay, 0)).toBe(100);
-  expect(result.videoSlow.reduce((total, delay) => total + delay, 0)).toBe(200);
-  expect(result.videoFast.reduce((total, delay) => total + delay, 0)).toBe(100);
+  expect(result.videoSlow.waits.reduce((total, delay) => total + delay, 0)).toBe(200);
+  expect(result.videoFast.waits.reduce((total, delay) => total + delay, 0)).toBe(100);
+  expect(result.videoSmooth.waits.reduce((total, delay) => total + delay, 0)).toBe(50);
+  expect(result.videoSmooth.captureRate).toBe(40);
+  expect(result.videoSmooth.actions).toEqual(['requestData', 'stop']);
 });
 
 test('onion skin only draws an actual previous frame', async ({ page }) => {
