@@ -1,73 +1,21 @@
-function escapeXml(value) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-function number(value) {
-  return Number(value.toFixed(3));
-}
-
-function defaultWrapText(value) {
-  return [String(value || 'Say something')];
-}
-
-function figureToSvg(figure, wrapText) {
-  figure.updatePositions();
-  const color = escapeXml(figure.color || '#000000');
-  if (figure.type === 'text') {
-    const handle = figure.joints.find(joint => joint.id === 'handle');
-    const angle = handle ? Math.atan2(handle.y - figure.y, handle.x - figure.x) : 0;
-    const scale = handle ? Math.hypot(handle.x - figure.x, handle.y - figure.y) / 20 : figure.scale || 1;
-    return `<g transform="translate(${number(figure.x)} ${number(figure.y)}) rotate(${number(angle * 180 / Math.PI)}) scale(${number(scale)})"><text x="0" y="0" fill="${color}" font-family="system-ui, sans-serif" font-size="20" font-weight="600" text-anchor="middle" dominant-baseline="middle">${escapeXml(figure.text)}</text></g>`;
-  }
-  if (figure.type === 'speech') {
-    const handle = figure.joints.find(joint => joint.id === 'handle');
-    const tail = figure.joints.find(joint => joint.id === 'tail');
-    const angle = handle ? Math.atan2(handle.y - figure.y, handle.x - figure.x) : 0;
-    const scale = handle ? Math.hypot(handle.x - figure.x, handle.y - figure.y) / 40 : figure.scale || 1;
-    const tailTipX = tail ? Math.cos(tail.angle) * tail.length : -72;
-    const tailTipY = tail ? Math.sin(tail.angle) * tail.length : 77;
-    const lines = wrapText(figure.text || 'Say something', 146).slice(0, 5);
-    const startY = -(lines.length - 1) * 10 - 1;
-    const text = lines.map((line, index) => `<tspan x="0" y="${number(startY + index * 20)}">${escapeXml(line)}</tspan>`).join('');
-    const path = `M -72 -47 H 72 Q 90 -47 90 -29 V 29 Q 90 47 72 47 H -10 L ${number(tailTipX)} ${number(tailTipY)} L -38 47 H -72 Q -90 47 -90 29 V -29 Q -90 -47 -72 -47 Z`;
-    return `<g transform="translate(${number(figure.x)} ${number(figure.y)}) rotate(${number(angle * 180 / Math.PI)}) scale(${number(scale)})"><path d="${path}" fill="#ffffff" stroke="${color}" stroke-width="4" stroke-linejoin="round"/><text fill="${color}" font-family="system-ui, sans-serif" font-size="17" font-weight="600" text-anchor="middle" dominant-baseline="middle">${text}</text></g>`;
+export function createFrameSchedule({ fps, multiplier = 1, smooth = false, samplesPerFrame = 5, quantumMs = 0, maxStepDurationMs = Infinity }) {
+  const safeFps = Math.max(1, Number(fps) || 1);
+  const safeMultiplier = Math.max(0.1, Number(multiplier) || 1);
+  const durationMs = (1000 / safeFps) * safeMultiplier;
+  let steps = smooth ? Math.max(1, Math.round(samplesPerFrame * safeMultiplier)) : 1;
+  if (Number.isFinite(maxStepDurationMs) && maxStepDurationMs > 0) {
+    steps = Math.max(steps, Math.ceil(durationMs / maxStepDurationMs));
   }
 
-  const parts = [];
-  for (const joint of figure.joints) {
-    if (joint.parentId === null) continue;
-    const parent = figure.joints.find(item => item.id === joint.parentId);
-    if (!parent) continue;
-    const partColor = escapeXml(joint.color || figure.color || '#000000');
-    const thickness = number((joint.thickness || 14) * figure.scale);
-    if (joint.type === 'circle') {
-      const radius = number((joint.radius || 20) * figure.scale);
-      if (joint.length > 2) {
-        const angle = Math.atan2(joint.y - parent.y, joint.x - parent.x);
-        const edgeX = joint.x - Math.cos(angle) * radius;
-        const edgeY = joint.y - Math.sin(angle) * radius;
-        parts.push(`<line x1="${number(parent.x)}" y1="${number(parent.y)}" x2="${number(edgeX)}" y2="${number(edgeY)}" stroke="${partColor}" stroke-width="${thickness}" stroke-linecap="round"/>`);
-      }
-      const fill = joint.filled === false ? 'none' : partColor;
-      const stroke = joint.filled === false ? partColor : 'none';
-      parts.push(`<circle cx="${number(joint.x)}" cy="${number(joint.y)}" r="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${thickness}"/>`);
-    } else {
-      parts.push(`<line x1="${number(parent.x)}" y1="${number(parent.y)}" x2="${number(joint.x)}" y2="${number(joint.y)}" stroke="${partColor}" stroke-width="${thickness}" stroke-linecap="round"/>`);
-    }
+  if (quantumMs > 0) {
+    const totalUnits = Math.max(1, Math.round(durationMs / quantumMs));
+    steps = Math.min(steps, totalUnits);
+    const baseUnits = Math.floor(totalUnits / steps);
+    const remainder = totalUnits % steps;
+    return Array.from({ length: steps }, (_, index) => (baseUnits + (index < remainder ? 1 : 0)) * quantumMs);
   }
-  return parts.join('');
-}
 
-export function createSvgArtwork({ width, height, figures, backgroundData = null, wrapText = defaultWrapText }) {
-  const background = [`<rect width="${width}" height="${height}" fill="#ffffff"/>`];
-  if (backgroundData) background.push(`<image href="${escapeXml(backgroundData)}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="none"/>`);
-  const artwork = figures.map(figure => figureToSvg(figure, wrapText)).join('');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${background.join('')}${artwork}</svg>`;
+  return Array.from({ length: steps }, () => durationMs / steps);
 }
 
 const CRC_TABLE = (() => {

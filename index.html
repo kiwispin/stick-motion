@@ -793,8 +793,6 @@
       <button class="export-menu-item" type="button" onclick="app.runExportAction('video')"><span class="export-menu-icon" aria-hidden="true">▶</span>Video (WebM)</button>
       <div class="export-menu-divider" role="separator"></div>
       <button class="export-menu-item" type="button" onclick="app.runExportAction('frame')"><span class="export-menu-icon" aria-hidden="true">▣</span>Current frame PNG</button>
-      <button class="export-menu-item" type="button" onclick="app.runExportAction('transparent')"><span class="export-menu-icon" aria-hidden="true">◌</span>Transparent PNG</button>
-      <button class="export-menu-item" type="button" onclick="app.runExportAction('svg')"><span class="export-menu-icon" aria-hidden="true">⌁</span>SVG artwork</button>
       <div class="export-menu-divider" role="separator"></div>
       <button class="export-menu-item" type="button" onclick="app.runExportAction('zip')"><span class="export-menu-icon" aria-hidden="true">ZIP</span>PNG frames ZIP</button>
     </div>
@@ -815,8 +813,6 @@
       <button class="compact-menu-item" type="button" onclick="app.runCompactAction('gif')">GIF animation</button>
       <button class="compact-menu-item" type="button" onclick="app.runCompactAction('video')">Video (WebM)</button>
       <button class="compact-menu-item" type="button" onclick="app.runCompactAction('frame')">Current frame PNG</button>
-      <button class="compact-menu-item" type="button" onclick="app.runCompactAction('transparent')">Transparent PNG</button>
-      <button class="compact-menu-item" type="button" onclick="app.runCompactAction('svg')">SVG artwork</button>
       <button class="compact-menu-item" type="button" onclick="app.runCompactAction('zip')">PNG frames ZIP</button>
     </div>
   </div>
@@ -1202,7 +1198,7 @@
     <div class="welcome-steps">
       <div class="welcome-step"><div class="welcome-step-num">1</div><div><strong>Make pose 1</strong><span>Drag the orange root to place the figure. Drag red pivots to bend it.</span></div></div>
       <div class="welcome-step"><div class="welcome-step-num">2</div><div><strong>Make pose 2</strong><span>Press Space to add a frame, then move one or more pivots.</span></div></div>
-      <div class="welcome-step"><div class="welcome-step-num">3</div><div><strong>Check your motion</strong><span>Press Play. When it feels right, choose Export for GIF, WebM, PNG, SVG, or a frame ZIP.</span></div></div>
+      <div class="welcome-step"><div class="welcome-step-num">3</div><div><strong>Check your motion</strong><span>Press Play. When it feels right, choose Export for GIF, WebM, PNG, or a frame ZIP.</span></div></div>
     </div>
     <div class="modal-btns"><button class="modal-btn confirm" id="welcome-start" onclick="app.closeWelcome()">Start animating</button></div>
   </div>
@@ -1292,7 +1288,7 @@ import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './src/
 import { MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
 import { History } from './src/history.js';
 import { renderDocument } from './src/renderer.js';
-import { createStoredZip, createSvgArtwork, pickWebmMimeType } from './src/export-utils.js';
+import { createFrameSchedule, createStoredZip, pickWebmMimeType } from './src/export-utils.js';
 import { distanceToSegment, getCanvasPosition, getWrapperPosition, isPointInSpeechBubble } from './src/canvas-interaction.js';
 import { isMeaningfulMarquee } from './src/marquee.js';
 import { beginMarquee, endMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, showMarqueeElement, updateCursor, updateMarqueeElement } from './src/drag-controller.js';
@@ -1433,8 +1429,6 @@ const app={
     if(action==='gif')this.exportGif();
     else if(action==='video')this.exportVideo();
     else if(action==='frame')this.exportFrame();
-    else if(action==='transparent')this.exportTransparentPng();
-    else if(action==='svg')this.exportSvg();
     else if(action==='zip')this.exportPngFramesZip();
   },
 
@@ -1460,7 +1454,7 @@ const app={
     else if(action==='open')document.getElementById('load-input').click();
     else if(action==='settings')this.openSettings();
     else if(action==='help')this.openHelp();
-    else if(['gif','video','frame','transparent','svg','zip'].includes(action))this.runExportAction(action);
+    else if(['gif','video','frame','zip'].includes(action))this.runExportAction(action);
   },
 
   // ── Persistence ───────────────────────────────────────────────
@@ -2306,11 +2300,10 @@ const app={
       canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('The canvas could not be encoded.')),type);
     });
   },
-  exportFrame(options={}){
-    const transparent=options.transparent===true;
+  exportFrame(){
     const wasPlaying=this.isPlaying;if(wasPlaying)this.stop();
-    const exportCanvas=this.renderFrameToCtx(false,transparent);
-    const suffix=transparent?'-transparent':'-frame-'+String(this.currentFrameIndex+1).padStart(3,'0');
+    const exportCanvas=this.renderFrameToCtx(false,false);
+    const suffix='-frame-'+String(this.currentFrameIndex+1).padStart(3,'0');
     const name=this.projectFilename()+suffix+'.png';
     const download=(url)=>{
       const a=document.createElement('a');a.href=url;a.download=name;a.click();
@@ -2325,17 +2318,6 @@ const app={
       this.render();this.showToast(`Exported ${name}`);
     }
   },
-  exportTransparentPng(){this.exportFrame({transparent:true});},
-  exportSvg(){
-    if(this.isPlaying)this.stop();this.commitActiveFrame();
-    const svg=createSvgArtwork({
-      width:this.docWidth,height:this.docHeight,figures:this.figures,backgroundData:this.backgroundData,
-      wrapText:(text,width)=>{this.ctx.save();this.ctx.font='600 17px DM Sans, sans-serif';const lines=this.wrapTextLines(text,width);this.ctx.restore();return lines;}
-    });
-    const name=this.projectFilename()+'-artwork.svg';
-    this.downloadBlob(new Blob([svg],{type:'image/svg+xml;charset=utf-8'}),name);this.showToast(`Exported ${name}`);
-  },
-
   beginAsyncExport(kind,title){
     if(this.gifExport||this.asyncExport)return null;
     this.commitActiveFrame();if(this.frames.length===0)return null;if(this.isPlaying)this.stop();
@@ -2395,12 +2377,11 @@ const app={
       if(typeof GIF!=='function')throw new Error('The local GIF encoder is unavailable.');
       const gif=new GIF({workers:2,quality:10,width:this.docWidth,height:this.docHeight,workerScript:'vendor/gif.worker.js'});
       session.gif=gif;
-      const baseDelay=1000/this.fps;
       for(let i=0;i<this.frames.length;i++){
         if(session.cancelled)return;
-        const dm=this.frameDelays[i]||1.0;const steps=this.isSmooth?Math.max(1,Math.round(5*dm)):1;const stepDelay=(baseDelay*dm)/steps;const fA=this.frames[i];const nextIdx=(i+1)%this.frames.length;
-        if(!this.isLooping&&i===this.frames.length-1){this.figures=fA.map(f=>f.clone());const c=this.renderFrameToCtx();gif.addFrame(c.getContext('2d'),{copy:true,delay:baseDelay*dm});}
-        else{const fB=this.frames[nextIdx];for(let s=0;s<steps;s++){let t=s/steps;if(!this.isSmooth)t=0;this.renderInterpolated(fA,fB,t,false);const c=this.renderFrameToCtx(false);gif.addFrame(c.getContext('2d'),{copy:true,delay:stepDelay});if(!this.isSmooth)break;}}
+        const dm=this.frameDelays[i]||1.0;const schedule=createFrameSchedule({fps:this.fps,multiplier:dm,smooth:this.isSmooth,quantumMs:10});const fA=this.frames[i];const nextIdx=(i+1)%this.frames.length;
+        if(!this.isLooping&&i===this.frames.length-1){this.figures=fA.map(f=>f.clone());const c=this.renderFrameToCtx();gif.addFrame(c.getContext('2d'),{copy:true,delay:schedule.reduce((total,delay)=>total+delay,0)});}
+        else{const fB=this.frames[nextIdx];for(let s=0;s<schedule.length;s++){const t=this.isSmooth?s/schedule.length:0;this.renderInterpolated(fA,fB,t,false);const c=this.renderFrameToCtx(false);gif.addFrame(c.getContext('2d'),{copy:true,delay:schedule[s]});}}
         this.updateGifExportProgress((i+1)/this.frames.length*0.1,`Preparing frame ${i+1} of ${this.frames.length}…`);
         await new Promise(resolve=>requestAnimationFrame(resolve));
       }
@@ -2427,32 +2408,40 @@ const app={
       const mimeType=pickWebmMimeType();
       const exportCanvas=document.createElement('canvas');exportCanvas.width=this.docWidth;exportCanvas.height=this.docHeight;
       if(!mimeType||typeof exportCanvas.captureStream!=='function')throw new Error('WebM export is not supported by this browser.');
+      const firstFrame=this.frames[0];this.figures=firstFrame.map(figure=>figure.clone());this.renderDocumentToCtx(exportCanvas.getContext('2d'),false,false);
       const videoFps=Math.min(60,Math.max(1,this.isSmooth?this.fps*5:this.fps));
-      stream=exportCanvas.captureStream(videoFps);
+      stream=exportCanvas.captureStream(0);
+      let videoTrack=stream.getVideoTracks()[0];const manualFrames=typeof videoTrack?.requestFrame==='function';
+      if(!manualFrames){stream.getTracks().forEach(track=>track.stop());stream=exportCanvas.captureStream(videoFps);videoTrack=stream.getVideoTracks()[0];}
       const recorder=new MediaRecorder(stream,{mimeType,videoBitsPerSecond:Math.max(2000000,this.docWidth*this.docHeight*8)});session.recorder=recorder;
       const chunks=[];
+      const started=new Promise((resolve,reject)=>{
+        recorder.addEventListener('start',resolve,{once:true});
+        recorder.addEventListener('error',event=>reject(event.error||new Error('Video recording failed.')),{once:true});
+      });
       const stopped=new Promise((resolve,reject)=>{
         recorder.addEventListener('dataavailable',event=>{if(event.data&&event.data.size)chunks.push(event.data);});
         recorder.addEventListener('stop',resolve,{once:true});
         recorder.addEventListener('error',event=>reject(event.error||new Error('Video recording failed.')),{once:true});
       });
-      const stepsPerFrame=this.frames.map((_,index)=>Math.max(1,Math.round(videoFps*(this.frameDelays[index]||1)/this.fps)));
-      const totalSteps=stepsPerFrame.reduce((total,steps)=>total+steps,0);let completed=0;
       recorder.start(250);
+      await started;
+      const schedules=this.frames.map((_,index)=>createFrameSchedule({fps:this.fps,multiplier:this.frameDelays[index]||1,smooth:this.isSmooth,maxStepDurationMs:100}));
+      const totalSteps=schedules.reduce((total,schedule)=>total+schedule.length,0);let completed=0;
       for(let i=0;i<this.frames.length;i++){
-        const frameA=this.frames[i],nextIndex=(i+1)%this.frames.length,steps=stepsPerFrame[i];
-        const stepDelay=(1000/this.fps*(this.frameDelays[i]||1))/steps;
-        for(let step=0;step<steps;step++){
+        const frameA=this.frames[i],nextIndex=(i+1)%this.frames.length,schedule=schedules[i];
+        for(let step=0;step<schedule.length;step++){
           if(session.cancelled)return;
           if(!this.isLooping&&i===this.frames.length-1)this.figures=frameA.map(figure=>figure.clone());
-          else if(this.isSmooth)this.renderInterpolated(frameA,this.frames[nextIndex],step/steps,false);
+          else if(this.isSmooth)this.renderInterpolated(frameA,this.frames[nextIndex],step/schedule.length,false);
           else this.figures=frameA.map(figure=>figure.clone());
           this.renderDocumentToCtx(exportCanvas.getContext('2d'),false,false);
           completed+=1;this.updateGifExportProgress(completed/totalSteps,`Recording video frame ${completed} of ${totalSteps}…`);
-          await new Promise(resolve=>setTimeout(resolve,stepDelay));
+          if(manualFrames)videoTrack.requestFrame();
+          await new Promise(resolve=>setTimeout(resolve,schedule[step]));
         }
       }
-      if(session.cancelled)return;recorder.stop();await stopped;if(session.cancelled)return;
+      if(session.cancelled)return;if(manualFrames){videoTrack.requestFrame();await new Promise(resolve=>requestAnimationFrame(resolve));}recorder.stop();await stopped;if(session.cancelled)return;
       const blob=new Blob(chunks,{type:mimeType.split(';')[0]});const name=this.projectFilename()+'.webm';
       if(this.finishAsyncExport(session)){this.downloadBlob(blob,name);this.showToast(`Exported ${name}`);}
     }catch(err){

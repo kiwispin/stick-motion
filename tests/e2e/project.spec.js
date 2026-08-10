@@ -3,7 +3,7 @@ import { Figure } from '../../src/models.js';
 import { normaliseProject, serializeProject } from '../../src/project.js';
 import { History } from '../../src/history.js';
 import { renderDocument } from '../../src/renderer.js';
-import { createStoredZip, createSvgArtwork, pickWebmMimeType } from '../../src/export-utils.js';
+import { createFrameSchedule, createStoredZip, pickWebmMimeType } from '../../src/export-utils.js';
 import { beginMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, updateMarqueeElement } from '../../src/drag-controller.js';
 
 function validProject() {
@@ -82,18 +82,23 @@ test('renderer can omit the stage and background for transparent artwork', () =>
   expect(calls.map(call => call[0])).toEqual(['clear', 'position', 'figure']);
 });
 
-test('export utilities create vector artwork and a standards-shaped ZIP archive', async () => {
-  const figure = normaliseProject(validProject()).frames[0][0];
-  const svg = createSvgArtwork({ width: 800, height: 500, figures: [figure] });
-  expect(svg).toContain('<svg xmlns="http://www.w3.org/2000/svg"');
-  expect(svg).toContain('<line');
-  expect(svg).toContain('viewBox="0 0 800 500"');
-
+test('export utilities create a standards-shaped ZIP archive', async () => {
   const zip = await createStoredZip([{ name: 'frame-001.png', data: new Uint8Array([137, 80, 78, 71]) }], new Date(2026, 0, 1));
   const bytes = new Uint8Array(await zip.arrayBuffer());
   expect(new DataView(bytes.buffer).getUint32(0, true)).toBe(0x04034b50);
   expect(new DataView(bytes.buffer).getUint32(bytes.length - 22, true)).toBe(0x06054b50);
   expect(zip.type).toBe('application/zip');
+});
+
+test('export frame schedules preserve FPS and per-frame duration', () => {
+  const normal = createFrameSchedule({ fps: 10, multiplier: 2 });
+  const faster = createFrameSchedule({ fps: 20, multiplier: 2 });
+  const smoothGif = createFrameSchedule({ fps: 10, multiplier: 2, smooth: true, quantumMs: 10 });
+
+  expect(normal.reduce((total, delay) => total + delay, 0)).toBe(200);
+  expect(faster.reduce((total, delay) => total + delay, 0)).toBe(100);
+  expect(smoothGif.reduce((total, delay) => total + delay, 0)).toBe(200);
+  expect(smoothGif.every(delay => delay >= 10)).toBe(true);
 });
 
 test('WebM export chooses the best browser-supported codec', () => {

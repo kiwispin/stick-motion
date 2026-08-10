@@ -73,29 +73,20 @@ test('project handoff files use the student project name', async ({ page }) => {
   await expect(page.locator('#sm-toast')).toContainText('Exported rocket-rehearsal-frame-001.png');
 });
 
-test('export menu provides transparent PNG, SVG, PNG ZIP, and WebM downloads', async ({ page }) => {
+test('export menu provides GIF, WebM, PNG, and PNG ZIP downloads', async ({ page }) => {
   await openEditor(page);
   await page.evaluate(() => { app.newProject(); app.setProjectName('Export demo'); app.isSmooth=false; app.isLooping=false; app.fps=30; app.frameDelays=[3]; });
 
   await page.getByRole('button', { name: 'Open export options' }).click();
-  for (const name of ['GIF animation', 'Video (WebM)', 'Current frame PNG', 'Transparent PNG', 'SVG artwork', 'PNG frames ZIP']) {
+  for (const name of ['GIF animation', 'Video (WebM)', 'Current frame PNG', 'PNG frames ZIP']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
+  await expect(page.getByRole('button', { name: 'Transparent PNG', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'SVG artwork', exact: true })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(page.locator('#export-menu')).toBeHidden();
-  expect(await page.evaluate(() => app.renderFrameToCtx(false,true).getContext('2d').getImageData(0,0,1,1).data[3])).toBe(0);
 
   let downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Open export options' }).click();
-  await page.getByRole('button', { name: 'Transparent PNG', exact: true }).click();
-  expect((await downloadPromise).suggestedFilename()).toBe('export-demo-transparent.png');
-
-  downloadPromise = page.waitForEvent('download');
-  await page.getByRole('button', { name: 'Open export options' }).click();
-  await page.getByRole('button', { name: 'SVG artwork', exact: true }).click();
-  expect((await downloadPromise).suggestedFilename()).toBe('export-demo-artwork.svg');
-
-  downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Open export options' }).click();
   await page.getByRole('button', { name: 'PNG frames ZIP', exact: true }).click();
   const zipDownload = await downloadPromise;
@@ -242,6 +233,96 @@ test('GIF export shows progress, cancels safely, and allows a later export', asy
   expect(result.laterExport).toEqual({ activeExport: false, toast: 'Exported untitled-animation.gif' });
 });
 
+test('GIF and WebM exports use FPS and frame duration timing', async ({ page }) => {
+  await openEditor(page);
+  const result = await page.evaluate(async () => {
+    const nativeGIF = window.GIF;
+    const nativeMediaRecorder = window.MediaRecorder;
+    const nativeCaptureStream = HTMLCanvasElement.prototype.captureStream;
+    const nativeSetTimeout = window.setTimeout;
+    const nativeDownloadBlob = app.downloadBlob;
+    const nativeAnchorClick = HTMLAnchorElement.prototype.click;
+
+    class TimingGIF {
+      static instances = [];
+      constructor() { this.listeners = {}; this.delays = []; TimingGIF.instances.push(this); }
+      on(event, listener) { this.listeners[event] = listener; }
+      emit(event, value) { if (this.listeners[event]) this.listeners[event](value); }
+      addFrame(_context, options) { this.delays.push(options.delay); }
+      render() { requestAnimationFrame(() => this.emit('finished', new Blob(['gif'], { type: 'image/gif' }))); }
+      abort() {}
+    }
+
+    class TimingRecorder extends EventTarget {
+      static isTypeSupported() { return true; }
+      constructor() { super(); this.state = 'inactive'; }
+      start() { this.state = 'recording'; queueMicrotask(() => this.dispatchEvent(new Event('start'))); }
+      stop() {
+        this.state = 'inactive';
+        const dataEvent = new Event('dataavailable');
+        Object.defineProperty(dataEvent, 'data', { value: new Blob(['webm'], { type: 'video/webm' }) });
+        this.dispatchEvent(dataEvent);
+        this.dispatchEvent(new Event('stop'));
+      }
+    }
+
+    const track = { requestFrame() {}, stop() {} };
+    window.GIF = TimingGIF;
+    window.MediaRecorder = TimingRecorder;
+    HTMLCanvasElement.prototype.captureStream = () => ({ getVideoTracks: () => [track], getTracks: () => [track] });
+    HTMLAnchorElement.prototype.click = () => {};
+    app.downloadBlob = () => {};
+
+    const prepare = (fps, multiplier) => {
+      app.newProject();
+      app.fps = fps;
+      app.frameDelays = [multiplier];
+      app.isSmooth = true;
+      app.isLooping = true;
+    };
+    const waitForGif = async () => {
+      while (app.gifExport) await new Promise(resolve => requestAnimationFrame(resolve));
+      return TimingGIF.instances.at(-1).delays;
+    };
+
+    try {
+      prepare(10, 2);
+      app.exportGif();
+      const gifSlow = await waitForGif();
+      prepare(20, 2);
+      app.exportGif();
+      const gifFast = await waitForGif();
+
+      const runVideo = async (fps, multiplier) => {
+        prepare(fps, multiplier);
+        app.isSmooth = false;
+        const waits = [];
+        window.setTimeout = (callback, delay, ...args) => {
+          waits.push(delay);
+          return nativeSetTimeout(callback, 0, ...args);
+        };
+        await app.exportVideo();
+        window.setTimeout = nativeSetTimeout;
+        return waits.filter(delay => delay <= 1000);
+      };
+
+      return { gifSlow, gifFast, videoSlow: await runVideo(10, 2), videoFast: await runVideo(20, 2) };
+    } finally {
+      window.GIF = nativeGIF;
+      window.MediaRecorder = nativeMediaRecorder;
+      HTMLCanvasElement.prototype.captureStream = nativeCaptureStream;
+      window.setTimeout = nativeSetTimeout;
+      app.downloadBlob = nativeDownloadBlob;
+      HTMLAnchorElement.prototype.click = nativeAnchorClick;
+    }
+  });
+
+  expect(result.gifSlow.reduce((total, delay) => total + delay, 0)).toBe(200);
+  expect(result.gifFast.reduce((total, delay) => total + delay, 0)).toBe(100);
+  expect(result.videoSlow.reduce((total, delay) => total + delay, 0)).toBe(200);
+  expect(result.videoFast.reduce((total, delay) => total + delay, 0)).toBe(100);
+});
+
 test('onion skin only draws an actual previous frame', async ({ page }) => {
   await openEditor(page);
   const result = await page.evaluate(() => {
@@ -359,7 +440,7 @@ test('compact top-bar actions remain reachable without horizontal scrolling', as
   await page.getByRole('button', { name: 'Open project and export actions' }).click();
   await expect(page.locator('#compact-actions-menu')).toBeVisible();
   await expect(page.locator('#compact-actions-toggle')).toHaveAttribute('aria-expanded', 'true');
-  for (const name of ['New project', 'Save project', 'Open project', 'Settings', 'Help and shortcuts', 'GIF animation', 'Video (WebM)', 'Current frame PNG', 'Transparent PNG', 'SVG artwork', 'PNG frames ZIP']) {
+  for (const name of ['New project', 'Save project', 'Open project', 'Settings', 'Help and shortcuts', 'GIF animation', 'Video (WebM)', 'Current frame PNG', 'PNG frames ZIP']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
   await page.getByRole('button', { name: 'Help and shortcuts', exact: true }).click();
