@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { Figure } from '../../src/models.js';
-import { normaliseProject, serializeProject } from '../../src/project.js';
+import { MAX_PROJECT_FILE_BYTES, normaliseProject, serializeProject } from '../../src/project.js';
 import { History } from '../../src/history.js';
 import { renderDocument } from '../../src/renderer.js';
 import { createFrameSchedule, createStoredZip, pickWebmMimeType } from '../../src/export-utils.js';
@@ -47,6 +47,10 @@ test('project module accepts large classroom animations and keeps a consistent s
 
   largeProject.frames = Array.from({ length: 2001 }, () => []);
   expect(() => normaliseProject(largeProject)).toThrow('Projects can contain at most 2000 frames.');
+});
+
+test('project file limit accommodates larger classroom projects', () => {
+  expect(MAX_PROJECT_FILE_BYTES).toBe(25 * 1024 * 1024);
 });
 
 test('project module rejects cyclic joint imports and serializes app state', () => {

@@ -2290,7 +2290,7 @@ const app={
   loadProject(i){
     if(!i.files||!i.files[0])return;
     const file=i.files[0];
-    if(file.size>MAX_PROJECT_FILE_BYTES){this.showToast('This project file is too large to open.','error');i.value='';return;}
+    if(file.size>MAX_PROJECT_FILE_BYTES){this.showToast('This project file is too large to open (maximum 25 MB).','error');i.value='';return;}
     this.stop();this.saveState();const r=new FileReader();
     r.onload=e=>{try{this.applyProjectData(JSON.parse(e.target.result));this.history.clear();this.saveLocal();this.showToast(`Opened ${this.projectName}`);}catch(err){console.error(err);this.showToast('This project file could not be opened.','error');}finally{i.value='';}};
     r.onerror=()=>{this.showToast('This project file could not be read.','error');i.value='';};r.readAsText(file);
