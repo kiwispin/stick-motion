@@ -39,6 +39,16 @@ test('project module accepts and normalises accumulated multi-turn joint angles'
   expect(project.frames[0][0].joints[1].angle).toBeCloseTo(-2.2832170134537895);
 });
 
+test('project module accepts large classroom animations and keeps a consistent safety limit', () => {
+  const largeProject = validProject();
+  largeProject.frames = Array.from({ length: 802 }, () => validProject().frames[0]);
+  largeProject.delays = Array(802).fill(1);
+  expect(normaliseProject(largeProject).frames).toHaveLength(802);
+
+  largeProject.frames = Array.from({ length: 2001 }, () => []);
+  expect(() => normaliseProject(largeProject)).toThrow('Projects can contain at most 2000 frames.');
+});
+
 test('project module rejects cyclic joint imports and serializes app state', () => {
   const invalid = validProject();
   invalid.frames[0][0].joints[0].parentId = 'arm';

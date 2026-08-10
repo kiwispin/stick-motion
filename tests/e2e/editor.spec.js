@@ -377,6 +377,20 @@ test('frame creation is undoable through the student keyboard shortcut', async (
   await expect.poll(() => page.evaluate(() => app.frames.length)).toBe(1);
 });
 
+test('editor never creates a project larger than its importer supports', async ({ page }) => {
+  await openEditor(page);
+  const result = await page.evaluate(() => {
+    app.frames = Array.from({ length: 2000 }, () => []);
+    app.frameDelays = Array(2000).fill(1);
+    app.currentFrameIndex = 0;
+    app.addFrame();
+    app.duplicateFrameAtIndex(0);
+    return { frames: app.frames.length, message: document.getElementById('sm-toast').textContent };
+  });
+  expect(result.frames).toBe(2000);
+  expect(result.message).toContain('2,000-frame limit');
+});
+
 test('rejects malformed project files through the normal file-open path', async ({ page }) => {
   await openEditor(page);
   const malformed = {

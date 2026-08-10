@@ -1285,7 +1285,7 @@
 
 <script type="module">
 import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './src/models.js';
-import { MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
+import { MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
 import { History } from './src/history.js';
 import { renderDocument } from './src/renderer.js';
 import { createFrameSchedule, createStoredZip, pickWebmMimeType } from './src/export-utils.js';
@@ -2175,7 +2175,13 @@ const app={
   },
   beginFrameDurationEdit(){if(!this.isEditingFrameDuration){this.saveState();this.isEditingFrameDuration=true;}},
   endFrameDurationEdit(){this.isEditingFrameDuration=false;},
+  hasFrameCapacity(){
+    if(this.frames.length<MAX_PROJECT_FRAMES)return true;
+    this.showToast(`This project has reached the ${MAX_PROJECT_FRAMES.toLocaleString()}-frame limit. Save it and start a new project to continue.`,'error');
+    return false;
+  },
   addFrame(){
+    if(!this.hasFrameCapacity())return;
     this.saveState();
     const d=this.frameDelays[this.currentFrameIndex]??1.0;
     const snap=this.figures.map(f=>f.clone());
@@ -2186,7 +2192,7 @@ const app={
   },
   duplicateCurrentFrame(){if(this.frames.length===0)return;this.duplicateFrameAtIndex(this.currentFrameIndex);},
   duplicateFrameAtIndex(idx){
-    if(idx<0||idx>=this.frames.length)return;this.saveState();
+    if(idx<0||idx>=this.frames.length||!this.hasFrameCapacity())return;this.saveState();
     const snap=this.frames[idx].map(f=>f.clone());const d=this.frameDelays[idx];
     this.frames.splice(idx+1,0,snap);this.frameDelays.splice(idx+1,0,d);
     this.currentFrameIndex=idx+1;this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);this.loadFrame(this.currentFrameIndex);this.updateTimeline();this.saveLocal();
