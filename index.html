@@ -1302,6 +1302,7 @@ import { GIF_WARNING_FRAME_COUNT, MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_B
 import { History } from './src/history.js';
 import { renderDocument } from './src/renderer.js';
 import { createFrameSchedule, createStoredZip, pickWebmMimeType } from './src/export-utils.js';
+import { readLegacyProject, readStoredProject, removeLegacyProject, writeStoredProject } from './src/storage.js';
 import { distanceToSegment, getCanvasPosition, getWrapperPosition, isPointInSpeechBubble } from './src/canvas-interaction.js';
 import { isMeaningfulMarquee } from './src/marquee.js';
 import { beginMarquee, endMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, showMarqueeElement, updateCursor, updateMarqueeElement } from './src/drag-controller.js';
@@ -1361,16 +1362,17 @@ const app={
   selectedFrames:new Set(),
   handleRadius:4,
   pendingAction:null,history:new History(),dialogFocusStack:[],
+  localSaveRunning:false,pendingLocalSave:null,localSaveQueue:Promise.resolve(),
   clipboard:[], // ← array of cloned Figure objects
   isEditingText:false,isEditingFrameDuration:false,
   asyncExport:null,
   marquee:{active:false,startX:0,startY:0,endX:0,endY:0},
 
-  init(){
+  async init(){
     builder.init();
     this.buildColorSwatches();
     this.applyCanvasSize(this.docWidth,this.docHeight);
-    const restored=this.loadFromLocal();if(!restored)this.addFigure();
+    const restored=await this.loadFromLocal();if(!restored)this.addFigure();
     this.canvas.addEventListener('mousedown',e=>this.handleStart(e,false));
     window.addEventListener('mousemove',e=>this.handleMove(e,false));
     window.addEventListener('mouseup',e=>this.handleEnd(e));
@@ -1597,17 +1599,38 @@ const app={
     indicator.title=isError?'Work could not be saved in this browser. Download a project copy.':label==='Recovered draft'?'Recovered from this browser. Choose New to start fresh.':'Your work is saved in this browser';
   },
   saveLocal(){
+    let payload;
     try{
       const createdInitialFrame=this.commitActiveFrame();
       const project=serializeProject(this);
-      localStorage.setItem('stickmotion_data',JSON.stringify(project));
+      payload=JSON.stringify(project);
       if(createdInitialFrame)this.updateTimeline();
-      this.updateSaveStatus('Saved');
-    }catch(e){console.error(e);this.updateSaveStatus('Save failed',true);this.showToast('Local save failed — download a project copy.','error');}
+      this.pendingLocalSave=payload;
+    }catch(e){console.error(e);this.updateSaveStatus('Save failed',true);this.showToast('Local save failed — download a project copy.','error');return Promise.resolve();}
+    if(this.localSaveRunning)return this.localSaveQueue;
+    this.localSaveRunning=true;
+    this.localSaveQueue=(async()=>{
+      try{
+        while(this.pendingLocalSave!==null){
+          const next=this.pendingLocalSave;this.pendingLocalSave=null;
+          await writeStoredProject(next);
+          this.updateSaveStatus('Saved');
+        }
+      }catch(e){
+        this.pendingLocalSave=null;
+        console.error(e);this.updateSaveStatus('Save failed',true);this.showToast('Local save failed — download a project copy.','error');
+      }finally{this.localSaveRunning=false;}
+    })();
+    return this.localSaveQueue;
   },
-  loadFromLocal(){
+  async loadFromLocal(){
     try{
-      const data=localStorage.getItem('stickmotion_data');if(!data)return false;
+      let data=await readStoredProject();
+      if(!data){
+        data=readLegacyProject();
+        if(data){await writeStoredProject(data);removeLegacyProject();}
+      }
+      if(!data)return false;
       this.applyProjectData(JSON.parse(data));this.updateSaveStatus('Recovered draft');return true;
     }catch(e){console.error(e);return false;}
   },

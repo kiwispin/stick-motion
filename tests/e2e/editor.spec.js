@@ -42,6 +42,28 @@ test('names and recovers the latest local project after reload', async ({ page }
   await expect(page.locator('#storage-indicator')).toHaveAttribute('title', /Choose New to start fresh/);
 });
 
+test('large local projects recover through IndexedDB autosave', async ({ page }) => {
+  await openEditor(page);
+  await page.evaluate(async () => {
+    app.newProject();
+    const source = app.frames[0][0];
+    app.frames = Array.from({ length: 580 }, (_, frameIndex) => Array.from({ length: 8 }, (_, figureIndex) => {
+      const figure = source.clone();
+      figure.id = `figure-${frameIndex}-${figureIndex}`;
+      figure.x = 120 + figureIndex * 20;
+      figure.y = 120 + (frameIndex % 20) * 10;
+      return figure;
+    }));
+    app.frameDelays = Array(580).fill(1);
+    app.currentFrameIndex = 579;
+    app.figures = app.frames[579].map(figure => figure.clone());
+    await app.saveLocal();
+  });
+  await page.reload();
+  await expect.poll(() => page.evaluate(() => app.frames.length), { timeout: 30_000 }).toBe(580);
+  await expect(page.locator('#storage-status')).toHaveText('Recovered draft');
+});
+
 test('allows spaces while typing a project name', async ({ page }) => {
   await openEditor(page);
   const projectName = page.locator('#project-name');
