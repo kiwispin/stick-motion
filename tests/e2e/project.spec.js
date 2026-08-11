@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { Figure } from '../../src/models.js';
-import { GIF_WARNING_FRAME_COUNT, MAX_PROJECT_FILE_BYTES, normaliseProject, serializeProject } from '../../src/project.js';
+import { GIF_WARNING_FRAME_COUNT, MAX_PROJECT_FILE_BYTES, SMOOTH_EXPORT_FPS, normaliseProject, serializeProject } from '../../src/project.js';
 import { History } from '../../src/history.js';
 import { renderDocument } from '../../src/renderer.js';
 import { createFrameSchedule, createStoredZip, pickWebmMimeType } from '../../src/export-utils.js';
@@ -127,6 +127,7 @@ test('WebM export prefers VP8 and falls back to VP9 or generic WebM', () => {
 
 test('long GIF warning threshold is above 150 frames', () => {
   expect(GIF_WARNING_FRAME_COUNT).toBe(150);
+  expect(SMOOTH_EXPORT_FPS).toBe(60);
 });
 
 test('drag controller moves selected groups, joints, and marquee bounds', () => {

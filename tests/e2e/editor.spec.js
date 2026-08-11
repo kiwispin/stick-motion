@@ -131,6 +131,29 @@ test('export menu provides GIF, WebM, PNG, and PNG ZIP downloads', async ({ page
   expect((await stat(await videoDownload.path())).size).toBeGreaterThan(100);
 });
 
+test('smooth PNG frame exports include interpolated samples', async ({ page }) => {
+  await openEditor(page);
+  const renderedFrames = await page.evaluate(async () => {
+    app.newProject();
+    const first = app.frames[0].map(figure => figure.clone());
+    const second = first.map(figure => { const clone = figure.clone(); clone.x += 80; return clone; });
+    app.frames = [first, second];
+    app.frameDelays = [1, 1];
+    app.currentFrameIndex = 0;
+    app.figures = first.map(figure => figure.clone());
+    app.isSmooth = true;
+    app.isLooping = true;
+    const originalCanvasToBlob = app.canvasToBlob;
+    const originalDownloadBlob = app.downloadBlob;
+    let count = 0;
+    app.canvasToBlob = async () => { count += 1; return new Blob(['frame'], { type: 'image/png' }); };
+    app.downloadBlob = () => {};
+    try { await app.exportPngFramesZip(); } finally { app.canvasToBlob = originalCanvasToBlob; app.downloadBlob = originalDownloadBlob; }
+    return count;
+  });
+  expect(renderedFrames).toBe(10);
+});
+
 test('long GIF exports explain the tradeoff and offer video', async ({ page }) => {
   await openEditor(page);
   await page.evaluate(() => {
@@ -371,6 +394,9 @@ test('GIF and WebM exports use FPS and frame duration timing', async ({ page }) 
       const runVideo = async (fps, multiplier, smooth = false) => {
         prepare(fps, multiplier);
         app.isSmooth = smooth;
+        const originalRenderInterpolated = app.renderInterpolated;
+        let interpolationCount = 0;
+        app.renderInterpolated = (...args) => { interpolationCount += 1; return originalRenderInterpolated.apply(app, args); };
         const waits = [];
         window.setTimeout = (callback, delay, ...args) => {
           waits.push(delay);
@@ -378,7 +404,8 @@ test('GIF and WebM exports use FPS and frame duration timing', async ({ page }) 
         };
         await app.exportVideo();
         window.setTimeout = nativeSetTimeout;
-        return { waits: waits.filter(delay => delay <= 1000), captureRate: captureRates.at(-1), actions: TimingRecorder.instances.at(-1).actions };
+        app.renderInterpolated = originalRenderInterpolated;
+        return { waits: waits.filter(delay => delay <= 1000), captureRate: captureRates.at(-1), interpolationCount, actions: TimingRecorder.instances.at(-1).actions };
       };
 
       return { gifSlow, gifFast, videoSlow: await runVideo(10, 2), videoFast: await runVideo(20, 2), videoSmooth: await runVideo(20, 1, true) };
@@ -397,7 +424,10 @@ test('GIF and WebM exports use FPS and frame duration timing', async ({ page }) 
   expect(result.videoSlow.waits.reduce((total, delay) => total + delay, 0)).toBe(200);
   expect(result.videoFast.waits.reduce((total, delay) => total + delay, 0)).toBe(100);
   expect(result.videoSmooth.waits.reduce((total, delay) => total + delay, 0)).toBe(50);
-  expect(result.videoSmooth.captureRate).toBe(40);
+  expect(result.videoSmooth.captureRate).toBe(60);
+  expect(result.videoSlow.interpolationCount).toBe(0);
+  expect(result.videoFast.interpolationCount).toBe(0);
+  expect(result.videoSmooth.interpolationCount).toBeGreaterThan(0);
   expect(result.videoSmooth.actions).toEqual(['requestData', 'stop']);
 });
 

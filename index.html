@@ -1298,7 +1298,7 @@
 
 <script type="module">
 import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './src/models.js';
-import { GIF_WARNING_FRAME_COUNT, MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
+import { GIF_WARNING_FRAME_COUNT, MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, SMOOTH_EXPORT_FPS, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
 import { History } from './src/history.js';
 import { renderDocument } from './src/renderer.js';
 import { createFrameSchedule, createStoredZip, pickWebmMimeType } from './src/export-utils.js';
@@ -2441,7 +2441,7 @@ const app={
       session.gif=gif;
       for(let i=0;i<this.frames.length;i++){
         if(session.cancelled)return;
-        const dm=this.frameDelays[i]||1.0;const schedule=createFrameSchedule({fps:this.fps,multiplier:dm,smooth:this.isSmooth,quantumMs:10});const fA=this.frames[i];const nextIdx=(i+1)%this.frames.length;
+        const dm=this.frameDelays[i]||1.0;const schedule=createFrameSchedule({fps:this.fps,multiplier:dm,smooth:this.isSmooth,samplesPerFrame:SMOOTH_EXPORT_FPS/this.fps,quantumMs:10});const fA=this.frames[i];const nextIdx=(i+1)%this.frames.length;
         if(!this.isLooping&&i===this.frames.length-1){this.figures=fA.map(f=>f.clone());const c=this.renderFrameToCtx();gif.addFrame(c.getContext('2d'),{copy:true,delay:schedule.reduce((total,delay)=>total+delay,0)});}
         else{const fB=this.frames[nextIdx];for(let s=0;s<schedule.length;s++){const t=this.isSmooth?s/schedule.length:0;this.renderInterpolated(fA,fB,t,false);const c=this.renderFrameToCtx(false);gif.addFrame(c.getContext('2d'),{copy:true,delay:schedule[s]});}}
         this.updateGifExportProgress((i+1)/this.frames.length*0.1,`Preparing frame ${i+1} of ${this.frames.length}…`);
@@ -2471,7 +2471,7 @@ const app={
       const exportCanvas=document.createElement('canvas');exportCanvas.width=this.docWidth;exportCanvas.height=this.docHeight;
       if(!mimeType||typeof exportCanvas.captureStream!=='function')throw new Error('WebM export is not supported by this browser.');
       const firstFrame=this.frames[0];this.figures=firstFrame.map(figure=>figure.clone());this.renderDocumentToCtx(exportCanvas.getContext('2d'),false,false);
-      const videoFps=Math.min(60,Math.max(1,this.isSmooth?this.fps*2:this.fps));
+      const videoFps=Math.min(60,Math.max(1,this.isSmooth?SMOOTH_EXPORT_FPS:this.fps));
       stream=exportCanvas.captureStream(videoFps);
       const recorder=new MediaRecorder(stream,{mimeType,videoBitsPerSecond:Math.max(2000000,this.docWidth*this.docHeight*8)});session.recorder=recorder;
       const chunks=[];
@@ -2486,8 +2486,7 @@ const app={
       });
       recorder.start(250);
       await started;
-      const samplesPerFrame=this.isSmooth?videoFps/this.fps:1;
-      const schedules=this.frames.map((_,index)=>createFrameSchedule({fps:this.fps,multiplier:this.frameDelays[index]||1,smooth:this.isSmooth,samplesPerFrame,maxStepDurationMs:100}));
+      const schedules=this.frames.map((_,index)=>createFrameSchedule({fps:this.fps,multiplier:this.frameDelays[index]||1,smooth:this.isSmooth,samplesPerFrame:this.isSmooth?SMOOTH_EXPORT_FPS/this.fps:1,maxStepDurationMs:100}));
       const totalSteps=schedules.reduce((total,schedule)=>total+schedule.length,0);let completed=0;
       for(let i=0;i<this.frames.length;i++){
         const frameA=this.frames[i],nextIndex=(i+1)%this.frames.length,schedule=schedules[i];
@@ -2517,14 +2516,22 @@ const app={
   async exportPngFramesZip(){
     const session=this.beginAsyncExport('PNG frames','Creating PNG frames ZIP');if(!session)return;
     try{
-      const files=[],digits=Math.max(3,String(this.frames.length).length),base=this.projectFilename();
+      const schedules=this.frames.map((_,index)=>createFrameSchedule({fps:this.fps,multiplier:this.frameDelays[index]||1,smooth:this.isSmooth,samplesPerFrame:this.isSmooth?SMOOTH_EXPORT_FPS/this.fps:1}));
+      const totalSteps=schedules.reduce((total,schedule)=>total+schedule.length,0);
+      const files=[],digits=Math.max(3,String(totalSteps).length),base=this.projectFilename();let outputIndex=0;
       for(let i=0;i<this.frames.length;i++){
-        if(session.cancelled)return;
-        this.currentFrameIndex=i;this.figures=this.frames[i].map(figure=>figure.clone());
-        const blob=await this.canvasToBlob(this.renderFrameToCtx(false,false));
-        files.push({name:`${base}-frame-${String(i+1).padStart(digits,'0')}.png`,data:blob});
-        this.updateGifExportProgress((i+1)/this.frames.length*0.8,`Rendering PNG frame ${i+1} of ${this.frames.length}…`);
-        await new Promise(resolve=>requestAnimationFrame(resolve));
+        const frameA=this.frames[i],nextIndex=(i+1)%this.frames.length,schedule=schedules[i];
+        for(let step=0;step<schedule.length;step++){
+          if(session.cancelled)return;
+          this.currentFrameIndex=i;
+          if(!this.isLooping&&i===this.frames.length-1)this.figures=frameA.map(figure=>figure.clone());
+          else if(this.isSmooth)this.renderInterpolated(frameA,this.frames[nextIndex],step/schedule.length,false);
+          else this.figures=frameA.map(figure=>figure.clone());
+          const blob=await this.canvasToBlob(this.renderFrameToCtx(false,false));
+          outputIndex+=1;files.push({name:`${base}-frame-${String(outputIndex).padStart(digits,'0')}.png`,data:blob});
+          this.updateGifExportProgress(outputIndex/totalSteps*0.8,'Rendering PNG frame '+outputIndex+' of '+totalSteps+'...');
+          await new Promise(resolve=>requestAnimationFrame(resolve));
+        }
       }
       if(session.cancelled)return;this.updateGifExportProgress(0.85,'Packaging PNG frames…');
       const blob=await createStoredZip(files);if(session.cancelled)return;
