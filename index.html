@@ -1232,6 +1232,7 @@
       <button type="button" class="lib-item" onclick="app.addFromLibrary('racket')"><span aria-hidden="true">🎾</span><p>Racket</p></button>
       <button type="button" class="lib-item" onclick="app.addFromLibrary('bike')"><span aria-hidden="true">🚲</span><p>Bike</p></button>
       <button type="button" class="lib-item" onclick="app.addFromLibrary('speech')"><span aria-hidden="true">💬</span><p>Speech</p></button>
+      <button type="button" class="lib-item" onclick="app.addFromLibrary('donkey')"><span aria-hidden="true">🫏</span><p>Donkey</p></button>
     </div>
   </div>
 </div>
@@ -1803,6 +1804,7 @@ const app={
       case'car':fig=this.createCar();break;
       case'snake':fig=this.createSnake();break;
       case'speech':fig=this.createSpeechBubble();break;
+      case'donkey':fig=this.createDonkey();break;
     }
     if(this.figures.length>0){fig.x+=30;fig.y+=30;}
     this.figures.push(fig);this.selectFigure(fig);this.render();this.saveLocal();this.closeLibrary();
@@ -1986,6 +1988,50 @@ const app={
     j.push(new Joint('rl1lower','rl1upper',26,PI/2+0.05,SEGMENT_LINE,20,12));
     j.push(new Joint('rl2upper','rear',28,PI/2-0.12,SEGMENT_LINE,20,14));
     j.push(new Joint('rl2lower','rl2upper',26,PI/2-0.05,SEGMENT_LINE,20,12));
+
+    f.joints=j;return f;
+  },
+  createDonkey(){
+    // A Pivot-inspired donkey built from StickMotion's existing line and
+    // circle primitives. Construction joints stay in the rig for correct
+    // hierarchy and drawing, but only useful posing pivots are exposed.
+    const f=new Figure();f.color='#111111';const j=[];
+    const points={root:[0,0]};
+    const part=(id,parent,x,y,thickness,type=SEGMENT_LINE,radius=20,color=null,handleVisible=true)=>{
+      const [px,py]=points[parent];points[id]=[x,y];
+      j.push(new Joint(id,parent,Math.hypot(x-px,y-py),Math.atan2(y-py,x-px),type,radius,thickness,true,color,handleVisible));
+    };
+
+    // Body and tail silhouette.
+    j.push(new Joint('root',null,0,0));
+    part('belly','root',51,7,78);
+    part('rump','belly',106,-6,83);
+    part('tailBase','rump',144,2,7,SEGMENT_LINE,20,null,false);
+    part('tailTip','tailBase',167,41,7);
+
+    // Far legs are retained behind the body; both joints are still useful
+    // posing controls when a student wants to animate a walk.
+    part('farFrontKnee','root',6,87,23);
+    part('farFrontFoot','farFrontKnee',35,139,19);
+    part('farRearKnee','rump',132,70,28);
+    part('farRearFoot','farRearKnee',141,140,19);
+
+    // Near legs.
+    part('nearRearKnee','rump',102,76,33);
+    part('nearRearFoot','nearRearKnee',67,140,20);
+    part('nearFrontKnee','root',-35,80,30);
+    part('nearFrontFoot','nearFrontKnee',-52,137,19);
+
+    // Shoulder mass plus separate neck and head chains.
+    part('shoulder','root',0,0,12,SEGMENT_CIRCLE,42,null,false);
+    part('poll','root',-56,-99,39);
+    part('muzzle','poll',-113,-56,35);
+    part('noseBase','muzzle',-86,-70,36,SEGMENT_LINE,20,null,false);
+    part('skull','muzzle',-71,-89,22,SEGMENT_CIRCLE,32,null,false);
+    part('earBase','muzzle',-56,-99,15,SEGMENT_LINE,20,null,false);
+    part('ear','earBase',-45,-148,15);
+    part('eyeAnchor','muzzle',-72,-87,10,SEGMENT_LINE,20,null,false);
+    part('eye','eyeAnchor',-72,-87,1,SEGMENT_CIRCLE,4.5,'#ffffff',false);
 
     f.joints=j;return f;
   },
@@ -2793,6 +2839,7 @@ const app={
     });
     if(showHandles){
       fig.joints.forEach(j=>{
+        if(j.handleVisible===false)return;
         this.ctx.beginPath();let r=this.handleRadius;
         if(j.parentId===null){this.ctx.fillStyle='#f97316';r+=2;}else this.ctx.fillStyle='#ef4444';
         this.ctx.arc(j.x,j.y,r,0,Math.PI*2);

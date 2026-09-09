@@ -4,7 +4,7 @@ import { GIF_WARNING_FRAME_COUNT, MAX_PROJECT_FILE_BYTES, SMOOTH_EXPORT_FPS, nor
 import { History } from '../../src/history.js';
 import { renderDocument } from '../../src/renderer.js';
 import { createFrameSchedule, createStoredZip, pickWebmMimeType } from '../../src/export-utils.js';
-import { beginMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, updateMarqueeElement } from '../../src/drag-controller.js';
+import { beginMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, updateCursor, updateMarqueeElement } from '../../src/drag-controller.js';
 
 function validProject() {
   return {
@@ -28,6 +28,20 @@ test('project module rebuilds validated model instances', () => {
   expect(project.frames).toHaveLength(1);
   expect(project.frames[0][0]).toBeInstanceOf(Figure);
   expect(project.frames[0][0].joints[1].parentId).toBe('root');
+});
+
+test('optional hidden joint handles survive cloning and project reload', () => {
+  const projectData = validProject();
+  projectData.frames[0][0].joints[1].handleVisible = false;
+  const project = normaliseProject(projectData);
+  const joint = project.frames[0][0].joints[1];
+  expect(joint.handleVisible).toBe(false);
+  expect(project.frames[0][0].clone().joints[1].handleVisible).toBe(false);
+
+  const state = { ...project, docWidth: 800, docHeight: 500, frameDelays: project.delays, currentFrameIndex: 0 };
+  const saved = serializeProject(state);
+  expect(saved.frames[0][0].joints[1].handleVisible).toBe(false);
+  expect(normaliseProject(saved).frames[0][0].joints[1].handleVisible).toBe(false);
 });
 
 test('project module accepts and normalises accumulated multi-turn joint angles', () => {
@@ -167,4 +181,20 @@ test('drag controller preserves handle, bubble, and segment hit priority', () =>
   expect(findDragTarget({ ...options, position: { x: arm.x, y: arm.y } })).toMatchObject({ type: 'joint', joint: arm });
   expect(findDragTarget({ ...options, position: { x: (figure.x + arm.x) / 2, y: (figure.y + arm.y) / 2 } }).type).toBe('root');
   expect(findDragTarget({ ...options, position: { x: 0, y: 0 } })).toBeNull();
+});
+
+test('drag controller ignores hidden joint handles while keeping the figure selectable', () => {
+  const figure = normaliseProject(validProject()).frames[0][0];
+  const arm = figure.joints.find(joint => joint.id === 'arm');
+  arm.handleVisible = false;
+  figure.updatePositions();
+  const options = { figures: [figure], handleRadius: 4, distanceToSegment: (point, start, end) => {
+    const lengthSquared = (end.x - start.x) ** 2 + (end.y - start.y) ** 2;
+    const t = Math.max(0, Math.min(1, ((point.x - start.x) * (end.x - start.x) + (point.y - start.y) * (end.y - start.y)) / lengthSquared));
+    return Math.hypot(point.x - (start.x + t * (end.x - start.x)), point.y - (start.y + t * (end.y - start.y)));
+  }, isPointInSpeechBubble: () => false };
+  expect(findDragTarget({ ...options, position: { x: arm.x, y: arm.y } })).toMatchObject({ type: 'root', joint: figure.joints[0] });
+  const canvas = { style: {} };
+  updateCursor(canvas, [figure], { x: arm.x, y: arm.y }, 4);
+  expect(canvas.style.cursor).toBe('crosshair');
 });

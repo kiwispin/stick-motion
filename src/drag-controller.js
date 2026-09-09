@@ -3,7 +3,7 @@ import { marqueeBounds } from './marquee.js';
 export function updateCursor(canvas, figures, position, handleRadius) {
   const overHandle = figures.some(figure => {
     figure.updatePositions();
-    return figure.joints.some(joint => Math.hypot(position.x - joint.x, position.y - joint.y) < handleRadius * 2);
+    return figure.joints.some(joint => joint.handleVisible !== false && Math.hypot(position.x - joint.x, position.y - joint.y) < handleRadius * 2);
   });
   canvas.style.cursor = overHandle ? 'pointer' : 'crosshair';
 }
@@ -18,7 +18,7 @@ export function findDragTarget({ figures, position, handleRadius, distanceToSegm
       return { figure, type: 'root', joint: root, offsetX: position.x - figure.x, offsetY: position.y - figure.y };
     }
     for (const joint of figure.joints) {
-      if (joint.parentId !== null && Math.hypot(position.x - joint.x, position.y - joint.y) < hitRadius) return { figure, type: 'joint', joint };
+      if (joint.parentId !== null && joint.handleVisible !== false && Math.hypot(position.x - joint.x, position.y - joint.y) < hitRadius) return { figure, type: 'joint', joint };
     }
   }
 

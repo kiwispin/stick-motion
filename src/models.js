@@ -2,7 +2,7 @@ export const SEGMENT_LINE = 'line';
 export const SEGMENT_CIRCLE = 'circle';
 
 export class Joint {
-  constructor(id, parentId, length, angle, type = SEGMENT_LINE, radius = 20, thickness = 14, filled = true, color = null) {
+  constructor(id, parentId, length, angle, type = SEGMENT_LINE, radius = 20, thickness = 14, filled = true, color = null, handleVisible = true) {
     this.id = id;
     this.parentId = parentId;
     this.length = length;
@@ -12,12 +12,16 @@ export class Joint {
     this.thickness = thickness;
     this.filled = filled;
     this.color = color;
+    // Decorative construction joints can remain part of the rig while their
+    // pivot is hidden and unavailable for direct posing. Older figures keep
+    // the original behaviour because the property defaults to true.
+    this.handleVisible = handleVisible !== false;
     this.x = 0;
     this.y = 0;
   }
 
   clone() {
-    return new Joint(this.id, this.parentId, this.length, this.angle, this.type, this.radius, this.thickness, this.filled, this.color);
+    return new Joint(this.id, this.parentId, this.length, this.angle, this.type, this.radius, this.thickness, this.filled, this.color, this.handleVisible);
   }
 }
 

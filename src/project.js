@@ -93,7 +93,7 @@ export function rehydrateFigures(data) {
       const parentId = jointData.parentId === null || jointData.parentId === undefined ? null : safeId(jointData.parentId, 'parent');
       const type = jointData.type === undefined ? SEGMENT_LINE : jointData.type;
       if (type !== SEGMENT_LINE && type !== SEGMENT_CIRCLE) throw new Error('Invalid joint type.');
-      return new Joint(id, parentId, safeNumber(jointData.length, 0, 0, 10000, 'joint length'), normaliseAngle(jointData.angle), type, safeNumber(jointData.radius, 20, 0, 5000, 'joint radius'), safeNumber(jointData.thickness, 14, 1, 500, 'joint thickness'), jointData.filled !== false, safeColor(jointData.color, null, 'joint color'));
+      return new Joint(id, parentId, safeNumber(jointData.length, 0, 0, 10000, 'joint length'), normaliseAngle(jointData.angle), type, safeNumber(jointData.radius, 20, 0, 5000, 'joint radius'), safeNumber(jointData.thickness, 14, 1, 500, 'joint thickness'), jointData.filled !== false, safeColor(jointData.color, null, 'joint color'), jointData.handleVisible !== false);
     });
     validateJointTree(figure.joints);
     return figure;

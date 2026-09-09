@@ -131,6 +131,60 @@ test('export menu provides GIF, WebM, PNG, and PNG ZIP downloads', async ({ page
   expect((await stat(await videoDownload.path())).size).toBeGreaterThan(100);
 });
 
+test('donkey library entry keeps a compact set of useful pivots through save and reload', async ({ page }) => {
+  await openEditor(page);
+  await page.getByRole('button', { name: 'Open model library' }).click();
+  await expect(page.getByRole('dialog', { name: 'Model Library' })).toContainText('Donkey');
+
+  const result = await page.evaluate(async () => {
+    app.newProject();
+    app.figures = [];
+    app.frames = [[]];
+    app.frameDelays = [1];
+    app.currentFrameIndex = 0;
+    app.addFromLibrary('donkey');
+    await app.saveLocal();
+    const before = app.figures[0];
+    const visible = before.joints.filter(joint => joint.handleVisible !== false).map(joint => joint.id);
+    const hidden = before.joints.filter(joint => joint.handleVisible === false).map(joint => joint.id);
+    const saved = JSON.parse(JSON.stringify(app.serializeProject()));
+    app.applyProjectData(saved);
+    const restored = app.figures[0];
+    const byId = id => restored.joints.find(joint => joint.id === id);
+    restored.updatePositions();
+    const bodyBefore = { x: byId('belly').x, y: byId('belly').y };
+    const pollBefore = { x: byId('poll').x, y: byId('poll').y };
+    const muzzleBefore = { x: byId('muzzle').x, y: byId('muzzle').y };
+    const earBefore = { x: byId('ear').x, y: byId('ear').y };
+    const pose = (id, delta) => {
+      byId(id).angle += delta;
+      app.rotateHierarchy(restored, id, delta);
+      restored.updatePositions();
+    };
+    pose('ear', 0.3);
+    const afterEar = { ear: { x: byId('ear').x, y: byId('ear').y }, muzzle: { x: byId('muzzle').x, y: byId('muzzle').y } };
+    pose('muzzle', -0.2);
+    const afterMuzzle = { muzzle: { x: byId('muzzle').x, y: byId('muzzle').y }, poll: { x: byId('poll').x, y: byId('poll').y } };
+    pose('poll', 0.2);
+    const afterPoll = { poll: { x: byId('poll').x, y: byId('poll').y }, body: { x: byId('belly').x, y: byId('belly').y } };
+    return {
+      visible, hidden,
+      restoredHidden: restored.joints.filter(joint => joint.handleVisible === false).map(joint => joint.id),
+      bodyBefore, pollBefore, muzzleBefore, earBefore, afterEar, afterMuzzle, afterPoll
+    };
+  });
+
+  expect(result.visible).toEqual(expect.arrayContaining(['root', 'belly', 'rump', 'tailTip', 'poll', 'muzzle', 'ear', 'farFrontKnee', 'farFrontFoot', 'farRearKnee', 'farRearFoot', 'nearFrontKnee', 'nearFrontFoot', 'nearRearKnee', 'nearRearFoot']));
+  expect(result.hidden).toEqual(expect.arrayContaining(['tailBase', 'shoulder', 'noseBase', 'skull', 'earBase', 'eyeAnchor', 'eye']));
+  expect(result.restoredHidden).toEqual(result.hidden);
+  expect(result.afterEar.ear).not.toEqual(result.earBefore);
+  expect(result.afterEar.muzzle).toEqual(result.muzzleBefore);
+  expect(result.afterMuzzle.muzzle).not.toEqual(result.muzzleBefore);
+  expect(result.afterMuzzle.poll).toEqual(result.pollBefore);
+  expect(result.afterPoll.poll).not.toEqual(result.pollBefore);
+  expect(result.afterPoll.body).toEqual(result.bodyBefore);
+});
+
 test('smooth PNG frame exports include interpolated samples', async ({ page }) => {
   await openEditor(page);
   const renderedFrames = await page.evaluate(async () => {
