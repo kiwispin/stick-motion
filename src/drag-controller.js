@@ -10,17 +10,31 @@ export function updateCursor(canvas, figures, position, handleRadius) {
 
 export function findDragTarget({ figures, position, handleRadius, distanceToSegment, isPointInSpeechBubble }) {
   const hitRadius = handleRadius + 10;
+  let nearestTarget = null;
+  let nearestDistance = Infinity;
+
   for (let index = figures.length - 1; index >= 0; index -= 1) {
     const figure = figures[index];
     figure.updatePositions();
     const root = figure.joints.find(joint => joint.parentId === null);
-    if (root && Math.hypot(position.x - root.x, position.y - root.y) < hitRadius) {
-      return { figure, type: 'root', joint: root, offsetX: position.x - figure.x, offsetY: position.y - figure.y };
+    if (root && root.handleVisible !== false) {
+      const distance = Math.hypot(position.x - root.x, position.y - root.y);
+      if (distance < hitRadius && distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestTarget = { figure, type: 'root', joint: root, offsetX: position.x - figure.x, offsetY: position.y - figure.y };
+      }
     }
     for (const joint of figure.joints) {
-      if (joint.parentId !== null && joint.handleVisible !== false && Math.hypot(position.x - joint.x, position.y - joint.y) < hitRadius) return { figure, type: 'joint', joint };
+      if (joint.parentId === null || joint.handleVisible === false) continue;
+      const distance = Math.hypot(position.x - joint.x, position.y - joint.y);
+      if (distance < hitRadius && distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestTarget = { figure, type: 'joint', joint };
+      }
     }
   }
+
+  if (nearestTarget) return nearestTarget;
 
   for (let index = figures.length - 1; index >= 0; index -= 1) {
     const figure = figures[index];

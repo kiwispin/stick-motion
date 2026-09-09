@@ -183,6 +183,49 @@ test('drag controller preserves handle, bubble, and segment hit priority', () =>
   expect(findDragTarget({ ...options, position: { x: 0, y: 0 } })).toBeNull();
 });
 
+test('drag controller chooses the nearest visible handle with stable tie priority', () => {
+  const back = normaliseProject(validProject()).frames[0][0];
+  const front = back.clone();
+  back.id = 'back';
+  front.id = 'front';
+  back.x = 400; back.y = 300;
+  front.x = 418; front.y = 300;
+  const backArm = back.joints.find(joint => joint.id === 'arm');
+  const frontArm = front.joints.find(joint => joint.id === 'arm');
+  backArm.length = 10; backArm.angle = 0;
+  frontArm.length = 10; frontArm.angle = 0;
+  const options = { figures: [back, front], handleRadius: 4, distanceToSegment: () => 100, isPointInSpeechBubble: () => false };
+
+  // The rear figure's child is closer than the front figure's root.
+  expect(findDragTarget({ ...options, position: { x: 409, y: 300 } })).toMatchObject({ figure: back, type: 'joint', joint: backArm });
+  // A short child overlaps its root's hit radius, so an exact midpoint keeps the root-first preference.
+  expect(findDragTarget({ ...options, position: { x: 405, y: 300 } })).toMatchObject({ figure: back, type: 'root', joint: back.joints[0] });
+  // Equal distances across figures retain the frontmost figure (last in draw order).
+  expect(findDragTarget({ ...options, position: { x: 414, y: 300 } })).toMatchObject({ figure: front, type: 'root', joint: front.joints[0] });
+});
+
+test('drag controller selects a short hand endpoint and excludes closer hidden handles', () => {
+  const figure = normaliseProject(validProject()).frames[0][0];
+  const arm = figure.joints[1];arm.length = 30;arm.angle = 0;
+  const hand = arm.clone();hand.id = 'hand';hand.parentId = 'arm';hand.length = 9;
+  const hidden = hand.clone();hidden.id = 'decoration';hidden.length = 8;hidden.handleVisible = false;
+  figure.joints.push(hand, hidden);
+  const options = { figures: [figure], handleRadius: 4, distanceToSegment: () => Infinity, isPointInSpeechBubble: () => false };
+  expect(findDragTarget({ ...options, position: { x: 439, y: 300 } })).toMatchObject({ type: 'joint', joint: hand });
+  expect(findDragTarget({ ...options, position: { x: 438, y: 300 } })).toMatchObject({ type: 'joint', joint: hand });
+  expect(findDragTarget({ ...options, position: { x: 431, y: 300 } })).toMatchObject({ type: 'joint', joint: arm });
+});
+
+test('drag controller keeps exact-overlap ties deterministic and preserves bubble fallback offsets', () => {
+  const back = normaliseProject(validProject()).frames[0][0];back.joints[1].length = 0;
+  const front = back.clone();front.id = 'front';
+  const options = { figures: [back, front], handleRadius: 4, distanceToSegment: () => Infinity, isPointInSpeechBubble: () => false };
+  expect(findDragTarget({ ...options, position: { x: 400, y: 300 } })).toMatchObject({ figure: front, type: 'root', joint: front.joints[0], offsetX: 0, offsetY: 0 });
+  expect(findDragTarget({ ...options, figures: [front, back], position: { x: 400, y: 300 } })).toMatchObject({ figure: back, type: 'root' });
+  expect(findDragTarget({ ...options, position: { x: 450, y: 325 }, isPointInSpeechBubble: figure => figure === front })).toMatchObject({ figure: front, type: 'root', offsetX: 50, offsetY: 25 });
+  expect(findDragTarget({ ...options, position: { x: 450, y: 325 } })).toBeNull();
+});
+
 test('drag controller ignores hidden joint handles while keeping the figure selectable', () => {
   const figure = normaliseProject(validProject()).frames[0][0];
   const arm = figure.joints.find(joint => joint.id === 'arm');
