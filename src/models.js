@@ -1,6 +1,12 @@
 export const SEGMENT_LINE = 'line';
 export const SEGMENT_CIRCLE = 'circle';
 
+function cloneValue(value) {
+  if (Array.isArray(value)) return value.map(cloneValue);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cloneValue(item)]));
+  return value;
+}
+
 export class Joint {
   constructor(id, parentId, length, angle, type = SEGMENT_LINE, radius = 20, thickness = 14, filled = true, color = null, handleVisible = true) {
     this.id = id;
@@ -37,6 +43,9 @@ export class Figure {
     this.type = 'figure';
     this.text = '';
     this.groupId = null;
+    // Optional, validated source-artwork data for an experimental STK figure.
+    // Ordinary figures leave this null and keep the established renderer path.
+    this.stkArtwork = null;
   }
 
   clone() {
@@ -50,6 +59,7 @@ export class Figure {
     figure.type = this.type;
     figure.text = this.text;
     figure.groupId = this.groupId;
+    figure.stkArtwork = cloneValue(this.stkArtwork);
     figure.joints = this.joints.map(joint => joint.clone());
     return figure;
   }

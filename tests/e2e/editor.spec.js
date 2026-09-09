@@ -27,6 +27,7 @@ test('starts with a usable first frame and persists the active pose after reload
     app.render();
     app.saveLocal();
   });
+  await expect(page.locator('#storage-status')).toHaveText('Saved');
   await page.reload();
   await expect(page.locator('#main-canvas')).toBeVisible();
   await expect.poll(() => page.evaluate(() => ({ x: app.figures[0].x, y: app.figures[0].y }))).toEqual({ x: 123, y: 234 });
@@ -40,6 +41,77 @@ test('names and recovers the latest local project after reload', async ({ page }
   await expect(page.locator('#project-name')).toHaveValue('Rocket rehearsal');
   await expect(page.locator('#storage-status')).toHaveText('Recovered draft');
   await expect(page.locator('#storage-indicator')).toHaveAttribute('title', /Choose New to start fresh/);
+});
+
+test('reports Saving until the latest queued autosave settles', async ({ page }) => {
+  await page.route('**/src/storage.js', async route => {
+    const response = await route.fetch();
+    let source = await response.text();
+    source = source.replace('export function writeStoredProject(', 'function originalWriteStoredProject(');
+    source += '\nexport function writeStoredProject(payload) { if (window.reviewFailWrites) return Promise.reject(new Error("Reviewer simulated storage failure")); if (!window.reviewHoldWrites) return originalWriteStoredProject(payload); return new Promise((resolve, reject) => { window.reviewWriteGates.push(() => originalWriteStoredProject(payload).then(resolve, reject)); }); }\n';
+    await route.fulfill({ response, body: source });
+  });
+  await openEditor(page);
+
+  const immediate = await page.evaluate(async () => {
+    app.closeWelcome();
+    await app.localSaveQueue;
+    window.reviewWriteGates = [];
+    window.reviewHoldWrites = true;
+    app.newProject();
+    app.setProjectName('Latest queued name');
+    app.figures[0].x = 222;
+    app.saveLocal();
+    return { status: document.getElementById('storage-status').textContent, running: app.localSaveRunning, pending: app.pendingLocalSave !== null };
+  });
+  expect(immediate).toEqual({ status: 'Saving', running: true, pending: true });
+  await page.evaluate(() => window.reviewWriteGates.shift()());
+  await page.waitForFunction(() => window.reviewWriteGates.length === 1);
+  await expect(page.locator('#storage-status')).toHaveText('Saving');
+  await page.evaluate(async () => {
+    window.reviewHoldWrites = false;
+    window.reviewWriteGates.shift()();
+    await app.localSaveQueue;
+  });
+  await expect(page.locator('#storage-status')).toHaveText('Saved');
+  const persisted = await page.evaluate(async () => JSON.parse(await (await import('./src/storage.js')).readStoredProject()));
+  expect(persisted.name).toBe('Latest queued name');
+  expect(persisted.frames[0][0].x).toBe(222);
+
+  await page.evaluate(async () => {
+    window.reviewFailWrites = true;
+    app.setProjectName('Failed write');
+    await app.localSaveQueue;
+  });
+  await expect(page.locator('#storage-status')).toHaveText('Save failed');
+  await page.evaluate(async () => {
+    window.reviewFailWrites = false;
+    app.setProjectName('Retry success');
+    await app.localSaveQueue;
+  });
+  await expect(page.locator('#storage-status')).toHaveText('Saved');
+
+  await page.evaluate(() => {
+    window.reviewHoldWrites = true;
+    app.setProjectName('Older valid snapshot');
+    const bad = {};
+    bad.self = bad;
+    app.backgroundData = bad;
+    app.saveLocal();
+  });
+  await expect(page.locator('#storage-status')).toHaveText('Save failed');
+  await page.evaluate(async () => {
+    window.reviewHoldWrites = false;
+    window.reviewWriteGates.shift()();
+    await app.localSaveQueue;
+  });
+  await expect(page.locator('#storage-status')).toHaveText('Save failed');
+  await page.evaluate(async () => {
+    app.backgroundData = null;
+    app.setProjectName('Recovered after serialization error');
+    await app.localSaveQueue;
+  });
+  await expect(page.locator('#storage-status')).toHaveText('Saved');
 });
 
 test('large local projects recover through IndexedDB autosave', async ({ page }) => {

@@ -1,4 +1,5 @@
 import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './models.js';
+import { cloneStkArtwork, MAX_IMPORTED_JOINTS_PER_FIGURE, validateStkArtwork } from './stk-import.js';
 
 export const MAX_PROJECT_FILE_BYTES = 25 * 1024 * 1024;
 export const MAX_PROJECT_FRAMES = 2000;
@@ -6,6 +7,7 @@ export const GIF_WARNING_FRAME_COUNT = 150;
 export const SMOOTH_EXPORT_FPS = 60;
 export const MAX_FIGURES_PER_FRAME = 250;
 export const MAX_JOINTS_PER_FIGURE = 100;
+export { MAX_IMPORTED_JOINTS_PER_FIGURE };
 export const MAX_PROJECT_GROUPS = 250;
 export const MAX_TEXT_LENGTH = 1000;
 export const MAX_BACKGROUND_DATA_LENGTH = 8 * 1024 * 1024;
@@ -86,7 +88,21 @@ export function rehydrateFigures(data) {
     figure.type = safeText(figureData.type, 'figure', 32, 'figure type');
     figure.text = safeText(figureData.text, '', MAX_TEXT_LENGTH, 'figure text');
     figure.groupId = figureData.groupId === null || figureData.groupId === undefined ? null : safeId(figureData.groupId, 'group');
-    if (!Array.isArray(figureData.joints) || figureData.joints.length === 0 || figureData.joints.length > MAX_JOINTS_PER_FIGURE) throw new Error(`Figure ${index + 1} has an invalid number of joints.`);
+    const hasStkArtwork = figureData.stkArtwork !== undefined && figureData.stkArtwork !== null;
+    if (hasStkArtwork) validateStkArtwork(figureData.stkArtwork);
+    const jointLimit = hasStkArtwork ? MAX_IMPORTED_JOINTS_PER_FIGURE : MAX_JOINTS_PER_FIGURE;
+    if (!Array.isArray(figureData.joints) || figureData.joints.length === 0 || figureData.joints.length > jointLimit) throw new Error(`Figure ${index + 1} has an invalid number of joints.`);
+    if (hasStkArtwork) {
+      const sourceSegments = figureData.stkArtwork.segments;
+      if (figureData.joints.length !== sourceSegments.length + 1) throw new Error(`Figure ${index + 1} has an invalid STK joint count.`);
+      const root = figureData.joints[0];
+      if (!isPlainObject(root) || root.id !== 'stk-root' || root.parentId !== null) throw new Error(`Figure ${index + 1} has an invalid STK root joint.`);
+      sourceSegments.forEach((segment, segmentIndex) => {
+        const jointData = figureData.joints[segmentIndex + 1];
+        const expectedParent = segment.parent === 0 ? 'stk-root' : `stk-${segment.parent}`;
+        if (!isPlainObject(jointData) || jointData.id !== `stk-${segment.id}` || jointData.parentId !== expectedParent) throw new Error(`Figure ${index + 1} has an invalid STK joint binding.`);
+      });
+    }
     figure.joints = figureData.joints.map((jointData, jointIndex) => {
       if (!isPlainObject(jointData)) throw new Error('A joint is malformed.');
       const id = safeId(jointData.id, `joint ${jointIndex + 1}`);
@@ -96,6 +112,7 @@ export function rehydrateFigures(data) {
       return new Joint(id, parentId, safeNumber(jointData.length, 0, 0, 10000, 'joint length'), normaliseAngle(jointData.angle), type, safeNumber(jointData.radius, 20, 0, 5000, 'joint radius'), safeNumber(jointData.thickness, 14, 1, 500, 'joint thickness'), jointData.filled !== false, safeColor(jointData.color, null, 'joint color'), jointData.handleVisible !== false);
     });
     validateJointTree(figure.joints);
+    figure.stkArtwork = hasStkArtwork ? cloneStkArtwork(figureData.stkArtwork) : null;
     return figure;
   });
   if (new Set(figures.map(figure => figure.id)).size !== figures.length) throw new Error('Figure ids must be unique within a frame.');

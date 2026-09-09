@@ -124,6 +124,17 @@
   .export-menu-item:hover, .export-menu-item:focus-visible { background: var(--bg4); }
   .export-menu-icon { width: 19px; color: #3b9cff; font-family: var(--mono); font-size: 12px; font-weight: 700; text-align: center; }
   .export-menu-divider { height: 1px; margin: 5px 3px; background: var(--border); }
+  .stk-import-box { width: min(620px, calc(100vw - 32px)); }
+  .stk-import-warning { margin: 14px 0; padding: 10px 12px; border: 1px solid rgba(245,158,11,0.55); border-radius: 8px; background: rgba(245,158,11,0.1); color: #fbd38d; line-height: 1.45; }
+  .stk-import-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 12px 0; }
+  .stk-import-stat { padding: 8px; border-radius: 7px; background: var(--bg3); border: 1px solid var(--border); text-align: center; }
+  .stk-import-stat strong { display: block; font-size: 16px; color: var(--text); }
+  .stk-import-stat span { display: block; margin-top: 2px; color: var(--text3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+  #stk-import-preview { width: 100%; height: 240px; display: block; border-radius: 8px; background: #edf1ef; border: 1px solid var(--border); }
+  #stk-import-status { min-height: 18px; color: var(--text2); line-height: 1.4; }
+  #stk-import-warnings { margin-top: 8px; color: #fbd38d; font-size: 11px; line-height: 1.45; }
+  #stk-import-modal .modal-box { max-width: 620px; width: min(620px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; }
+  #stk-import-preview { height: auto; aspect-ratio: auto; }
   #compact-actions { display: none; }
   .compact-actions-toggle {
     width: 36px; height: 36px; border: 1px solid var(--border2); border-radius: 7px;
@@ -767,6 +778,11 @@
     Open
   </button>
   <input type="file" id="load-input" style="display:none" accept=".json" onchange="app.loadProject(this)">
+  <button class="top-btn" onclick="document.getElementById('stk-input').click()" title="Import a Pivot STK figure (Experimental)">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+    Import STK
+  </button>
+  <input type="file" id="stk-input" style="display:none" accept=".stk,application/octet-stream" onchange="app.handleStkImportFile(this)">
 
   <div class="top-divider"></div>
 
@@ -817,6 +833,7 @@
       <button class="compact-menu-item" type="button" onclick="app.runCompactAction('new')">New project</button>
       <button class="compact-menu-item" type="button" onclick="app.runCompactAction('save')">Save project</button>
       <button class="compact-menu-item" type="button" onclick="app.runCompactAction('open')">Open project</button>
+      <button class="compact-menu-item" type="button" onclick="app.runCompactAction('import-stk')">Import STK (Experimental)</button>
       <div class="compact-menu-divider" role="separator"></div>
       <button class="compact-menu-item" type="button" onclick="app.runCompactAction('settings')">Settings</button>
       <button class="compact-menu-item" type="button" onclick="app.runCompactAction('help')">Help and shortcuts</button>
@@ -1163,6 +1180,22 @@
   </div>
 </div>
 
+<!-- Experimental STK import preview -->
+<div class="modal-overlay" id="stk-import-modal" role="dialog" aria-modal="true" aria-labelledby="stk-import-title">
+  <div class="modal-box stk-import-box">
+    <div class="modal-title" id="stk-import-title">Import STK — Experimental</div>
+    <div class="stk-import-warning"><strong>Experimental feature.</strong> Some files are not supported yet. Check the preview before inserting. Shapes may differ slightly. This adds one supported Pivot STK figure to the current frame; your existing project is not replaced.</div>
+    <canvas id="stk-import-preview" width="596" height="240" aria-label="Preview of the STK figure to import"></canvas>
+    <div class="stk-import-summary" id="stk-import-summary"></div>
+    <div id="stk-import-status" role="status" aria-live="polite">Choose an STK file to preview.</div>
+    <div id="stk-import-warnings"></div>
+    <div class="modal-btns" style="margin-top:16px">
+      <button class="modal-btn cancel" id="stk-import-cancel" onclick="app.cancelStkImport()">Cancel</button>
+      <button class="modal-btn confirm" id="stk-import-insert" onclick="app.confirmStkImport()" disabled>Insert into current frame</button>
+    </div>
+  </div>
+</div>
+
 <!-- Settings -->
 <div class="modal-overlay" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
   <div class="modal-box">
@@ -1315,7 +1348,7 @@
 
 <script type="module">
 import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './src/models.js';
-import { GIF_WARNING_FRAME_COUNT, MAX_BACKGROUND_DATA_LENGTH, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, SMOOTH_EXPORT_FPS, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
+import { GIF_WARNING_FRAME_COUNT, MAX_BACKGROUND_DATA_LENGTH, MAX_FIGURES_PER_FRAME, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, SMOOTH_EXPORT_FPS, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
 import { History } from './src/history.js';
 import { renderDocument } from './src/renderer.js';
 import { createGifSchedules, createFrameSchedule, createStoredZip, pickWebmMimeType } from './src/export-utils.js';
@@ -1323,6 +1356,8 @@ import { readLegacyProject, readStoredProject, removeLegacyProject, writeStoredP
 import { distanceToSegment, getCanvasPosition, getWrapperPosition, isPointInSpeechBubble } from './src/canvas-interaction.js';
 import { isMeaningfulMarquee } from './src/marquee.js';
 import { beginMarquee, endMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, showMarqueeElement, updateCursor, updateMarqueeElement } from './src/drag-controller.js';
+import { decodeStk, createFigureFromStk } from './src/stk-import.js';
+import { drawStkFigure, getStkArtworkBounds } from './src/stk-renderer.js';
 
 // Color palette
 const PALETTE = ['#000000','#ffffff','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#6b7280','#0ea5e9','#14b8a6','#84cc16','#f43f5e','#a78bfa'];
@@ -1379,10 +1414,11 @@ const app={
   selectedFrames:new Set(),
   handleRadius:4,
   pendingAction:null,history:new History(),dialogFocusStack:[],
-  localSaveRunning:false,pendingLocalSave:null,localSaveQueue:Promise.resolve(),
+  localSaveRunning:false,pendingLocalSave:null,localSaveRevision:0,localSaveErrorRevision:0,localSaveQueue:Promise.resolve(),
   clipboard:[], // ← array of cloned Figure objects
   isEditingText:false,isEditingFrameDuration:false,
   asyncExport:null,
+  pendingStkImport:null,stkImportToken:0,
   marquee:{active:false,startX:0,startY:0,endX:0,endY:0},
 
   async init(){
@@ -1486,6 +1522,7 @@ const app={
     if(action==='new')this.confirmNewProject();
     else if(action==='save')this.saveProject();
     else if(action==='open')document.getElementById('load-input').click();
+    else if(action==='import-stk')document.getElementById('stk-input').click();
     else if(action==='settings')this.openSettings();
     else if(action==='help')this.openHelp();
     else if(['gif','video','frame','zip'].includes(action))this.runExportAction(action);
@@ -1615,9 +1652,11 @@ const app={
     const status=document.getElementById('storage-status');
     if(!indicator||!status)return;
     indicator.classList.toggle('error',isError);status.textContent=label;
-    indicator.title=isError?'Work could not be saved in this browser. Download a project copy.':label==='Recovered draft'?'Recovered from this browser. Choose New to start fresh.':'Your work is saved in this browser';
+    indicator.title=isError?'Work could not be saved in this browser. Download a project copy.':label==='Recovered draft'?'Recovered from this browser. Choose New to start fresh.':label==='Saving'?'Saving your latest changes in this browser':'Your work is saved in this browser';
   },
   saveLocal(){
+    const revision=++this.localSaveRevision;
+    this.updateSaveStatus('Saving');
     let payload;
     try{
       const createdInitialFrame=this.commitActiveFrame();
@@ -1625,7 +1664,12 @@ const app={
       payload=JSON.stringify(project);
       if(createdInitialFrame)this.updateTimeline();
       this.pendingLocalSave=payload;
-    }catch(e){console.error(e);this.updateSaveStatus('Save failed',true);this.showToast('Local save failed — download a project copy.','error');return Promise.resolve();}
+      this.localSaveErrorRevision=0;
+    }catch(e){
+      this.pendingLocalSave=null;
+      this.localSaveErrorRevision=revision;
+      console.error(e);this.updateSaveStatus('Save failed',true);this.showToast('Local save failed — download a project copy.','error');return Promise.resolve();
+    }
     if(this.localSaveRunning)return this.localSaveQueue;
     this.localSaveRunning=true;
     this.localSaveQueue=(async()=>{
@@ -1633,8 +1677,8 @@ const app={
         while(this.pendingLocalSave!==null){
           const next=this.pendingLocalSave;this.pendingLocalSave=null;
           await writeStoredProject(next);
-          this.updateSaveStatus('Saved');
         }
+        if(this.localSaveErrorRevision!==this.localSaveRevision)this.updateSaveStatus('Saved');
       }catch(e){
         this.pendingLocalSave=null;
         console.error(e);this.updateSaveStatus('Save failed',true);this.showToast('Local save failed — download a project copy.','error');
@@ -1652,6 +1696,88 @@ const app={
       if(!data)return false;
       this.applyProjectData(JSON.parse(data));this.updateSaveStatus('Recovered draft');return true;
     }catch(e){console.error(e);return false;}
+  },
+  // ── Experimental Pivot STK import ────────────────────────────
+  invalidateStkImport(close=true){
+    this.stkImportToken+=1;this.pendingStkImport=null;
+    if(close)this.closeDialog('stk-import-modal');
+    const insert=document.getElementById('stk-import-insert');if(insert)insert.disabled=true;
+    const preview=document.getElementById('stk-import-preview');if(preview){const context=preview.getContext('2d');context.clearRect(0,0,preview.width,preview.height);}
+  },
+  handleStkImportFile(input){
+    const file=input?.files?.[0];if(input)input.value='';if(!file)return;
+    if(this.isPlaying)this.stop();
+    this.invalidateStkImport();
+    const token=++this.stkImportToken;
+    this.pendingStkImport={token,fileName:file.name,decoded:null,figure:null};
+    const status=document.getElementById('stk-import-status');
+    const summary=document.getElementById('stk-import-summary');
+    const warnings=document.getElementById('stk-import-warnings');
+    const insert=document.getElementById('stk-import-insert');
+    if(status)status.textContent='Reading and validating the STK payload…';
+    if(summary)summary.innerHTML='';
+    if(warnings)warnings.textContent='';
+    if(insert)insert.disabled=true;
+    this.openDialog('stk-import-modal','#stk-import-cancel');
+    (async()=>{
+      try{
+        const decoded=await decodeStk(file);
+        if(this.stkImportToken!==token||!this.pendingStkImport||this.pendingStkImport.token!==token)return;
+        const figure=createFigureFromStk(decoded,{x:this.docWidth/2,y:this.docHeight/2});
+        this.fitStkFigureToDocument(figure);
+        this.pendingStkImport.decoded=decoded;this.pendingStkImport.figure=figure;
+        this.renderStkImportPreview(figure);
+        const curved=decoded.segments.filter(segment=>Math.abs(segment.bend||0)>1e-8).length;
+        const controls=decoded.segments.filter(segment=>segment.flag===0).length;
+        summary.innerHTML=`<div class="stk-import-stat"><strong>${decoded.segments.length}</strong><span>segments</span></div><div class="stk-import-stat"><strong>${decoded.polygons.length}</strong><span>filled polygons</span></div><div class="stk-import-stat"><strong>${curved}</strong><span>curved segments</span></div><div class="stk-import-stat"><strong>${controls + 1}</strong><span>pose controls</span></div><div class="stk-import-stat"><strong>${decoded.payloadBytes.toLocaleString()}</strong><span>decoded bytes</span></div><div class="stk-import-stat"><strong>${decoded.wrapper===0x79?'Pivot 4':'Pivot 5'}</strong><span>detected layout</span></div>`;
+        status.textContent=`Ready to preview “${file.name}”. Insert adds it to frame ${this.currentFrameIndex+1} without replacing your project.`;
+        warnings.innerHTML=(decoded.warnings||[]).map(warning=>`<div>⚠ ${warning}</div>`).join('');
+        insert.disabled=false;
+      }catch(error){
+        if(this.stkImportToken!==token||!this.pendingStkImport||this.pendingStkImport.token!==token)return;
+        this.pendingStkImport.decoded=null;this.pendingStkImport.figure=null;
+        const preview=document.getElementById('stk-import-preview');if(preview){const context=preview.getContext('2d');context.clearRect(0,0,preview.width,preview.height);}
+        status.textContent=error?.message||'This STK file could not be imported.';
+        warnings.textContent='No project changes were made.';
+        insert.disabled=true;
+        console.warn('STK import rejected.',error);
+      }
+    })();
+  },
+  fitStkFigureToDocument(figure){
+    if(!figure?.stkArtwork)return;
+    const bounds=getStkArtworkBounds(figure);if(!bounds)return;
+    const width=Math.max(1,bounds.maxX-bounds.minX),height=Math.max(1,bounds.maxY-bounds.minY);
+    const requiredScale=Math.min((this.docWidth-72)/width,(this.docHeight-72)/height);
+    if(!Number.isFinite(requiredScale)||requiredScale<0.05)throw new Error('STK figure is too large to fit safely in this document.');
+    const fitScale=Math.min(5,requiredScale);
+    figure.scale*=fitScale;figure.updatePositions();
+    const fitted=getStkArtworkBounds(figure);if(!fitted)return;
+    figure.x+=(this.docWidth/2-(fitted.minX+fitted.maxX)/2);figure.y+=(this.docHeight/2-(fitted.minY+fitted.maxY)/2);figure.updatePositions();
+  },
+  renderStkImportPreview(figure){
+    const canvas=document.getElementById('stk-import-preview');if(!canvas||!figure)return;
+    const context=canvas.getContext('2d');const width=canvas.width,height=canvas.height;
+    context.clearRect(0,0,width,height);context.fillStyle='#edf1ef';context.fillRect(0,0,width,height);
+    context.fillStyle='#dfe5e3';const cell=14;for(let y=0;y<height;y+=cell)for(let x=0;x<width;x+=cell)if((x/cell+y/cell)%2===0)context.fillRect(x,y,cell,cell);
+    const bounds=getStkArtworkBounds(figure);if(!bounds)return;
+    const bw=Math.max(1,bounds.maxX-bounds.minX),bh=Math.max(1,bounds.maxY-bounds.minY);
+    const scale=Math.max(0.01,Math.min(5,(width-36)/bw,(height-36)/bh));
+    context.save();context.translate((width-(bounds.minX+bounds.maxX)*scale)/2,(height-(bounds.minY+bounds.maxY)*scale)/2);context.scale(scale,scale);
+    drawStkFigure({context,figure,showHandles:false,drawSelection:false});context.restore();
+  },
+  cancelStkImport(){this.invalidateStkImport(true);},
+  confirmStkImport(){
+    const pending=this.pendingStkImport;if(!pending?.figure||!pending.decoded)return;
+    if(this.figures.length>=MAX_FIGURES_PER_FRAME){this.showToast(`This frame already has the ${MAX_FIGURES_PER_FRAME.toLocaleString()}-figure limit.`,'error');return;}
+    const figure=pending.figure.clone();
+    const used=new Set(this.figures.map(item=>item.id));
+    while(used.has(figure.id))figure.id=`stk-${Math.random().toString(36).slice(2,11)}`;
+    this.saveState();
+    this.figures.push(figure);
+    if(this.frames[this.currentFrameIndex])this.frames[this.currentFrameIndex]=this.figures.map(item=>item.clone());
+    this.selectedFigureIds.clear();this.selectFigure(figure);this.render();this.updateTimeline();this.saveLocal();
+    this.invalidateStkImport(true);this.showToast(`Imported ${pending.fileName||'STK figure'} into frame ${this.currentFrameIndex+1}`);
   },
   setProjectName(value){
     this.projectName=String(value).replace(/[\u0000-\u001F]/g,'').slice(0,80);
@@ -1685,7 +1811,7 @@ const app={
   },
   handleDialogKeydown(e){
     const dialog=document.querySelector('.modal-overlay.show[role="dialog"]');if(!dialog)return false;
-    if(e.key==='Escape'){e.preventDefault();if(dialog.id==='confirm-modal')this.closeModal();else if(dialog.id==='gif-warning-modal')this.closeGifWarning();else if(dialog.id==='settings-modal')this.closeSettings();else if(dialog.id==='library-modal')this.closeLibrary();else if(dialog.id==='builder-modal')builder.close();else if(dialog.id==='help-modal')this.closeHelp();else if(dialog.id==='welcome-modal')this.closeWelcome();else if(dialog.id==='loading-modal')this.cancelActiveExport();return true;}
+    if(e.key==='Escape'){e.preventDefault();if(dialog.id==='confirm-modal')this.closeModal();else if(dialog.id==='gif-warning-modal')this.closeGifWarning();else if(dialog.id==='settings-modal')this.closeSettings();else if(dialog.id==='library-modal')this.closeLibrary();else if(dialog.id==='builder-modal')builder.close();else if(dialog.id==='help-modal')this.closeHelp();else if(dialog.id==='welcome-modal')this.closeWelcome();else if(dialog.id==='loading-modal')this.cancelActiveExport();else if(dialog.id==='stk-import-modal')this.cancelStkImport();return true;}
     if(e.key==='Tab'){
       const items=this.getDialogFocusable(dialog);if(items.length){const first=items[0],last=items[items.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
     }
@@ -1726,6 +1852,7 @@ const app={
   confirmNewProject(){this.showModal('New Project?','Start over with a new animation? Your current local draft will be replaced.',()=>{this.saveState();this.newProject();this.showToast('New project started');});},
 
   newProject(){
+    this.invalidateStkImport();
     this.stop();this.frames=[];this.frameDelays=[];this.figures=[];this.groups=[];
     this.projectName='Untitled animation';document.getElementById('project-name').value=this.projectName;
     this.currentFrameIndex=0;this.bgImage=null;this.backgroundData=null;this.history.clear();
@@ -2461,6 +2588,19 @@ const app={
       if(figB){
         figA.updatePositions();figB.updatePositions();
         const nF=figA.clone();nF.x=figA.x+(figB.x-figA.x)*t;nF.y=figA.y+(figB.y-figA.y)*t;nF.scale=figA.scale+(figB.scale-figA.scale)*t;
+        if(figA.stkArtwork&&figB.stkArtwork){
+          // Flipping an imported figure changes signed bends.  Interpolation
+          // must carry that metadata along too, otherwise t=1 would retain
+          // frame A's arc direction while native endpoints already match B.
+          if(t>=1){nF.stkArtwork=figB.clone().stkArtwork;}
+          else if(t>0&&nF.stkArtwork.segments.length===figB.stkArtwork.segments.length){
+            nF.stkArtwork.segments.forEach((segment,index)=>{
+              const other=figB.stkArtwork.segments[index];
+              if(segment.id===other.id)segment.bend=(Number(segment.bend)||0)+((Number(other.bend)||0)-(Number(segment.bend)||0))*t;
+            });
+            nF.stkArtwork.parameters?.forEach(parameter=>{const segment=nF.stkArtwork.segments[parameter.index];if(segment)parameter.value=segment.bend;});
+          }
+        }
         const mapA={},mapB={},nextPos={};
         figA.joints.forEach(j=>mapA[j.id]=j);figB.joints.forEach(j=>mapB[j.id]=j);
         const calc=(j)=>{
@@ -2494,6 +2634,7 @@ const app={
     if(!i.files||!i.files[0])return;
     const file=i.files[0];
     if(file.size>MAX_PROJECT_FILE_BYTES){this.showToast('This project file is too large to open (maximum 25 MB).','error');i.value='';return;}
+    this.invalidateStkImport();
     this.stop();this.saveState();const r=new FileReader();
     r.onload=e=>{try{this.applyProjectData(JSON.parse(e.target.result));this.history.clear();this.saveLocal();this.showToast(`Opened ${this.projectName}`);}catch(err){console.error(err);this.showToast('This project file could not be opened.','error');}finally{i.value='';}};
     r.onerror=()=>{this.showToast('This project file could not be read.','error');i.value='';};r.readAsText(file);
@@ -2814,7 +2955,7 @@ const app={
     this.updateGroupPanel();
   },
 
-  flipFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=normaliseAngle(Math.PI-j.angle);});this.render();this.saveLocal();},
+  flipFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=normaliseAngle(Math.PI-j.angle);});if(f.stkArtwork){f.stkArtwork.segments.forEach(segment=>{segment.bend=-(Number(segment.bend)||0);});f.stkArtwork.parameters?.forEach(parameter=>{const segment=f.stkArtwork.segments[parameter.index];if(segment)parameter.value=segment.bend;});}this.render();this.saveLocal();},
   centerFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.x=this.docWidth/2;f.y=this.docHeight/2;this.render();this.saveLocal();},
   scaleFigure(s){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.scale*=s;this.render();this.saveLocal();},
   rotateSelectedFigure(d){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=normaliseAngle(j.angle+d);});this.render();this.saveLocal();},
@@ -2885,6 +3026,10 @@ const app={
     return lines.slice(0,5);
   },
   drawFigure(fig,showHandles){
+    if(fig.stkArtwork){
+      drawStkFigure({context:this.ctx,figure:fig,showHandles,handleRadius:this.handleRadius});
+      return;
+    }
     this.ctx.strokeStyle=fig.color;this.ctx.fillStyle=fig.color;
     this.ctx.lineCap='round';this.ctx.lineJoin='round';
     if(fig.type==='text'){

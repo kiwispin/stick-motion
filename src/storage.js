@@ -30,19 +30,32 @@ function openDatabase() {
 
 function runRequest(mode, callback) {
   return openDatabase().then(database => new Promise((resolve, reject) => {
-    const transaction = database.transaction(STORE_NAME, mode);
-    const store = transaction.objectStore(STORE_NAME);
+    let transaction;
     let request;
+    let result;
+    let settled = false;
+    const fail = error => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
     try {
+      transaction = database.transaction(STORE_NAME, mode);
+      const store = transaction.objectStore(STORE_NAME);
       request = callback(store);
     } catch (error) {
-      reject(error);
+      fail(error);
       return;
     }
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error || transaction.error || storageError('The project database request failed.'));
-    transaction.onerror = () => reject(transaction.error || storageError('The project database transaction failed.'));
-    transaction.onabort = () => reject(transaction.error || storageError('The project database transaction was aborted.'));
+    request.onsuccess = () => { result = request.result; };
+    request.onerror = () => fail(request.error || transaction.error || storageError('The project database request failed.'));
+    transaction.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    };
+    transaction.onerror = () => fail(transaction.error || storageError('The project database transaction failed.'));
+    transaction.onabort = () => fail(transaction.error || storageError('The project database transaction was aborted.'));
   }));
 }
 

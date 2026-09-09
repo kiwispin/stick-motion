@@ -1,9 +1,28 @@
 import { marqueeBounds } from './marquee.js';
 
+function isStkConstruction(figure, joint) {
+  if (!figure?.stkArtwork || joint.parentId === null) return false;
+  const match = /^stk-(\d+)$/.exec(joint.id);
+  if (!match) return false;
+  const segment = figure.stkArtwork.segments[Number(match[1]) - 1];
+  // A zero-width source segment can still be an explicitly visible Pivot
+  // control (Owl flag 0). Only hidden construction endpoints are skipped.
+  return Boolean(segment && Number(segment.width) <= 0 && joint.handleVisible === false);
+}
+
+function isStkNonPaintedSegment(figure, joint) {
+  if (!figure?.stkArtwork || joint.parentId === null) return false;
+  const match = /^stk-(\d+)$/.exec(joint.id);
+  if (!match) return false;
+  const segment = figure.stkArtwork.segments[Number(match[1]) - 1];
+  const filledCircle = figure.stkArtwork.wrapper === 0x79 && segment?.type === 3;
+  return Boolean(segment && Number(segment.width) <= 0 && !filledCircle);
+}
+
 export function updateCursor(canvas, figures, position, handleRadius) {
   const overHandle = figures.some(figure => {
     figure.updatePositions();
-    return figure.joints.some(joint => joint.handleVisible !== false && Math.hypot(position.x - joint.x, position.y - joint.y) < handleRadius * 2);
+    return figure.joints.some(joint => !isStkConstruction(figure, joint) && joint.handleVisible !== false && Math.hypot(position.x - joint.x, position.y - joint.y) < handleRadius * 2);
   });
   canvas.style.cursor = overHandle ? 'pointer' : 'crosshair';
 }
@@ -25,7 +44,7 @@ export function findDragTarget({ figures, position, handleRadius, distanceToSegm
       }
     }
     for (const joint of figure.joints) {
-      if (joint.parentId === null || joint.handleVisible === false) continue;
+      if (joint.parentId === null || joint.handleVisible === false || isStkConstruction(figure, joint)) continue;
       const distance = Math.hypot(position.x - joint.x, position.y - joint.y);
       if (distance < hitRadius && distance < nearestDistance) {
         nearestDistance = distance;
@@ -49,6 +68,7 @@ export function findDragTarget({ figures, position, handleRadius, distanceToSegm
     const figure = figures[index];
     for (const joint of figure.joints) {
       if (joint.parentId === null) continue;
+      if (isStkNonPaintedSegment(figure, joint)) continue;
       const parent = figure.joints.find(item => item.id === joint.parentId);
       if (parent && distanceToSegment(position, parent, joint) < (joint.thickness || 14) * figure.scale / 2 + 5) {
         const root = figure.joints.find(item => item.parentId === null);
