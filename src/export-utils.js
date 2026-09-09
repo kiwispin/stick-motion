@@ -1,3 +1,17 @@
+export function createGifSchedules({ fps, delays, smooth }) {
+  let intendedMs = 0, encodedUnits = 0;
+  return delays.map(multiplier => {
+    intendedMs += 1000 / fps * multiplier;
+    // GIF uses centiseconds. Browsers stretch delays <= 10 ms to 100 ms.
+    // Round cumulative boundaries so per-frame rounding does not accumulate.
+    const units = Math.max(2, Math.round(intendedMs / 10) - encodedUnits);
+    encodedUnits += units;
+    const steps = smooth ? Math.max(1, Math.floor(units / 2)) : 1;
+    const base = Math.floor(units / steps), remainder = units % steps;
+    return Array.from({ length: steps }, (_, index) => (base + (index < remainder ? 1 : 0)) * 10);
+  });
+}
+
 export function createFrameSchedule({ fps, multiplier = 1, smooth = false, samplesPerFrame = 5, quantumMs = 0, maxStepDurationMs = Infinity }) {
   const safeFps = Math.max(1, Number(fps) || 1);
   const safeMultiplier = Math.max(0.1, Number(multiplier) || 1);
