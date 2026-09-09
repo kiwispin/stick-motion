@@ -1233,6 +1233,7 @@
       <button type="button" class="lib-item" onclick="app.addFromLibrary('bike')"><span aria-hidden="true">🚲</span><p>Bike</p></button>
       <button type="button" class="lib-item" onclick="app.addFromLibrary('speech')"><span aria-hidden="true">💬</span><p>Speech</p></button>
       <button type="button" class="lib-item" onclick="app.addFromLibrary('donkey')"><span aria-hidden="true">🫏</span><p>Donkey</p></button>
+      <button type="button" class="lib-item" onclick="app.addFromLibrary('elephant')"><span aria-hidden="true">🐘</span><p>Elephant</p></button>
     </div>
   </div>
 </div>
@@ -1805,6 +1806,7 @@ const app={
       case'snake':fig=this.createSnake();break;
       case'speech':fig=this.createSpeechBubble();break;
       case'donkey':fig=this.createDonkey();break;
+      case'elephant':fig=this.createElephant();break;
     }
     if(this.figures.length>0){fig.x+=30;fig.y+=30;}
     this.figures.push(fig);this.selectFigure(fig);this.render();this.saveLocal();this.closeLibrary();
@@ -2032,6 +2034,56 @@ const app={
     part('ear','earBase',-45,-148,15);
     part('eyeAnchor','muzzle',-72,-87,10,SEGMENT_LINE,20,null,false);
     part('eye','eyeAnchor',-72,-87,1,SEGMENT_CIRCLE,4.5,'#ffffff',false);
+
+    f.joints=j;return f;
+  },
+  createElephant(){
+    // A Pivot-inspired elephant built from StickMotion's existing line and
+    // circle primitives. Construction joints remain in the rig for correct
+    // drawing and hierarchy, but only useful posing pivots are exposed.
+    const f=new Figure();f.color='#8c8b78';const j=[];
+    // The prototype's root-relative reference point is intentionally offset:
+    // preserving it keeps every approved segment length and angle exact.
+    const points={root:[174,98]};
+    const part=(id,parent,x,y,thickness,type=SEGMENT_LINE,radius=20,color=null,handleVisible=true)=>{
+      const [px,py]=points[parent];points[id]=[x,y];
+      j.push(new Joint(id,parent,Math.hypot(x-px,y-py),Math.atan2(y-py,x-px),type,radius,thickness,true,color,handleVisible));
+    };
+
+    // Body and tail silhouette. The torso return stroke is rooted at rump so
+    // posing the body keeps both strokes aligned.
+    j.push(new Joint('root',null,0,0));
+    part('rump','root',85,101,100);
+    part('farRearHip','rump',101,117,31,SEGMENT_LINE,20,null,false);
+    part('farRearKnee','farRearHip',100,167,29);
+    part('farRearFoot','farRearKnee',108,224,29);
+    part('farFrontHip','root',205,113,30,SEGMENT_LINE,20,null,false);
+    part('farFrontKnee','farFrontHip',211,165,29);
+    part('farFrontFoot','farFrontKnee',215,224,29);
+    part('tailBase','rump',55,81,9,SEGMENT_LINE,20,null,false);
+    part('tailTip','tailBase',32,115,9);
+    part('bodyMass','rump',174,98,100,SEGMENT_LINE,20,null,false);
+    part('nearRearHip','rump',77,119,36,SEGMENT_LINE,20,null,false);
+    part('nearRearKnee','nearRearHip',75,167,35);
+    part('nearRearFoot','nearRearKnee',69,224,34);
+    part('nearFrontHip','root',181,115,39,SEGMENT_LINE,20,null,false);
+    part('nearFrontKnee','nearFrontHip',186,168,37);
+    part('nearFrontFoot','nearFrontKnee',176,224,34);
+
+    // A head nod carries the skull, eye, ear and complete trunk together.
+    part('headBase','root',210,56,67,SEGMENT_LINE,20,null,false);
+    part('head','headBase',268,50,42);
+    part('skullAnchor','head',242,49,30,SEGMENT_LINE,20,null,false);
+    part('skull','skullAnchor',242,49,30,SEGMENT_CIRCLE,47,null,false);
+    part('trunkBase','head',274,69,29,SEGMENT_LINE,20,null,false);
+    part('trunkUpper','trunkBase',279,99,28);
+    part('trunkMiddle','trunkUpper',283,135,24);
+    part('trunkLower','trunkMiddle',277,169,21);
+    part('trunkTip','trunkLower',264,202,17);
+    part('earBase','head',205,35,25,SEGMENT_LINE,20,null,false);
+    part('ear','earBase',178,68,25,SEGMENT_CIRCLE,38);
+    part('eyeAnchor','head',243,49,3,SEGMENT_LINE,20,null,false);
+    part('eye','eyeAnchor',243,49,1,SEGMENT_CIRCLE,4.5,'#ffffff',false);
 
     f.joints=j;return f;
   },

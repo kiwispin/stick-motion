@@ -185,6 +185,150 @@ test('donkey library entry keeps a compact set of useful pivots through save and
   expect(result.afterPoll.body).toEqual(result.bodyBefore);
 });
 
+test('elephant library entry preserves the approved rig through save, reload, hierarchy posing, and cloning', async ({ page }) => {
+  await openEditor(page);
+  await page.evaluate(() => {
+    app.newProject();
+    app.figures = [];
+    app.frames = [[]];
+    app.frameDelays = [1];
+    app.currentFrameIndex = 0;
+    app.openLibrary();
+  });
+  const library = page.getByRole('dialog', { name: 'Model Library' });
+  await expect(library).toContainText('Elephant');
+  await library.getByRole('button', { name: /Elephant/ }).click();
+  await page.evaluate(() => app.localSaveQueue);
+
+  const beforeReload = await page.evaluate(() => {
+    const figure = app.figures[0];
+    const clone = figure.clone();
+    const originalTrunk = figure.joints.find(joint => joint.id === 'trunkUpper');
+    const clonedTrunk = clone.joints.find(joint => joint.id === 'trunkUpper');
+    clonedTrunk.angle += 0.4;
+    const byId = id => figure.joints.find(joint => joint.id === id);
+    return {
+      color: figure.color,
+      positionAndScale: { x: figure.x, y: figure.y, scale: figure.scale },
+      jointCount: figure.joints.length,
+      visibleCount: figure.joints.filter(joint => joint.handleVisible !== false).length,
+      hiddenCount: figure.joints.filter(joint => joint.handleVisible === false).length,
+      visible: figure.joints.filter(joint => joint.handleVisible !== false).map(joint => joint.id),
+      hidden: figure.joints.filter(joint => joint.handleVisible === false).map(joint => joint.id),
+      earColor: byId('ear').color,
+      eyeColor: byId('eye').color,
+      rootLinks: ['rump', 'farFrontHip', 'nearFrontHip', 'headBase'].map(id => ({ id, length: byId(id).length, angle: byId(id).angle })),
+      cloneIsIndependent: clonedTrunk.angle !== originalTrunk.angle,
+      cloneKeepsHiddenHandles: clone.joints.filter(joint => joint.handleVisible === false).length === 13
+    };
+  });
+
+  expect(beforeReload.color).toBe('#8c8b78');
+  expect(beforeReload.positionAndScale).toEqual({ x: 400, y: 300, scale: 1 });
+  expect(beforeReload.jointCount).toBe(30);
+  expect(beforeReload.visibleCount).toBe(17);
+  expect(beforeReload.hiddenCount).toBe(13);
+  expect(beforeReload.visible).toEqual(expect.arrayContaining([
+    'root', 'rump', 'farRearKnee', 'farRearFoot', 'farFrontKnee', 'farFrontFoot',
+    'tailTip', 'nearRearKnee', 'nearRearFoot', 'nearFrontKnee', 'nearFrontFoot',
+    'head', 'trunkUpper', 'trunkMiddle', 'trunkLower', 'trunkTip', 'ear'
+  ]));
+  expect(beforeReload.hidden).toEqual(expect.arrayContaining([
+    'farRearHip', 'farFrontHip', 'tailBase', 'bodyMass', 'nearRearHip', 'nearFrontHip',
+    'headBase', 'skullAnchor', 'skull', 'trunkBase', 'earBase', 'eyeAnchor', 'eye'
+  ]));
+  expect(beforeReload.earColor).toBeNull();
+  expect(beforeReload.eyeColor).toBe('#ffffff');
+  expect(beforeReload.rootLinks).toEqual([
+    { id: 'rump', length: 89.05054744357274, angle: 3.107897546243777 },
+    { id: 'farFrontHip', length: 34.43835071544513, angle: 0.45066132608063364 },
+    { id: 'nearFrontHip', length: 18.38477631085024, angle: 1.1801892830972098 },
+    { id: 'headBase', length: 55.31726674375732, angle: -0.8621700546672264 }
+  ]);
+  expect(beforeReload.cloneIsIndependent).toBe(true);
+  expect(beforeReload.cloneKeepsHiddenHandles).toBe(true);
+
+  await page.reload();
+  await expect(page.locator('#main-canvas')).toBeVisible();
+  await page.waitForFunction(() => window.app?.figures?.[0]?.joints?.length === 30);
+  const afterReload = await page.evaluate(() => {
+    const figure = app.figures[0];
+    figure.updatePositions();
+    const ids = figure.joints.map(joint => joint.id);
+    const positions = () => Object.fromEntries(figure.joints.map(joint => [joint.id, { x: joint.x, y: joint.y }]));
+    const pose = (id, delta) => {
+      const before = positions();
+      const joint = figure.joints.find(item => item.id === id);
+      joint.angle += delta;
+      app.rotateHierarchy(figure, id, delta);
+      figure.updatePositions();
+      return ids.filter(jointId => Math.hypot(figure.joints.find(item => item.id === jointId).x - before[jointId].x, figure.joints.find(item => item.id === jointId).y - before[jointId].y) > 0.01);
+    };
+    const trunkBefore = figure.joints.map(joint => ({ id: joint.id, length: joint.length }));
+    const results = {
+      head: pose('head', 0.15),
+      ear: pose('ear', -0.25),
+      trunk: pose('trunkMiddle', -0.25),
+      leg: pose('nearFrontKnee', 0.2),
+      tail: pose('tailTip', 0.2)
+    };
+    const lengthsUnchanged = figure.joints.every((joint, index) => joint.length === trunkBefore[index].length);
+    return {
+      color: figure.color,
+      jointCount: figure.joints.length,
+      hidden: figure.joints.filter(joint => joint.handleVisible === false).map(joint => joint.id),
+      parents: Object.fromEntries(['head', 'eyeAnchor', 'eye', 'earBase', 'ear', 'trunkBase', 'trunkUpper', 'trunkMiddle', 'trunkLower', 'trunkTip', 'nearFrontHip', 'nearFrontKnee', 'nearFrontFoot', 'tailBase', 'tailTip'].map(id => [id, figure.joints.find(joint => joint.id === id).parentId])),
+      results,
+      lengthsUnchanged
+    };
+  });
+
+  expect(afterReload.color).toBe('#8c8b78');
+  expect(afterReload.jointCount).toBe(30);
+  expect(afterReload.hidden).toHaveLength(13);
+  expect(afterReload.hidden).toEqual(expect.arrayContaining(beforeReload.hidden));
+  expect(afterReload.parents).toEqual({
+    head: 'headBase', eyeAnchor: 'head', eye: 'eyeAnchor', earBase: 'head', ear: 'earBase',
+    trunkBase: 'head', trunkUpper: 'trunkBase', trunkMiddle: 'trunkUpper', trunkLower: 'trunkMiddle', trunkTip: 'trunkLower',
+    nearFrontHip: 'root', nearFrontKnee: 'nearFrontHip', nearFrontFoot: 'nearFrontKnee', tailBase: 'rump', tailTip: 'tailBase'
+  });
+  expect(afterReload.results.head).toEqual(expect.arrayContaining(['head', 'eye', 'ear', 'trunkBase', 'trunkUpper', 'trunkMiddle', 'trunkLower', 'trunkTip']));
+  for (const id of ['rump', 'nearFrontKnee', 'nearFrontFoot', 'tailTip']) expect(afterReload.results.head).not.toContain(id);
+  expect(afterReload.results.ear).toEqual(['ear']);
+  expect(afterReload.results.trunk).toEqual(['trunkMiddle', 'trunkLower', 'trunkTip']);
+  expect(afterReload.results.leg).toEqual(['nearFrontKnee', 'nearFrontFoot']);
+  expect(afterReload.results.tail).toEqual(['tailTip']);
+  expect(afterReload.lengthsUnchanged).toBe(true);
+});
+
+test('elephant ear follows the selected colour while its white eye and rig survive reload', async ({ page }) => {
+  await openEditor(page);
+  await page.evaluate(() => {
+    app.newProject();app.figures = [];app.frames = [[]];app.currentFrameIndex = 0;
+    app.addFromLibrary('elephant');
+  });
+  const geometry = () => page.evaluate(() => app.figures[0].joints.map(({ id, parentId, length, angle, radius, thickness, handleVisible }) => ({ id, parentId, length, angle, radius, thickness, handleVisible })));
+  const before = await geometry();
+  const pixels = () => page.evaluate(() => {
+    const f = app.figures[0];f.updatePositions();
+    const canvas = document.createElement('canvas');canvas.width = 800;canvas.height = 500;
+    const context = canvas.getContext('2d'), previous = app.ctx;
+    try { app.ctx = context;app.drawFigure(f, false); } finally { app.ctx = previous; }
+    const sample = (id, dx = 0) => { const j = f.joints.find(j => j.id === id);return [...context.getImageData(Math.round(j.x + dx), Math.round(j.y), 1, 1).data]; };
+    return { body: sample('rump'), ear: sample('ear', -12), eye: sample('eye') };
+  });
+  for (const [hex, rgb] of [['#000000', [0, 0, 0]], ['#ef4444', [239, 68, 68]]]) {
+    await page.getByRole('button', { name: `Set figure color to ${hex}`, exact: true }).click();
+    expect(await pixels()).toEqual({ body: [...rgb, 255], ear: [...rgb, 255], eye: [255, 255, 255, 255] });
+    expect(await geometry()).toEqual(before);
+  }
+  await page.evaluate(async () => { await app.saveLocal(); });
+  await page.reload();
+  await page.waitForFunction(() => window.app?.figures?.[0]?.joints?.some(j => j.id === 'trunkTip'));
+  expect(await pixels()).toEqual({ body: [239, 68, 68, 255], ear: [239, 68, 68, 255], eye: [255, 255, 255, 255] });
+  expect(await geometry()).toEqual(before);
+});
+
 test('smooth PNG frame exports include interpolated samples', async ({ page }) => {
   await openEditor(page);
   const renderedFrames = await page.evaluate(async () => {
