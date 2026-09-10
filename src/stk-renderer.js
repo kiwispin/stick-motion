@@ -1,4 +1,4 @@
-import { getStkNodes, orderedStkDrawItems, pointOnStkSegment, validateStkArtwork } from './stk-import.js';
+import { getStkNodes, isStkCircleSegment, orderedStkDrawItems, pointOnStkSegment, validateStkArtwork } from './stk-import.js';
 
 const EPSILON = 1e-8;
 
@@ -41,6 +41,17 @@ function drawCircle(context, node, segment, figureScale) {
   else context.stroke();
 }
 
+function drawLegacyHollowCircle(context, node, segment, figureScale) {
+  const center = { x: (node.start.x + node.end.x) / 2, y: (node.start.y + node.end.y) / 2 };
+  const radius = Math.max(0, Math.hypot(node.end.x - node.start.x, node.end.y - node.start.y) / 2);
+  context.save();
+  context.fillStyle = '#ffffff';
+  context.lineWidth = Math.max(0.65, (Number(segment.width) || 0) * figureScale);
+  context.beginPath(); context.arc(center.x, center.y, radius, 0, Math.PI * 2);
+  context.fill(); context.stroke();
+  context.restore();
+}
+
 function appendPolygonPath(context, artwork, nodes, polygon, figureScale) {
   const refs = polygon.vertices;
   const first = nodes[refs[0]].end;
@@ -71,13 +82,20 @@ export function drawStkFigure({ context, figure, showHandles = false, handleRadi
     if (item < artwork.segments.length) {
       const segment = artwork.segments[item];
       const node = nodes[segment.id];
-      if (!node || (segment.width <= 0 && !(artwork.wrapper === 0x79 && segment.type === 3))) continue;
+      if (!node || (segment.width <= 0 && !isStkCircleSegment(artwork, segment))) continue;
       context.save();
       context.strokeStyle = rgbColor(segment.color, node.joint.color || figure.color);
       context.fillStyle = context.strokeStyle;
       context.lineWidth = Math.max(0.65, segment.width * figure.scale);
-      if (artwork.wrapper === 0x79 && segment.type === 3) drawCircle(context, node, segment, figure.scale);
-      else { context.beginPath(); context.moveTo(node.start.x, node.start.y); appendArcPath(context, segment, node, false, figure.scale); context.stroke(); }
+      if (isStkCircleSegment(artwork, segment)) {
+        if ((artwork.wrapper === 0x78 || artwork.wrapper === 0x7a) && segment.type === 1) drawLegacyHollowCircle(context, node, segment, figure.scale);
+        else drawCircle(context, node, segment, figure.scale);
+      }
+      else {
+        context.beginPath(); context.moveTo(node.start.x, node.start.y); appendArcPath(context, segment, node, false, figure.scale);
+        context.lineCap = artwork.wrapper === 0x7a && segment.type === 6 ? 'square' : 'round';
+        context.stroke();
+      }
       context.restore();
     } else {
       const polygon = artwork.polygons[item - artwork.segments.length];
@@ -121,12 +139,13 @@ export function getStkArtworkBounds(figure, includeHandles = false) {
   }
   for (const segment of figure.stkArtwork.segments) {
     const node = nodes[segment.id];
-    const isCircle = figure.stkArtwork.wrapper === 0x79 && segment.type === 3;
+    const isCircle = isStkCircleSegment(figure.stkArtwork, segment);
     if (segment.width <= 0 && !isCircle && !arcRefs.has(segment.id)) continue;
     const steps = Math.max(8, Math.ceil(Math.abs(segment.bend || 0) * 32 / Math.PI));
     const chordLength = Math.hypot(node.end.x - node.start.x, node.end.y - node.start.y);
     const chordAngle = Math.atan2(node.end.y - node.start.y, node.end.x - node.start.x);
-    const pad = isCircle ? (chordLength + segment.width * figure.scale) / 2 : segment.width * figure.scale / 2;
+    const squareCap = figure.stkArtwork.wrapper === 0x7a && segment.type === 6;
+    const pad = isCircle ? (chordLength + segment.width * figure.scale) / 2 : segment.width * figure.scale / 2 * (squareCap ? Math.SQRT2 : 1);
     if (isCircle) {
       add({ x: (node.start.x + node.end.x) / 2, y: (node.start.y + node.end.y) / 2 }, pad);
       continue;

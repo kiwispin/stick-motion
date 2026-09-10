@@ -1,9 +1,10 @@
 import { Figure, Joint, SEGMENT_LINE } from './models.js';
 
 // STK is a compressed binary format.  The importer deliberately accepts only
-// the two layouts reverse-engineered from the local Pivot 4/5 samples.  A file
+// the three layouts reverse-engineered from the local Pivot 3/4/5 samples.  A file
 // that does not match one of those complete layouts fails before a Figure is
 // created; no unsupported feature is silently discarded.
+export const STK_WRAPPER_V3 = 0x78;
 export const STK_WRAPPER_V4 = 0x79;
 export const STK_WRAPPER_V5 = 0x7a;
 export const STK_MAX_FILE_BYTES = 25 * 1024 * 1024;
@@ -19,6 +20,12 @@ export const STK_MAX_ABS_BEND = 1.95 * Math.PI;
 export const STK_MAX_SEGMENT_LENGTH = 10000;
 export const STK_MAX_SEGMENT_WIDTH = 500;
 const EPSILON = 1e-8;
+
+export function isStkCircleSegment(artwork, segment) {
+  return Boolean(segment && ((artwork?.wrapper === STK_WRAPPER_V3 && segment.type === 1) ||
+    (artwork?.wrapper === STK_WRAPPER_V4 && segment.type === 3) ||
+    (artwork?.wrapper === STK_WRAPPER_V5 && (segment.type === 1 || segment.type === 3))));
+}
 
 function fail(message) {
   throw new Error(`STK import rejected: ${message}`);
@@ -89,6 +96,89 @@ function readRgb(payload, offset, label) {
 function validateRgb(color, label) {
   if (!Array.isArray(color) || color.length !== 3 || color.some(value => !Number.isInteger(value) || value < 0 || value > 255)) fail(`${label} has an invalid colour.`);
   return [...color];
+}
+
+function parseV3(payload) {
+  ensureBytes(payload, 0, 2, 'Pivot 3 header');
+  if (payload[0] !== 1) fail(`unsupported Pivot 3 payload header ${payload[0].toString(16).padStart(2, '0')}.`);
+  const segmentCount = payload[1];
+  if (segmentCount < 1 || segmentCount > 255) fail('Pivot 3 segment count is outside the supported range.');
+  const expectedBytes = 2 + segmentCount * 24;
+  if (payload.byteLength < expectedBytes) fail('Pivot 3 segment records are incomplete.');
+  if (payload.byteLength > expectedBytes) fail('Pivot 3 payload has unsupported trailing data.');
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const sourceSegments = [];
+  const sourceIds = new Set();
+  const sourceIdToRecord = new Map();
+  for (let index = 0; index < segmentCount; index += 1) {
+    const offset = 2 + index * 24;
+    const parentSourceId = payload[offset];
+    const sourceId = payload[offset + 1];
+    const reserved = view.getUint16(offset + 2, true);
+    const length = view.getFloat32(offset + 4, true);
+    const angle = view.getFloat64(offset + 8, true);
+    const width = view.getFloat32(offset + 16, true);
+    const type = payload[offset + 20];
+    const flag = payload[offset + 21];
+    const trailing = view.getUint16(offset + 22, true);
+    if (sourceId < 1 || sourceId > segmentCount || sourceIds.has(sourceId)) fail(`Pivot 3 segment ${index + 1} has an invalid or duplicate source id.`);
+    if (reserved !== 0 || trailing !== 0) fail(`Pivot 3 segment ${sourceId} uses an unsupported record layout.`);
+    finiteNumber(length, `Pivot 3 segment ${sourceId} length`, 0, STK_MAX_SEGMENT_LENGTH);
+    finiteNumber(angle, `Pivot 3 segment ${sourceId} angle`, -1000000, 1000000);
+    finiteNumber(width, `Pivot 3 segment ${sourceId} width`, 0, STK_MAX_SEGMENT_WIDTH);
+    if (type !== 0 && type !== 1) fail(`Pivot 3 segment ${sourceId} uses unsupported type ${type}.`);
+    if (flag !== 0 && flag !== 1) fail(`Pivot 3 segment ${sourceId} uses unsupported flag ${flag}.`);
+    sourceIds.add(sourceId);
+    sourceIdToRecord.set(sourceId, index);
+    sourceSegments.push({ index, sourceId, parentSourceId, length, angle, bend: 0, width, type, flag,
+      // Pivot 3 has no colour field; type 1's legacy hollow-circle renderer
+      // supplies its white interior and black outline.
+      color: null, reserved, trailing });
+  }
+  sourceSegments.forEach(segment => {
+    if (segment.parentSourceId !== 0 && !sourceIds.has(segment.parentSourceId)) fail(`Pivot 3 segment ${segment.sourceId} references an unknown parent.`);
+  });
+
+  // Keep the file's drawing order whenever its parent records already precede
+  // their children.  If a future V3 file has forward parent references, use a
+  // stable topological order for the rig and retain source order in drawRanks.
+  const recordOrderValid = sourceSegments.every(segment => segment.parentSourceId === 0 ||
+    sourceIdToRecord.get(segment.parentSourceId) < segment.index);
+  let orderedSourceSegments;
+  if (recordOrderValid) {
+    orderedSourceSegments = sourceSegments;
+  } else {
+    const children = new Map(sourceSegments.map(segment => [segment.sourceId, []]));
+    const indegree = new Map(sourceSegments.map(segment => [segment.sourceId, segment.parentSourceId === 0 ? 0 : 1]));
+    sourceSegments.forEach(segment => { if (segment.parentSourceId !== 0) children.get(segment.parentSourceId).push(segment); });
+    const queue = sourceSegments.filter(segment => indegree.get(segment.sourceId) === 0);
+    const sorted = [];
+    while (queue.length) {
+      queue.sort((a, b) => a.index - b.index);
+      const segment = queue.shift();
+      sorted.push(segment);
+      for (const child of children.get(segment.sourceId)) {
+        indegree.set(child.sourceId, indegree.get(child.sourceId) - 1);
+        if (indegree.get(child.sourceId) === 0) queue.push(child);
+      }
+    }
+    if (sorted.length !== sourceSegments.length) fail('Pivot 3 segment hierarchy contains a cycle.');
+    orderedSourceSegments = sorted;
+  }
+  const internalIdBySourceId = new Map(orderedSourceSegments.map((segment, index) => [segment.sourceId, index + 1]));
+  const segments = orderedSourceSegments.map((source, index) => ({
+    ...source,
+    id: index + 1,
+    parent: source.parentSourceId === 0 ? 0 : internalIdBySourceId.get(source.parentSourceId)
+  }));
+  const drawRanks = segments.map(segment => sourceIdToRecord.get(segment.sourceId));
+  return {
+    format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V3,
+    payloadHeader: '01', segments, polygons: [], drawRanks,
+    sourceBytes: 0, payloadBytes: payload.byteLength,
+    warnings: segments.some(segment => segment.type === 1)
+      ? ['Pivot 3 type 1 circles are rendered as hollow circles with white interiors.'] : []
+  };
 }
 
 export function endpointFor(segment, start) {
@@ -163,7 +253,7 @@ function parseV5(payload) {
     finiteNumber(length, `Pivot 5 segment ${index + 1} length`, 0, STK_MAX_SEGMENT_LENGTH);
     finiteNumber(angle, `Pivot 5 segment ${index + 1} angle`, -1000000, 1000000);
     finiteNumber(width, `Pivot 5 segment ${index + 1} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    if (type !== 0 && type !== 4) fail(`Pivot 5 segment ${index + 1} uses unsupported type ${type}.`);
+    if (![0, 1, 3, 4, 6].includes(type)) fail(`Pivot 5 segment ${index + 1} uses unsupported type ${type}.`);
     if (flag !== 0 && flag !== 1) fail(`Pivot 5 segment ${index + 1} uses unsupported flag ${flag}.`);
     segments.push({ id: index + 1, parent, length, angle, bend: 0, width, type, flag, color });
     offset += 23;
@@ -229,15 +319,22 @@ function parseV5(payload) {
     format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V5,
     payloadHeader: Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join(''), segments, parameters, polygons, drawRanks,
     sourceBytes: 0, payloadBytes: payload.byteLength,
-    warnings: segments.some(segment => segment.type === 4)
-      ? ['Type 4 cap style is approximated with round caps in this experimental import.'] : []
+    warnings: [
+      ...(segments.some(segment => segment.type === 4)
+        ? ['Type 4 cap style is approximated with round caps in this experimental import.'] : []),
+      ...(segments.some(segment => segment.type === 6)
+        ? ['Type 6 line caps are approximated with square caps from the supplied V5 reference geometry; the numeric enum is not documented.'] : []),
+      ...(segments.some(segment => segment.type === 1 || segment.type === 3)
+        ? ['V5 type 1 and type 3 circles use the tentative white-interior/solid-fill mapping; other circle fill variants are not established.'] : [])
+    ]
   };
 }
 
 export function validateStkArtwork(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || value.format !== 'pivot-stk' || value.schemaVersion !== 1) fail('the imported artwork metadata is malformed.');
-  if (value.wrapper !== STK_WRAPPER_V4 && value.wrapper !== STK_WRAPPER_V5) fail('the imported artwork wrapper is unsupported.');
+  if (value.wrapper !== STK_WRAPPER_V3 && value.wrapper !== STK_WRAPPER_V4 && value.wrapper !== STK_WRAPPER_V5) fail('the imported artwork wrapper is unsupported.');
   if (!Number.isInteger(value.sourceBytes) || value.sourceBytes < 0 || value.sourceBytes > STK_MAX_FILE_BYTES || !Number.isInteger(value.payloadBytes) || value.payloadBytes < 1 || value.payloadBytes > STK_MAX_PAYLOAD_BYTES) fail('the imported source-size metadata is invalid.');
+  if (value.wrapper === STK_WRAPPER_V3 && value.payloadHeader !== '01') fail('the Pivot 3 payload header metadata is invalid.');
   if (value.wrapper === STK_WRAPPER_V4 && value.payloadHeader !== null) fail('the Pivot 4 payload header metadata is invalid.');
   if (value.wrapper === STK_WRAPPER_V5 && (typeof value.payloadHeader !== 'string' || !/^a8[0-9a-f]{4}$/.test(value.payloadHeader))) fail('the Pivot 5 payload header metadata is invalid.');
   if (!Array.isArray(value.segments) || value.segments.length < 1 || value.segments.length > STK_MAX_SEGMENTS) fail('the imported segment metadata count is invalid.');
@@ -251,16 +348,16 @@ export function validateStkArtwork(value) {
     finiteNumber(Number(segment.angle), `imported segment ${index + 1} angle`, -1000000, 1000000);
     finiteNumber(Number(segment.bend), `imported segment ${index + 1} bend`, -STK_MAX_ABS_BEND, STK_MAX_ABS_BEND);
     finiteNumber(Number(segment.width), `imported segment ${index + 1} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    const allowedTypes = value.wrapper === STK_WRAPPER_V4 ? [0, 3] : [0, 4];
+    const allowedTypes = value.wrapper === STK_WRAPPER_V3 ? [0, 1] : value.wrapper === STK_WRAPPER_V4 ? [0, 3] : [0, 1, 3, 4, 6];
     if (!allowedTypes.includes(segment.type)) fail(`imported segment ${index + 1} has an unsupported type.`);
     const allowedFlags = value.wrapper === STK_WRAPPER_V4 ? [0] : [0, 1];
     if (!allowedFlags.includes(segment.flag)) fail(`imported segment ${index + 1} has an unsupported flag.`);
     if (segment.color !== null) validateRgb(segment.color, `imported segment ${index + 1}`);
-    if (value.wrapper === STK_WRAPPER_V4 && (segment.reserved !== 0 || segment.trailing !== 3133)) fail(`imported segment ${index + 1} has an unsupported record layout.`);
+    if ((value.wrapper === STK_WRAPPER_V3 || value.wrapper === STK_WRAPPER_V4) && (segment.reserved !== 0 || segment.trailing !== (value.wrapper === STK_WRAPPER_V3 ? 0 : 3133))) fail(`imported segment ${index + 1} has an unsupported record layout.`);
   });
   if (!Array.isArray(value.polygons)) fail('imported polygon metadata is missing.');
   const polygons = value.polygons;
-  if (value.wrapper === STK_WRAPPER_V4 && polygons.length) fail('Pivot 4 polygon metadata is unsupported.');
+  if ((value.wrapper === STK_WRAPPER_V3 || value.wrapper === STK_WRAPPER_V4) && polygons.length) fail(`Pivot ${value.wrapper === STK_WRAPPER_V3 ? 3 : 4} polygon metadata is unsupported.`);
   if (!Array.isArray(polygons) || polygons.length > STK_MAX_POLYGONS) fail('imported polygon metadata count is invalid.');
   let vertexTotal = 0;
   polygons.forEach((polygon, index) => {
@@ -306,7 +403,7 @@ export function orderedStkDrawItems(artwork) {
 }
 
 export function decodeStkBytes(payload, wrapper, sourceBytes = 0) {
-  const parsed = wrapper === STK_WRAPPER_V4 ? parseV4(payload) : wrapper === STK_WRAPPER_V5 ? parseV5(payload) : fail(`unsupported STK wrapper 0x${wrapper?.toString(16) || '00'}`);
+  const parsed = wrapper === STK_WRAPPER_V3 ? parseV3(payload) : wrapper === STK_WRAPPER_V4 ? parseV4(payload) : wrapper === STK_WRAPPER_V5 ? parseV5(payload) : fail(`unsupported STK wrapper 0x${wrapper?.toString(16) || '00'}`);
   parsed.sourceBytes = sourceBytes;
   validateStkArtwork(parsed);
   return parsed;
@@ -318,8 +415,10 @@ export async function decodeStk(input) {
   if (bytes.byteLength < 2) fail('the file is too short.');
   if (bytes.byteLength > STK_MAX_FILE_BYTES) fail(`the file exceeds the ${STK_MAX_FILE_BYTES.toLocaleString()} byte safety limit.`);
   const wrapper = bytes[0];
-  if (wrapper !== STK_WRAPPER_V4 && wrapper !== STK_WRAPPER_V5) fail(`unsupported STK wrapper 0x${wrapper.toString(16)}.`);
-  const payload = await inflateBounded(bytes.subarray(1));
+  if (wrapper !== STK_WRAPPER_V3 && wrapper !== STK_WRAPPER_V4 && wrapper !== STK_WRAPPER_V5) fail(`unsupported STK wrapper 0x${wrapper.toString(16)}.`);
+  // Pivot 3's 0x78 byte is the first byte of the zlib stream itself. Pivot 4
+  // and 5 use a one-byte wrapper followed by their zlib stream.
+  const payload = await inflateBounded(wrapper === STK_WRAPPER_V3 ? bytes : bytes.subarray(1));
   return decodeStkBytes(payload, wrapper, bytes.byteLength);
 }
 

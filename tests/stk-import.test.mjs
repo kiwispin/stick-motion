@@ -2,13 +2,33 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import zlib from 'node:zlib';
 import {
-  STK_MAX_FILE_BYTES, STK_MAX_PAYLOAD_BYTES, STK_WRAPPER_V4, STK_WRAPPER_V5, createFigureFromStk, decodeStk, decodeStkBytes,
-  pointOnStkSegment, validateStkArtwork
+  STK_MAX_FILE_BYTES, STK_MAX_PAYLOAD_BYTES, STK_WRAPPER_V3, STK_WRAPPER_V4, STK_WRAPPER_V5, createFigureFromStk, decodeStk, decodeStkBytes,
+  isStkCircleSegment, pointOnStkSegment, validateStkArtwork
 } from '../src/stk-import.js';
 import { normaliseProject } from '../src/project.js';
+import { drawStkFigure, getStkArtworkBounds } from '../src/stk-renderer.js';
 
 function compressed(wrapper, payload) {
-  return Buffer.concat([Buffer.from([wrapper]), zlib.deflateSync(Buffer.from(payload))]);
+  const stream = zlib.deflateSync(Buffer.from(payload));
+  return wrapper === STK_WRAPPER_V3 ? stream : Buffer.concat([Buffer.from([wrapper]), stream]);
+}
+
+function v3Payload(records, header = 1) {
+  const payload = Buffer.alloc(2 + records.length * 24);
+  payload[0] = header; payload[1] = records.length;
+  records.forEach((record, index) => {
+    const offset = 2 + index * 24;
+    payload[offset] = record.parent;
+    payload[offset + 1] = record.id;
+    payload.writeUInt16LE(record.reserved ?? 0, offset + 2);
+    payload.writeFloatLE(record.length, offset + 4);
+    payload.writeDoubleLE(record.angle, offset + 8);
+    payload.writeFloatLE(record.width, offset + 16);
+    payload[offset + 20] = record.type ?? 0;
+    payload[offset + 21] = record.flag ?? 0;
+    payload.writeUInt16LE(record.trailing ?? 0, offset + 22);
+  });
+  return payload;
 }
 
 function v4Payload(records) {
@@ -56,6 +76,35 @@ function v5Payload({ segments, curves = [], polygons = [], ranks = null }) {
 function lineFigureData(figure) {
   return JSON.parse(JSON.stringify(figure));
 }
+
+test('decodes Pivot 3 source ids in record draw order and preserves its legacy type-1 circle', async () => {
+  const bytes = compressed(STK_WRAPPER_V3, v3Payload([
+    { parent: 0, id: 3, length: 30, angle: 0, width: 10, flag: 0 },
+    { parent: 3, id: 1, length: 20, angle: Math.PI / 2, width: 8, flag: 1 },
+    { parent: 1, id: 2, length: 12, angle: Math.PI, width: 6, type: 1, flag: 1 }
+  ]));
+  const decoded = await decodeStk(bytes);
+  assert.equal(decoded.wrapper, STK_WRAPPER_V3);
+  assert.equal(decoded.payloadHeader, '01');
+  assert.deepEqual(decoded.segments.map(segment => [segment.id, segment.sourceId, segment.parent]), [[1, 3, 0], [2, 1, 1], [3, 2, 2]]);
+  assert.deepEqual(decoded.drawRanks, [0, 1, 2]);
+  assert.equal(decoded.segments[2].color, null);
+  const figure = createFigureFromStk(decoded);
+  figure.updatePositions();
+  assert.deepEqual(figure.joints.map(joint => [joint.id, joint.parentId]), [['stk-root', null], ['stk-1', 'stk-root'], ['stk-2', 'stk-1'], ['stk-3', 'stk-2']]);
+  assert.equal(figure.joints[3].handleVisible, false);
+  validateStkArtwork(decoded);
+  assert.deepEqual(normaliseProject({ frames: [[lineFigureData(figure)]] }).frames[0][0].stkArtwork, figure.stkArtwork);
+});
+
+test('topologically orders Pivot 3 forward-parent records while preserving source draw ranks', async () => {
+  const decoded = await decodeStk(compressed(STK_WRAPPER_V3, v3Payload([
+    { parent: 1, id: 2, length: 10, angle: 0, width: 2 },
+    { parent: 0, id: 1, length: 10, angle: 0, width: 2 }
+  ])));
+  assert.deepEqual(decoded.segments.map(segment => [segment.sourceId, segment.parent]), [[1, 0], [2, 1]]);
+  assert.deepEqual(decoded.drawRanks, [1, 0]);
+});
 
 test('decodes the measured Pivot 4 layout and preserves the filled circle mapping', async () => {
   const bytes = compressed(STK_WRAPPER_V4, v4Payload([
@@ -108,6 +157,52 @@ test('decodes Pivot 5 curves, polygons, colors and rank-per-item draw order', as
   assert.ok(Math.hypot(p1.x - child.x, p1.y - child.y) < 1e-8);
 });
 
+test('accepts measured V5 type-6 lines and type-1/type-3 wheel circles', async () => {
+  const decoded = await decodeStk(compressed(STK_WRAPPER_V5, v5Payload({
+    segments: [
+      { parent: 0, length: 20, angle: 0, width: 2, type: 6, color: [10, 20, 30] },
+      { parent: 1, length: 10, angle: Math.PI / 2, width: 3, type: 1, color: [40, 50, 60] },
+      { parent: 2, length: 8, angle: -Math.PI / 2, width: 0, type: 3, color: [70, 80, 90] }
+    ]
+  })));
+  assert.deepEqual(decoded.segments.map(segment => segment.type), [6, 1, 3]);
+  assert.ok(decoded.warnings.some(warning => warning.includes('Type 6 line caps')));
+  assert.ok(isStkCircleSegment(decoded, decoded.segments[1]));
+  assert.ok(isStkCircleSegment(decoded, decoded.segments[2]));
+  assert.equal(isStkCircleSegment(decoded, decoded.segments[0]), false);
+  const figure = createFigureFromStk(decoded);
+  figure.updatePositions();
+  assert.equal(figure.joints.length, 4);
+  validateStkArtwork(figure.stkArtwork);
+  const events = [];
+  const stateStack = [];
+  const context = {
+    fillStyle: '#000000', strokeStyle: '#000000', lineCap: 'round', lineWidth: 1,
+    save() { stateStack.push({ fillStyle: this.fillStyle, strokeStyle: this.strokeStyle, lineCap: this.lineCap, lineWidth: this.lineWidth }); },
+    restore() { Object.assign(this, stateStack.pop()); }, beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, arc() {},
+    fill() { events.push({ kind: 'fill', color: this.fillStyle }); },
+    stroke() { events.push({ kind: 'stroke', color: this.strokeStyle, cap: this.lineCap }); }
+  };
+  drawStkFigure({ context, figure });
+  assert.deepEqual(events, [
+    { kind: 'stroke', color: 'rgb(10,20,30)', cap: 'square' },
+    { kind: 'fill', color: '#ffffff' },
+    { kind: 'stroke', color: 'rgb(40,50,60)', cap: 'round' },
+    { kind: 'fill', color: 'rgb(70,80,90)' }
+  ]);
+});
+
+test('includes the square-cap corner envelope for V5 type-6 bounds', async () => {
+  const decoded = await decodeStk(compressed(STK_WRAPPER_V5, v5Payload({
+    segments: [{ parent: 0, length: 10, angle: Math.PI / 4, width: 4, type: 6, color: [1, 2, 3] }]
+  })));
+  const figure = createFigureFromStk(decoded, { x: 0, y: 0 });
+  const bounds = getStkArtworkBounds(figure);
+  const endpoint = 10 / Math.sqrt(2);
+  assert.ok(bounds.maxX >= endpoint + Math.SQRT2 * 2 - 1e-8);
+  assert.ok(bounds.maxY >= endpoint + Math.SQRT2 * 2 - 1e-8);
+});
+
 test('extends the joint bound only for validated imported figures', async () => {
   const segments = Array.from({ length: 100 }, (_, index) => ({ parent: index, length: 1, angle: 0, width: 1, color: [1, 1, 1] }));
   const decoded = await decodeStk(compressed(STK_WRAPPER_V5, v5Payload({ segments })));
@@ -117,7 +212,7 @@ test('extends the joint bound only for validated imported figures', async () => 
 });
 
 test('rejects unsupported types, malformed parents, trailing sections and source layouts', async () => {
-  const unsupported = v5Payload({ segments: [{ parent: 0, length: 10, angle: 0, width: 2, type: 6, color: [0, 0, 0] }] });
+  const unsupported = v5Payload({ segments: [{ parent: 0, length: 10, angle: 0, width: 2, type: 5, color: [0, 0, 0] }] });
   await assert.rejects(() => decodeStk(compressed(STK_WRAPPER_V5, unsupported)), /unsupported type/);
   const badParent = v5Payload({ segments: [{ parent: 2, length: 10, angle: 0, width: 2, color: [0, 0, 0] }] });
   await assert.rejects(() => decodeStk(compressed(STK_WRAPPER_V5, badParent)), /parent/);
