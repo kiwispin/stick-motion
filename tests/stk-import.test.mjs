@@ -49,16 +49,18 @@ function v4Payload(records) {
   return payload;
 }
 
-function v5Payload({ segments, curves = [], polygons = [], ranks = null }) {
-  const chunks = [Buffer.from([0xa8, segments.length & 0xff, segments.length >> 8])];
+function v5Payload({ segments, curves = [], polygons = [], ranks = null, transparencyLayout = false }) {
+  const chunks = [Buffer.from([transparencyLayout ? 0xa0 : 0xa8, segments.length & 0xff, segments.length >> 8])];
   for (const segment of segments) {
-    const record = Buffer.alloc(23);
+    const record = Buffer.alloc(transparencyLayout ? 24 : 23);
     record.writeUInt16LE(segment.parent, 0);
     record.writeFloatLE(segment.length, 2);
     record.writeDoubleLE(segment.angle, 6);
     record.writeFloatLE(segment.width, 14);
     record[18] = segment.type ?? 0; record[19] = segment.flag ?? 0;
-    record.set(segment.color ?? [0, 0, 0], 20); chunks.push(record);
+    record.set(segment.color ?? [0, 0, 0], 20);
+    if (transparencyLayout) record[23] = segment.transparency ?? 0;
+    chunks.push(record);
   }
   const curveHeader = Buffer.alloc(2); curveHeader.writeUInt16LE(curves.length); chunks.push(curveHeader);
   for (const curve of curves) { const record = Buffer.alloc(10); record.writeUInt16LE(curve.index, 0); record.writeDoubleLE(curve.bend, 2); chunks.push(record); }
@@ -66,6 +68,7 @@ function v5Payload({ segments, curves = [], polygons = [], ranks = null }) {
   for (const polygon of polygons) {
     const record = Buffer.alloc(6 + polygon.vertices.length * 2);
     record.writeUInt16LE(polygon.vertices.length, 0); record.set(polygon.color, 2);
+    if (transparencyLayout) record[5] = polygon.transparency ?? 0;
     polygon.vertices.forEach((vertex, index) => record.writeUInt16LE(vertex, 6 + index * 2)); chunks.push(record);
   }
   const drawRanks = ranks ?? segments.map((_, index) => index);
@@ -155,6 +158,92 @@ test('decodes Pivot 5 curves, polygons, colors and rank-per-item draw order', as
   const p1 = pointOnStkSegment(source, start, 1, chordLength, chordAngle);
   assert.ok(Math.hypot(p0.x - start.x, p0.y - start.y) < 1e-8);
   assert.ok(Math.hypot(p1.x - child.x, p1.y - child.y) < 1e-8);
+});
+
+test('decodes the measured Pivot 5 a0 transparency layout without dropping alpha bytes', async () => {
+  const payload = v5Payload({
+    transparencyLayout: true,
+    segments: [
+      { parent: 0, length: 40, angle: 0, width: 4, color: [236, 236, 236] },
+      { parent: 1, length: 20, angle: Math.PI / 2, width: 0, type: 3, flag: 1, color: [255, 255, 255], transparency: 159 }
+    ],
+    polygons: [{ color: [0, 0, 0], transparency: 198, vertices: [0, 1, 2] }],
+    ranks: [0, 1, 2]
+  });
+  const decoded = await decodeStk(compressed(STK_WRAPPER_V5, payload));
+  assert.equal(decoded.payloadHeader, 'a00200');
+  assert.equal(decoded.segments[0].transparency, 0);
+  assert.equal(decoded.segments[1].transparency, 159);
+  assert.equal(decoded.polygons[0].transparency, 198);
+  assert.equal(decoded.polygons[0].reserved, null);
+  assert.ok(decoded.warnings.some(warning => warning.includes('transparency bytes')));
+  validateStkArtwork(decoded);
+
+  const figure = createFigureFromStk(decoded, { x: 0, y: 0 });
+  const events = [];
+  const stateStack = [];
+  const context = {
+    fillStyle: '#000000', strokeStyle: '#000000', lineCap: 'round', lineWidth: 1, globalAlpha: 0.5,
+    save() { stateStack.push({ fillStyle: this.fillStyle, strokeStyle: this.strokeStyle, lineCap: this.lineCap, lineWidth: this.lineWidth, globalAlpha: this.globalAlpha }); },
+    restore() { Object.assign(this, stateStack.pop()); }, beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, arc() {},
+    fill() { events.push({ kind: 'fill', color: this.fillStyle, alpha: this.globalAlpha }); },
+    stroke() { events.push({ kind: 'stroke', color: this.strokeStyle, alpha: this.globalAlpha, cap: this.lineCap }); }
+  };
+  drawStkFigure({ context, figure });
+  assert.deepEqual(events.map(({ kind, color }) => ({ kind, color })), [
+    { kind: 'stroke', color: 'rgb(236,236,236)' },
+    { kind: 'fill', color: 'rgb(255,255,255)' },
+    { kind: 'fill', color: 'rgb(0,0,0)' }
+  ]);
+  assert.equal(events[0].cap, 'round');
+  assert.ok(Math.abs(events[0].alpha - 0.5) < 1e-12);
+  assert.ok(Math.abs(events[1].alpha - 0.5 * (96 / 255)) < 1e-12);
+  assert.ok(Math.abs(events[2].alpha - 0.5 * (57 / 255)) < 1e-12);
+  assert.equal(context.globalAlpha, 0.5);
+});
+
+test('retains curved geometry for opaque polygon bounds when its source segment is fully transparent', async () => {
+  const decoded = await decodeStk(compressed(STK_WRAPPER_V5, v5Payload({
+    transparencyLayout: true,
+    segments: [
+      { parent: 0, length: 100, angle: 0, width: 0, color: [0, 0, 0], transparency: 255 },
+      { parent: 0, length: 100, angle: Math.PI, width: 1, color: [0, 0, 0], transparency: 0 }
+    ],
+    curves: [{ index: 0, bend: Math.PI }],
+    polygons: [{ color: [10, 20, 30], transparency: 0, vertices: [0, 1, 2] }],
+    ranks: [0, 1, 2]
+  })));
+  const figure = createFigureFromStk(decoded, { x: 0, y: 0 });
+  const bounds = getStkArtworkBounds(figure);
+  // The transparent half-turn arc bulges to x≈31.83 even though its endpoint
+  // is at x≈0; polygon fit must include that curved boundary.
+  assert.ok(bounds.maxX > 20);
+});
+
+test('rejects incomplete or mismatched V5 transparency metadata and payloads', async () => {
+  const a0Payload = v5Payload({
+    transparencyLayout: true,
+    segments: [{ parent: 0, length: 10, angle: 0, width: 2, color: [1, 2, 3], transparency: 12 }]
+  });
+  const a0 = await decodeStk(compressed(STK_WRAPPER_V5, a0Payload));
+  const missing = JSON.parse(JSON.stringify(a0));
+  delete missing.segments[0].transparency;
+  assert.throws(() => validateStkArtwork(missing), /missing its transparency byte/);
+  const invalid = JSON.parse(JSON.stringify(a0));
+  invalid.segments[0].transparency = 256;
+  assert.throws(() => validateStkArtwork(invalid), /invalid transparency/);
+  const fractional = JSON.parse(JSON.stringify(a0));
+  fractional.segments[0].transparency = 1.5;
+  assert.throws(() => validateStkArtwork(fractional), /invalid transparency/);
+
+  const a8 = await decodeStk(compressed(STK_WRAPPER_V5, v5Payload({
+    segments: [{ parent: 0, length: 10, angle: 0, width: 2, color: [1, 2, 3] }]
+  })));
+  a8.segments[0].transparency = 1;
+  assert.throws(() => validateStkArtwork(a8), /unsupported transparency for its payload layout/);
+  assert.throws(() => decodeStkBytes(a0Payload.slice(0, -1), STK_WRAPPER_V5), /incomplete|trailing/);
+  const unknownHeader = Buffer.from(a0Payload); unknownHeader[0] = 0xa1;
+  assert.throws(() => decodeStkBytes(unknownHeader, STK_WRAPPER_V5), /unsupported Pivot 5 payload header/);
 });
 
 test('accepts measured V5 type-6 lines and type-1/type-3 wheel circles', async () => {

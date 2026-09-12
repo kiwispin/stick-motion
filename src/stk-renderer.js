@@ -6,6 +6,12 @@ function rgbColor(color, fallback = '#000000') {
   return Array.isArray(color) ? `rgb(${color[0]},${color[1]},${color[2]})` : fallback;
 }
 
+function applyStkTransparency(context, item) {
+  const transparency = Number.isInteger(item?.transparency) ? item.transparency : 0;
+  const inheritedAlpha = Number.isFinite(Number(context.globalAlpha)) ? Number(context.globalAlpha) : 1;
+  context.globalAlpha = inheritedAlpha * (1 - transparency / 255);
+}
+
 function appendArcPath(context, segment, node, reverse = false, scale = 1) {
   const start = node.start;
   const end = node.end;
@@ -84,6 +90,7 @@ export function drawStkFigure({ context, figure, showHandles = false, handleRadi
       const node = nodes[segment.id];
       if (!node || (segment.width <= 0 && !isStkCircleSegment(artwork, segment))) continue;
       context.save();
+      applyStkTransparency(context, segment);
       context.strokeStyle = rgbColor(segment.color, node.joint.color || figure.color);
       context.fillStyle = context.strokeStyle;
       context.lineWidth = Math.max(0.65, segment.width * figure.scale);
@@ -101,6 +108,7 @@ export function drawStkFigure({ context, figure, showHandles = false, handleRadi
       const polygon = artwork.polygons[item - artwork.segments.length];
       if (!polygon) continue;
       context.save(); context.beginPath();
+      applyStkTransparency(context, polygon);
       appendPolygonPath(context, artwork, nodes, polygon, figure.scale);
       context.fillStyle = rgbColor(polygon.color, figure.color); context.fill();
       context.restore();
@@ -131,6 +139,7 @@ export function getStkArtworkBounds(figure, includeHandles = false) {
   const add = (point, pad = 0) => { xs.push(point.x - pad, point.x + pad); ys.push(point.y - pad, point.y + pad); };
   const arcRefs = new Set();
   for (const polygon of figure.stkArtwork.polygons) {
+    if (Number(polygon.transparency) >= 255) continue;
     for (let index = 0; index < polygon.vertices.length; index += 1) {
       const current = polygon.vertices[index], next = polygon.vertices[(index + 1) % polygon.vertices.length];
       if (next > 0 && figure.stkArtwork.segments[next - 1]?.parent === current) arcRefs.add(next);
@@ -138,6 +147,11 @@ export function getStkArtworkBounds(figure, includeHandles = false) {
     }
   }
   for (const segment of figure.stkArtwork.segments) {
+    const fullyTransparent = Number(segment.transparency) >= 255;
+    // A transparent construction segment can still be the curved boundary of
+    // an opaque polygon. Keep its path for the polygon's fit envelope, but do
+    // not add stroke padding for the invisible segment itself.
+    if (fullyTransparent && !arcRefs.has(segment.id)) continue;
     const node = nodes[segment.id];
     const isCircle = isStkCircleSegment(figure.stkArtwork, segment);
     if (segment.width <= 0 && !isCircle && !arcRefs.has(segment.id)) continue;
@@ -145,7 +159,7 @@ export function getStkArtworkBounds(figure, includeHandles = false) {
     const chordLength = Math.hypot(node.end.x - node.start.x, node.end.y - node.start.y);
     const chordAngle = Math.atan2(node.end.y - node.start.y, node.end.x - node.start.x);
     const squareCap = figure.stkArtwork.wrapper === 0x7a && segment.type === 6;
-    const pad = isCircle ? (chordLength + segment.width * figure.scale) / 2 : segment.width * figure.scale / 2 * (squareCap ? Math.SQRT2 : 1);
+    const pad = fullyTransparent ? 0 : isCircle ? (chordLength + segment.width * figure.scale) / 2 : segment.width * figure.scale / 2 * (squareCap ? Math.SQRT2 : 1);
     if (isCircle) {
       add({ x: (node.start.x + node.end.x) / 2, y: (node.start.y + node.end.y) / 2 }, pad);
       continue;
@@ -160,7 +174,10 @@ export function getStkArtworkBounds(figure, includeHandles = false) {
       }
     }
   }
-  for (const polygon of figure.stkArtwork.polygons) for (const reference of polygon.vertices) add(nodes[reference].end);
+  for (const polygon of figure.stkArtwork.polygons) {
+    if (Number(polygon.transparency) >= 255) continue;
+    for (const reference of polygon.vertices) add(nodes[reference].end);
+  }
   if (includeHandles) for (const joint of figure.joints) if (joint.handleVisible !== false) add({ x: joint.x, y: joint.y }, handleRadiusSafe(figure.scale));
   if (!xs.length) return { minX: figure.x - 1, maxX: figure.x + 1, minY: figure.y - 1, maxY: figure.y + 1 };
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };

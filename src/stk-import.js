@@ -1,9 +1,9 @@
 import { Figure, Joint, SEGMENT_LINE } from './models.js';
 
 // STK is a compressed binary format.  The importer deliberately accepts only
-// the three layouts reverse-engineered from the local Pivot 3/4/5 samples.  A file
-// that does not match one of those complete layouts fails before a Figure is
-// created; no unsupported feature is silently discarded.
+// the Pivot 3, Pivot 4 and two measured Pivot 5 layouts reverse-engineered from
+// local samples.  A file that does not match one of those complete layouts
+// fails before a Figure is created; no unsupported feature is silently discarded.
 export const STK_WRAPPER_V3 = 0x78;
 export const STK_WRAPPER_V4 = 0x79;
 export const STK_WRAPPER_V5 = 0x7a;
@@ -233,12 +233,14 @@ function parseV4(payload) {
 
 function parseV5(payload) {
   ensureBytes(payload, 0, 3, 'Pivot 5 header');
-  if (payload[0] !== 0xa8) fail(`unsupported Pivot 5 payload header ${Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join('')}.`);
+  const hasTransparency = payload[0] === 0xa0;
+  if (payload[0] !== 0xa8 && !hasTransparency) fail(`unsupported Pivot 5 payload header ${Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join('')}.`);
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
   const segmentCount = view.getUint16(1, true);
   if (segmentCount < 1 || segmentCount > STK_MAX_SEGMENTS) fail('Pivot 5 segment count is outside the supported range.');
   let offset = 3;
-  ensureBytes(payload, offset, segmentCount * 23, 'Pivot 5 segment records');
+  const segmentRecordBytes = hasTransparency ? 24 : 23;
+  ensureBytes(payload, offset, segmentCount * segmentRecordBytes, 'Pivot 5 segment records');
   const segments = [];
   for (let index = 0; index < segmentCount; index += 1) {
     const record = offset;
@@ -255,8 +257,9 @@ function parseV5(payload) {
     finiteNumber(width, `Pivot 5 segment ${index + 1} width`, 0, STK_MAX_SEGMENT_WIDTH);
     if (![0, 1, 3, 4, 6].includes(type)) fail(`Pivot 5 segment ${index + 1} uses unsupported type ${type}.`);
     if (flag !== 0 && flag !== 1) fail(`Pivot 5 segment ${index + 1} uses unsupported flag ${flag}.`);
-    segments.push({ id: index + 1, parent, length, angle, bend: 0, width, type, flag, color });
-    offset += 23;
+    const transparency = hasTransparency ? payload[record + 23] : 0;
+    segments.push({ id: index + 1, parent, length, angle, bend: 0, width, type, flag, color, transparency });
+    offset += segmentRecordBytes;
   }
 
   ensureBytes(payload, offset, 2, 'Pivot 5 curve count');
@@ -286,8 +289,9 @@ function parseV5(payload) {
     ensureBytes(payload, offset, 6, 'Pivot 5 polygon header');
     const vertexCount = view.getUint16(offset, true);
     const color = readRgb(payload, offset + 2, `Pivot 5 polygon ${index + 1}`);
-    const reserved = payload[offset + 5];
-    if (reserved !== 0) fail(`Pivot 5 polygon ${index + 1} uses an unsupported colour/reserved byte.`);
+    const transparency = hasTransparency ? payload[offset + 5] : 0;
+    const reserved = hasTransparency ? null : payload[offset + 5];
+    if (!hasTransparency && reserved !== 0) fail(`Pivot 5 polygon ${index + 1} uses an unsupported colour/reserved byte.`);
     if (vertexCount < 3 || vertexCount > STK_MAX_POLYGON_VERTICES) fail(`Pivot 5 polygon ${index + 1} has an invalid vertex count.`);
     totalVertices += vertexCount;
     if (totalVertices > STK_MAX_POLYGON_VERTICES) fail('Pivot 5 polygon vertices exceed the safety limit.');
@@ -301,7 +305,7 @@ function parseV5(payload) {
       vertices.push(reference); offset += 2;
     }
     if (vertices[0] === vertices[vertices.length - 1]) fail(`Pivot 5 polygon ${index + 1} repeats its closing node.`);
-    polygons.push({ id: segmentCount + index, color, vertices, reserved });
+    polygons.push({ id: segmentCount + index, color, vertices, transparency, reserved });
   }
 
   const itemCount = segmentCount + polygonCount;
@@ -320,6 +324,8 @@ function parseV5(payload) {
     payloadHeader: Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join(''), segments, parameters, polygons, drawRanks,
     sourceBytes: 0, payloadBytes: payload.byteLength,
     warnings: [
+      ...(hasTransparency && (segments.some(segment => segment.transparency > 0) || polygons.some(polygon => polygon.transparency > 0))
+        ? ['Pivot 5 transparency bytes are preserved and composited over the existing canvas alpha.'] : []),
       ...(segments.some(segment => segment.type === 4)
         ? ['Type 4 cap style is approximated with round caps in this experimental import.'] : []),
       ...(segments.some(segment => segment.type === 6)
@@ -336,7 +342,8 @@ export function validateStkArtwork(value) {
   if (!Number.isInteger(value.sourceBytes) || value.sourceBytes < 0 || value.sourceBytes > STK_MAX_FILE_BYTES || !Number.isInteger(value.payloadBytes) || value.payloadBytes < 1 || value.payloadBytes > STK_MAX_PAYLOAD_BYTES) fail('the imported source-size metadata is invalid.');
   if (value.wrapper === STK_WRAPPER_V3 && value.payloadHeader !== '01') fail('the Pivot 3 payload header metadata is invalid.');
   if (value.wrapper === STK_WRAPPER_V4 && value.payloadHeader !== null) fail('the Pivot 4 payload header metadata is invalid.');
-  if (value.wrapper === STK_WRAPPER_V5 && (typeof value.payloadHeader !== 'string' || !/^a8[0-9a-f]{4}$/.test(value.payloadHeader))) fail('the Pivot 5 payload header metadata is invalid.');
+  if (value.wrapper === STK_WRAPPER_V5 && (typeof value.payloadHeader !== 'string' || !/^(?:a0|a8)[0-9a-f]{4}$/.test(value.payloadHeader))) fail('the Pivot 5 payload header metadata is invalid.');
+  const hasV5Transparency = value.wrapper === STK_WRAPPER_V5 && value.payloadHeader.startsWith('a0');
   if (!Array.isArray(value.segments) || value.segments.length < 1 || value.segments.length > STK_MAX_SEGMENTS) fail('the imported segment metadata count is invalid.');
   const segments = value.segments;
   const ids = new Set();
@@ -353,6 +360,11 @@ export function validateStkArtwork(value) {
     const allowedFlags = value.wrapper === STK_WRAPPER_V4 ? [0] : [0, 1];
     if (!allowedFlags.includes(segment.flag)) fail(`imported segment ${index + 1} has an unsupported flag.`);
     if (segment.color !== null) validateRgb(segment.color, `imported segment ${index + 1}`);
+    const transparency = segment.transparency === undefined ? 0 : segment.transparency;
+    if (!Number.isInteger(transparency) || transparency < 0 || transparency > 255) fail(`imported segment ${index + 1} has an invalid transparency.`);
+    if (value.wrapper !== STK_WRAPPER_V5 && transparency !== 0) fail(`imported segment ${index + 1} uses unsupported transparency.`);
+    if (value.wrapper === STK_WRAPPER_V5 && !hasV5Transparency && transparency !== 0) fail(`imported segment ${index + 1} uses unsupported transparency for its payload layout.`);
+    if (value.wrapper === STK_WRAPPER_V5 && hasV5Transparency && segment.transparency === undefined) fail(`imported segment ${index + 1} is missing its transparency byte.`);
     if ((value.wrapper === STK_WRAPPER_V3 || value.wrapper === STK_WRAPPER_V4) && (segment.reserved !== 0 || segment.trailing !== (value.wrapper === STK_WRAPPER_V3 ? 0 : 3133))) fail(`imported segment ${index + 1} has an unsupported record layout.`);
   });
   if (!Array.isArray(value.polygons)) fail('imported polygon metadata is missing.');
@@ -363,6 +375,12 @@ export function validateStkArtwork(value) {
   polygons.forEach((polygon, index) => {
     if (!polygon || typeof polygon !== 'object' || polygon.id !== segments.length + index || !Array.isArray(polygon.vertices) || polygon.vertices.length < 3 || polygon.vertices.length > STK_MAX_POLYGON_VERTICES) fail(`imported polygon ${index + 1} is malformed.`);
     validateRgb(polygon.color, `imported polygon ${index + 1}`);
+    const transparency = polygon.transparency === undefined ? 0 : polygon.transparency;
+    if (!Number.isInteger(transparency) || transparency < 0 || transparency > 255) fail(`imported polygon ${index + 1} has an invalid transparency.`);
+    if (value.wrapper !== STK_WRAPPER_V5 && transparency !== 0) fail(`imported polygon ${index + 1} uses unsupported transparency.`);
+    if (value.wrapper === STK_WRAPPER_V5 && !hasV5Transparency && transparency !== 0) fail(`imported polygon ${index + 1} uses unsupported transparency for its payload layout.`);
+    if (value.wrapper === STK_WRAPPER_V5 && hasV5Transparency && polygon.transparency === undefined) fail(`imported polygon ${index + 1} is missing its transparency byte.`);
+    if (value.wrapper === STK_WRAPPER_V5 && !hasV5Transparency && polygon.reserved !== undefined && polygon.reserved !== 0) fail(`imported polygon ${index + 1} uses an unsupported colour/reserved byte.`);
     vertexTotal += polygon.vertices.length;
     if (vertexTotal > STK_MAX_POLYGON_VERTICES) fail('imported polygon vertices exceed the safety limit.');
     polygon.vertices.forEach((reference, vertex) => {
