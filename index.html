@@ -1211,9 +1211,9 @@
           <input type="number" id="canvas-h" value="500" class="field-input" onchange="app.setCanvasSize()">
         </div>
       </div>
-      <button class="panel-btn" onclick="document.getElementById('bg-input').click()" style="margin-bottom:8px">
+      <button id="bg-toggle-button" class="panel-btn" onclick="app.toggleBackgroundImage()" style="margin-bottom:8px">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-        Set Background Image
+        <span id="bg-toggle-label">Set Background Image</span>
       </button>
       <input type="file" id="bg-input" style="display:none" accept="image/png,image/jpeg,image/gif,image/webp" onchange="app.loadBackground(this)">
       <button class="panel-btn danger" onclick="app.confirmClearStage()">
@@ -1414,6 +1414,7 @@ const app={
   selectedFrames:new Set(),
   handleRadius:4,
   pendingAction:null,history:new History(),dialogFocusStack:[],
+  backgroundLoadToken:0,
   localSaveRunning:false,pendingLocalSave:null,localSaveRevision:0,localSaveErrorRevision:0,localSaveQueue:Promise.resolve(),
   clipboard:[], // ← array of cloned Figure objects
   isEditingText:false,isEditingFrameDuration:false,
@@ -1462,6 +1463,7 @@ const app={
       const actions=document.getElementById('compact-actions');if(actions&&!actions.contains(e.target))this.closeCompactActions();
       const exports=document.getElementById('export-menu-wrap');if(exports&&!exports.contains(e.target))this.closeExportMenu();
     });
+    this.updateBackgroundControl();
     this.updateZoomDisplay();
     this.updateCanvasLayout();this.centerStage();
     if(this.frames.length===0)this.render();
@@ -1611,11 +1613,12 @@ const app={
     return {width,height,fps:Math.max(1,Math.min(30,parseInt(data.fps,10)||12)),frames,delays,index,groups,backgroundData,settings};
   },
   restoreBackground(data){
-    this.bgImage=null;this.backgroundData=null;
+    const token=++this.backgroundLoadToken;
+    this.bgImage=null;this.backgroundData=data||null;this.updateBackgroundControl();
     if(!data)return;
     const img=new Image();
-    img.onload=()=>{this.bgImage=img;this.backgroundData=data;this.render();this.updateTimeline();};
-    img.onerror=()=>{console.warn('Background image could not be restored.');};
+    img.onload=()=>{if(this.backgroundLoadToken!==token)return;this.bgImage=img;this.backgroundData=data;this.updateBackgroundControl();this.render();this.updateTimeline();};
+    img.onerror=()=>{if(this.backgroundLoadToken!==token)return;this.backgroundData=null;this.updateBackgroundControl();console.warn('Background image could not be restored.');};
     img.src=data;
   },
   applyProjectData(data){
@@ -1646,6 +1649,14 @@ const app={
     document.getElementById('btn-smooth').setAttribute('aria-pressed',String(this.isSmooth));
     document.getElementById('btn-onion').setAttribute('aria-pressed',String(this.showOnion));
     document.getElementById('btn-pivots').setAttribute('aria-pressed',String(this.showPivots));
+  },
+  updateBackgroundControl(){
+    const button=document.getElementById('bg-toggle-button');
+    const label=document.getElementById('bg-toggle-label');
+    if(!button||!label)return;
+    const hasBackground=Boolean(this.bgImage||this.backgroundData);
+    const text=hasBackground?'Clear Background Image':'Set Background Image';
+    label.textContent=text;button.setAttribute('aria-label',text);button.title=text;
   },
   updateSaveStatus(label='Saved',isError=false){
     const indicator=document.getElementById('storage-indicator');
@@ -1840,7 +1851,7 @@ const app={
   closeGifWarning(){this.closeDialog('gif-warning-modal');},
   exportGifAnyway(){this.closeGifWarning();this.exportGif();},
   exportVideoFromGifWarning(){if(!this.videoExportSupported())return;this.closeGifWarning();this.exportVideo();},
-  openSettings(){this.openDialog('settings-modal','#canvas-w');},
+  openSettings(){this.updateBackgroundControl();this.openDialog('settings-modal','#canvas-w');},
   closeSettings(){this.closeDialog('settings-modal');},
   openHelp(){this.openDialog('help-modal','#help-close');},
   closeHelp(){this.closeDialog('help-modal');},
@@ -1855,7 +1866,7 @@ const app={
     this.invalidateStkImport();
     this.stop();this.frames=[];this.frameDelays=[];this.figures=[];this.groups=[];
     this.projectName='Untitled animation';document.getElementById('project-name').value=this.projectName;
-    this.currentFrameIndex=0;this.bgImage=null;this.backgroundData=null;this.history.clear();
+    this.currentFrameIndex=0;this.backgroundLoadToken+=1;this.bgImage=null;this.backgroundData=null;this.updateBackgroundControl();this.history.clear();
     this.selectedFigureIds.clear();
     document.getElementById('canvas-w').value=800;document.getElementById('canvas-h').value=500;
     this.setCanvasSize();this.addFigure();this.render();this.updateTimeline();this.updateGroupsPanel();this.centerStage();this.saveLocal();
@@ -1957,12 +1968,21 @@ const app={
     this.canvas.style.maxWidth='none';
     this.updateCanvasLayout();
   },
+  toggleBackgroundImage(){
+    if(this.bgImage||this.backgroundData){this.clearBackgroundImage();return;}
+    document.getElementById('bg-input').click();
+  },
+  clearBackgroundImage(){
+    this.backgroundLoadToken+=1;this.bgImage=null;this.backgroundData=null;this.updateBackgroundControl();
+    this.render();this.updateTimeline();this.saveLocal();this.showToast('Background cleared');
+  },
   loadBackground(i){
     if(!i.files||!i.files[0])return;
     const file=i.files[0];
     if(file.size>6*1024*1024||!['image/png','image/jpeg','image/gif','image/webp'].includes(file.type)){this.showToast('Choose a PNG, JPEG, GIF, or WebP under 6 MB');i.value='';return;}
+    const token=++this.backgroundLoadToken;
     const r=new FileReader();
-    r.onload=e=>{const data=e.target.result;if(typeof data!=='string'||data.length>MAX_BACKGROUND_DATA_LENGTH||!/^data:image\/(png|jpeg|gif|webp);base64,/i.test(data)){this.showToast('That background image is not supported');return;}const img=new Image();img.onload=()=>{this.bgImage=img;this.backgroundData=data;this.render();this.updateTimeline();this.saveLocal();this.showToast('Background added');};img.onerror=()=>this.showToast('That background image could not be opened');img.src=data;};
+    r.onload=e=>{if(this.backgroundLoadToken!==token)return;const data=e.target.result;if(typeof data!=='string'||data.length>MAX_BACKGROUND_DATA_LENGTH||!/^data:image\/(png|jpeg|gif|webp);base64,/i.test(data)){this.showToast('That background image is not supported');return;}const img=new Image();img.onload=()=>{if(this.backgroundLoadToken!==token)return;this.bgImage=img;this.backgroundData=data;this.updateBackgroundControl();this.render();this.updateTimeline();this.saveLocal();this.showToast('Background added');};img.onerror=()=>{if(this.backgroundLoadToken!==token)return;this.showToast('That background image could not be opened');};img.src=data;};
     r.readAsDataURL(file);i.value='';
   },
 

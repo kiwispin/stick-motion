@@ -114,6 +114,105 @@ test('reports Saving until the latest queued autosave settles', async ({ page })
   await expect(page.locator('#storage-status')).toHaveText('Saved');
 });
 
+test('background image button clears only the background and can set it again', async ({ page }) => {
+  await openEditor(page);
+  await page.evaluate(async () => {
+    app.newProject();
+    app.figures[0].x = 123;
+    app.addFrame();
+    app.figures[0].x = 234;
+    await app.saveLocal();
+  });
+  const before = await page.evaluate(() => {
+    const project = app.serializeProject();
+    project.backgroundData = null;
+    return JSON.parse(JSON.stringify(project, (_key, value) => typeof value === 'number' ? Number(value.toPrecision(15)) : value));
+  });
+  const backgroundData = await page.evaluate(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1; canvas.height = 1;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#ef4444'; context.fillRect(0, 0, 1, 1);
+    return canvas.toDataURL('image/png');
+  });
+
+  await page.getByRole('button', { name: 'Open settings' }).click();
+  const toggle = page.locator('#bg-toggle-button');
+  await expect(toggle).toHaveAttribute('aria-label', 'Set Background Image');
+  await page.evaluate(data => {
+    window.reviewOriginalImage = window.Image;
+    window.reviewPendingBackgroundImage = null;
+    window.Image = function DelayedImage() { window.reviewPendingBackgroundImage = this; };
+    app.restoreBackground(data);
+  }, backgroundData);
+  await expect(toggle).toHaveAttribute('aria-label', 'Clear Background Image');
+  await toggle.click();
+  await page.evaluate(() => {
+    window.reviewPendingBackgroundImage.onload();
+    window.Image = window.reviewOriginalImage;
+    delete window.reviewOriginalImage;
+    delete window.reviewPendingBackgroundImage;
+  });
+  await expect(toggle).toHaveAttribute('aria-label', 'Set Background Image');
+  await page.locator('#bg-input').setInputFiles({
+    name: 'tiny-red.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(backgroundData.split(',')[1], 'base64')
+  });
+  await expect(toggle).toHaveAttribute('aria-label', 'Clear Background Image');
+  const withBackground = await page.evaluate(() => Array.from(app.renderFrameToCtx(false, false).getContext('2d').getImageData(0, 0, 1, 1).data));
+  expect(withBackground).toEqual([239, 68, 68, 255]);
+
+  await page.evaluate(async () => { await app.saveLocal(); });
+  await page.reload();
+  await page.waitForFunction(() => window.app?.frames?.length === 2);
+  await page.getByRole('button', { name: 'Open settings' }).click();
+  await expect(page.locator('#bg-toggle-button')).toHaveAttribute('aria-label', 'Clear Background Image');
+
+  await page.locator('#bg-toggle-button').click();
+  await expect(page.locator('#bg-toggle-button')).toHaveAttribute('aria-label', 'Set Background Image');
+  const afterClear = await page.evaluate(() => {
+    const project = app.serializeProject();
+    project.backgroundData = null;
+    const stableProject = JSON.parse(JSON.stringify(project, (_key, value) => typeof value === 'number' ? Number(value.toPrecision(15)) : value));
+    return {
+      project: stableProject,
+      backgroundData: app.backgroundData,
+      bgImage: app.bgImage,
+      pixel: Array.from(app.renderFrameToCtx(false, false).getContext('2d').getImageData(0, 0, 1, 1).data)
+    };
+  });
+  expect(afterClear.project).toEqual(before);
+  expect(afterClear.backgroundData).toBeNull();
+  expect(afterClear.bgImage).toBeNull();
+  expect(afterClear.pixel).toEqual([255, 255, 255, 255]);
+
+  await page.locator('#bg-input').setInputFiles({
+    name: 'tiny-red-again.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(backgroundData.split(',')[1], 'base64')
+  });
+  await expect(toggle).toHaveAttribute('aria-label', 'Clear Background Image');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-label', 'Set Background Image');
+  await page.evaluate(async () => { await app.saveLocal(); });
+  await page.reload();
+  await page.waitForFunction(() => window.app?.frames?.length === 2);
+  await page.getByRole('button', { name: 'Open settings' }).click();
+  await expect(page.locator('#bg-toggle-button')).toHaveAttribute('aria-label', 'Set Background Image');
+  const afterReload = await page.evaluate(() => {
+    const project = app.serializeProject();
+    project.backgroundData = null;
+    const stableProject = JSON.parse(JSON.stringify(project, (_key, value) => typeof value === 'number' ? Number(value.toPrecision(15)) : value));
+    return { project: stableProject, backgroundData: app.backgroundData, bgImage: app.bgImage };
+  });
+  expect(afterReload.project).toEqual(before);
+  expect(afterReload.backgroundData).toBeNull();
+  expect(afterReload.bgImage).toBeNull();
+  await page.evaluate(() => app.newProject());
+  await expect(page.locator('#bg-toggle-button')).toHaveAttribute('aria-label', 'Set Background Image');
+});
+
 test('large local projects recover through IndexedDB autosave', async ({ page }) => {
   await openEditor(page);
   await page.evaluate(async () => {
