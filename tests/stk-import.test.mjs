@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import zlib from 'node:zlib';
 import {
   STK_MAX_FILE_BYTES, STK_MAX_PAYLOAD_BYTES, STK_WRAPPER_V3, STK_WRAPPER_V4, STK_WRAPPER_V5, createFigureFromStk, decodeStk, decodeStkBytes,
   isStkCircleSegment, pointOnStkSegment, validateStkArtwork
 } from '../src/stk-import.js';
+import { findDragTarget } from '../src/drag-controller.js';
 import { normaliseProject } from '../src/project.js';
 import { drawStkFigure, getStkArtworkBounds } from '../src/stk-renderer.js';
 
@@ -69,6 +71,37 @@ function v5Payload({ segments, curves = [], polygons = [], ranks = null, transpa
     const record = Buffer.alloc(6 + polygon.vertices.length * 2);
     record.writeUInt16LE(polygon.vertices.length, 0); record.set(polygon.color, 2);
     if (transparencyLayout) record[5] = polygon.transparency ?? 0;
+    polygon.vertices.forEach((vertex, index) => record.writeUInt16LE(vertex, 6 + index * 2)); chunks.push(record);
+  }
+  const drawRanks = ranks ?? segments.map((_, index) => index);
+  const tail = Buffer.alloc(drawRanks.length * 2); drawRanks.forEach((rank, index) => tail.writeUInt16LE(rank, index * 2)); chunks.push(tail);
+  return Buffer.concat(chunks);
+}
+
+function a9Payload({ segments, curves = [], polygons = [], ranks = null }) {
+  assert.ok(segments.length > 0);
+  const header = Buffer.alloc(3);
+  header[0] = 0xa9; header.writeUInt16LE(segments.length, 1);
+  const chunks = [header];
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    // A9 is the a8 record order without the per-record type byte:
+    // [parent uint16][length float32][angle float64][width float32][flag][RGB].
+    const record = Buffer.alloc(22);
+    record.writeUInt16LE(segment.parent, 0);
+    record.writeFloatLE(segment.length, 2);
+    record.writeDoubleLE(segment.angle, 6);
+    record.writeFloatLE(segment.width, 14);
+    record[18] = segment.flag ?? 0;
+    record.set(segment.color ?? [0, 0, 0], 19);
+    chunks.push(record);
+  }
+  const curveHeader = Buffer.alloc(2); curveHeader.writeUInt16LE(curves.length); chunks.push(curveHeader);
+  for (const curve of curves) { const record = Buffer.alloc(10); record.writeUInt16LE(curve.index, 0); record.writeDoubleLE(curve.bend, 2); chunks.push(record); }
+  const polygonHeader = Buffer.alloc(2); polygonHeader.writeUInt16LE(polygons.length); chunks.push(polygonHeader);
+  for (const polygon of polygons) {
+    const record = Buffer.alloc(6 + polygon.vertices.length * 2);
+    record.writeUInt16LE(polygon.vertices.length, 0); record.set(polygon.color, 2);
     polygon.vertices.forEach((vertex, index) => record.writeUInt16LE(vertex, 6 + index * 2)); chunks.push(record);
   }
   const drawRanks = ranks ?? segments.map((_, index) => index);
@@ -158,6 +191,125 @@ test('decodes Pivot 5 curves, polygons, colors and rank-per-item draw order', as
   const p1 = pointOnStkSegment(source, start, 1, chordLength, chordAngle);
   assert.ok(Math.hypot(p0.x - start.x, p0.y - start.y) < 1e-8);
   assert.ok(Math.hypot(p1.x - child.x, p1.y - child.y) < 1e-8);
+});
+
+test('decodes the Pivot 5 a9 a8-order layout and paints by width regardless of flag', () => {
+  const payload = a9Payload({
+    segments: [
+      { parent: 0, length: 100, angle: 0, width: 1, flag: 0, color: [9, 9, 9] },
+      { parent: 1, length: 100, angle: Math.PI / 2, width: 2.125, flag: 1, color: [230, 205, 183] },
+      { parent: 0, length: 1, angle: -Math.PI / 2, width: 4, flag: 0, color: [221, 106, 40] },
+      { parent: 0, length: 50, angle: Math.PI, width: 0, flag: 1, color: [0, 0, 0] }
+    ],
+    curves: [{ index: 0, bend: Math.PI }, { index: 1, bend: -Math.PI / 3 }],
+    polygons: [{ color: [200, 100, 50], vertices: [0, 1, 3] }],
+    ranks: [2, 0, 3, 1, 4]
+  });
+  const decoded = decodeStkBytes(payload, STK_WRAPPER_V5);
+  assert.equal(decoded.payloadHeader, 'a90400');
+  assert.deepEqual(decoded.segments[0].color, [9, 9, 9]);
+  assert.equal(decoded.segments[0].width, 1);
+  assert.equal(decoded.segments[0].flag, 0);
+  assert.equal(decoded.segments[0].parent, 0);
+  assert.deepEqual(decoded.segments[1].color, [230, 205, 183], 'segment 2 keeps its own style rather than the previous record');
+  assert.equal(decoded.segments[1].width, 2.125);
+  assert.equal(decoded.segments[1].flag, 1);
+  assert.equal(decoded.segments[1].parent, 1);
+  assert.equal(decoded.segments[2].parent, 0);
+  assert.equal(decoded.segments[3].width, 0);
+  assert.equal(decoded.segments[1].bend, -Math.PI / 3);
+  assert.deepEqual(decoded.drawRanks, [2, 0, 3, 1, 4]);
+  assert.equal(decoded.polygons.length, 1);
+  assert.ok(decoded.warnings.some(warning => warning.includes('a9')));
+  validateStkArtwork(decoded);
+
+  const events = [];
+  const stateStack = [];
+  const context = {
+    fillStyle: '#000000', strokeStyle: '#000000', lineCap: 'round', lineJoin: 'round', lineWidth: 1,
+    save() { stateStack.push({ fillStyle: this.fillStyle, strokeStyle: this.strokeStyle, lineCap: this.lineCap, lineJoin: this.lineJoin, lineWidth: this.lineWidth }); },
+    restore() { Object.assign(this, stateStack.pop()); }, beginPath() {}, moveTo() {}, lineTo() {}, closePath() {}, arc() {},
+    fill() { events.push('fill'); }, stroke() { events.push('stroke'); }
+  };
+  const figure = createFigureFromStk(decoded);
+  assert.equal(figure.joints.filter(joint => joint.handleVisible !== false).length, 3, 'only flag-0 segments expose controls');
+  drawStkFigure({ context, figure });
+  // Draw order by rank: segment 2 (flag 1, width 2.125) is painted, segment 4
+  // (width 0) is skipped, then segment 1, segment 3 and the polygon render.
+  assert.deepEqual(events, ['stroke', 'stroke', 'stroke', 'fill'], 'positive-width flag-1 strokes paint and zero-width strokes do not');
+  const bounds = getStkArtworkBounds(createFigureFromStk(decoded, { x: 0, y: 0 }));
+  assert.ok(bounds.maxX > 30, 'A9 curved paths remain in polygon bounds');
+  const dragFigure = createFigureFromStk(decoded, { x: 0, y: 0 });
+  dragFigure.updatePositions();
+  const zeroWidth = dragFigure.joints.find(joint => joint.id === 'stk-4');
+  const zeroParent = dragFigure.joints.find(joint => joint.id === zeroWidth.parentId);
+  const zeroMidpoint = { x: (zeroWidth.x + zeroParent.x) / 2, y: (zeroWidth.y + zeroParent.y) / 2 };
+  const distanceToSegment = (point, start, end) => {
+    const dx = end.x - start.x, dy = end.y - start.y;
+    const progress = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy)));
+    return Math.hypot(point.x - (start.x + progress * dx), point.y - (start.y + progress * dy));
+  };
+  assert.equal(findDragTarget({ figures: [dragFigure], position: zeroMidpoint, handleRadius: 4, distanceToSegment, isPointInSpeechBubble: () => false }), null, 'zero-width A9 construction paths are not draggable');
+});
+
+test('decodes the supplied sheep cartoon Pivot 5 a9 fixture completely', { skip: !fs.existsSync('/Users/crayner/Downloads/sheep cartoon.440d9893 (1).stk') }, async () => {
+  const bytes = fs.readFileSync('/Users/crayner/Downloads/sheep cartoon.440d9893 (1).stk');
+  const decoded = await decodeStk(bytes);
+  assert.equal(decoded.sourceBytes, 7252);
+  assert.equal(decoded.payloadBytes, 11383);
+  assert.equal(decoded.payloadHeader, 'a95601');
+  assert.equal(decoded.segments.length, 342);
+  assert.equal(decoded.parameters.length, 243);
+  assert.equal(decoded.polygons.length, 28);
+  assert.equal(decoded.drawRanks.length, 370);
+  assert.equal(decoded.segments[0].parent, 0);
+  assert.deepEqual(decoded.segments.reduce((counts, segment) => { counts[segment.flag] += 1; return counts; }, [0, 0]), [20, 322]);
+  assert.ok(decoded.segments.some(segment => segment.width === 2.125 && segment.flag === 1 && segment.color.join(',') === '230,205,183'));
+  assert.ok(decoded.segments.some(segment => segment.width === 15.75 && segment.flag === 1 && segment.color.join(',') === '224,147,60'));
+  validateStkArtwork(decoded);
+  const figure = createFigureFromStk(decoded, { x: 0, y: 0 });
+  assert.equal(figure.joints.length, 343);
+  const controls = figure.joints.filter(joint => joint.handleVisible !== false);
+  assert.equal(controls.length, 21, 'sheep exposes the root plus its 20 flag-0 skeleton controls');
+  assert.ok(controls.some(joint => joint.id === 'stk-1'), 'the main root segment is a control');
+  const bounds = getStkArtworkBounds(figure);
+  assert.ok(bounds.minX > -180 && bounds.maxX < 50 && bounds.minY > -140 && bounds.maxY < 90);
+});
+
+test('decodes the supplied basketball hoop Pivot 5 a9 fixture completely', { skip: !fs.existsSync('/Users/crayner/Downloads/basketball hoop.812bfc5e.stk') }, async () => {
+  const bytes = fs.readFileSync('/Users/crayner/Downloads/basketball hoop.812bfc5e.stk');
+  const decoded = await decodeStk(bytes);
+  assert.equal(decoded.sourceBytes, 288);
+  assert.equal(decoded.payloadBytes, 437);
+  assert.equal(decoded.payloadHeader, 'a91000');
+  assert.equal(decoded.segments.length, 16);
+  assert.equal(decoded.parameters.length, 0);
+  assert.equal(decoded.polygons.length, 3);
+  assert.equal(decoded.drawRanks.length, 19);
+  assert.equal(decoded.segments[0].parent, 0);
+  assert.deepEqual(decoded.segments.reduce((counts, segment) => { counts[segment.flag] += 1; return counts; }, [0, 0]), [3, 13]);
+  // The pole/backboard strokes are flag 1 with positive width and must paint.
+  const paintedFlagOne = decoded.segments.filter(segment => segment.flag === 1 && segment.width > 0);
+  assert.ok(paintedFlagOne.length >= 10, 'flag-1 positive-width structure remains paintable');
+  validateStkArtwork(decoded);
+  const figure = createFigureFromStk(decoded, { x: 0, y: 0 });
+  assert.equal(figure.joints.length, 17);
+  const controls = figure.joints.filter(joint => joint.handleVisible !== false);
+  assert.equal(controls.length, 4, 'basketball hoop exposes the root plus three flag-0 controls');
+  const bounds = getStkArtworkBounds(figure);
+  assert.ok(bounds.minY < -300 && bounds.maxY < 20, 'hoop bounds span the tall pole and base');
+});
+
+test('rejects malformed Pivot 5 a9 style and unaccounted bytes', () => {
+  const payload = a9Payload({ segments: [
+    { parent: 0, length: 10, angle: 0, width: 2, flag: 0, color: [1, 2, 3] },
+    { parent: 1, length: 5, angle: 0, width: 1, flag: 0, color: [4, 5, 6] }
+  ] });
+  const badFlag = Buffer.from(payload); badFlag[3 + 22 + 18] = 2;
+  assert.throws(() => decodeStkBytes(badFlag, STK_WRAPPER_V5), /unsupported flag/);
+  assert.throws(() => decodeStkBytes(payload.subarray(0, -1), STK_WRAPPER_V5), /incomplete|trailing/);
+  const forwardParent = Buffer.from(payload); forwardParent.writeUInt16LE(2, 3 + 22);
+  assert.throws(() => decodeStkBytes(forwardParent, STK_WRAPPER_V5), /forward or unknown parent/);
 });
 
 test('decodes the measured Pivot 5 a0 transparency layout without dropping alpha bytes', async () => {
