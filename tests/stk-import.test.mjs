@@ -109,6 +109,39 @@ function a9Payload({ segments, curves = [], polygons = [], ranks = null }) {
   return Buffer.concat(chunks);
 }
 
+function a88Payload({ segments, curves = [], polygons = [], ranks = null }) {
+  assert.ok(segments.length > 0);
+  const header = Buffer.alloc(3);
+  header[0] = 0x88; header.writeUInt16LE(segments.length, 1);
+  const chunks = [header];
+  for (const segment of segments) {
+    // 0x88 is the a8 layout plus a source-id uint16 after the parent:
+    // [parent uint16][source id uint16][length float32][angle float64]
+    // [width float32][type byte][flag byte][RGB bytes].
+    const record = Buffer.alloc(25);
+    record.writeUInt16LE(segment.parentSourceId ?? 0, 0);
+    record.writeUInt16LE(segment.sourceId, 2);
+    record.writeFloatLE(segment.length, 4);
+    record.writeDoubleLE(segment.angle, 8);
+    record.writeFloatLE(segment.width, 16);
+    record[20] = segment.type ?? 0;
+    record[21] = segment.flag ?? 0;
+    record.set(segment.color ?? [0, 0, 0], 22);
+    chunks.push(record);
+  }
+  const curveHeader = Buffer.alloc(2); curveHeader.writeUInt16LE(curves.length); chunks.push(curveHeader);
+  for (const curve of curves) { const record = Buffer.alloc(10); record.writeUInt16LE(curve.index, 0); record.writeDoubleLE(curve.bend, 2); chunks.push(record); }
+  const polygonHeader = Buffer.alloc(2); polygonHeader.writeUInt16LE(polygons.length); chunks.push(polygonHeader);
+  for (const polygon of polygons) {
+    const record = Buffer.alloc(6 + polygon.vertices.length * 2);
+    record.writeUInt16LE(polygon.vertices.length, 0); record.set(polygon.color, 2);
+    polygon.vertices.forEach((vertex, index) => record.writeUInt16LE(vertex, 6 + index * 2)); chunks.push(record);
+  }
+  const drawRanks = ranks ?? segments.map((_, index) => index);
+  const tail = Buffer.alloc(drawRanks.length * 2); drawRanks.forEach((rank, index) => tail.writeUInt16LE(rank, index * 2)); chunks.push(tail);
+  return Buffer.concat(chunks);
+}
+
 function lineFigureData(figure) {
   return JSON.parse(JSON.stringify(figure));
 }
@@ -298,6 +331,66 @@ test('decodes the supplied basketball hoop Pivot 5 a9 fixture completely', { ski
   assert.equal(controls.length, 4, 'basketball hoop exposes the root plus three flag-0 controls');
   const bounds = getStkArtworkBounds(figure);
   assert.ok(bounds.minY < -300 && bounds.maxY < 20, 'hoop bounds span the tall pole and base');
+});
+
+test('decodes the Pivot 5 0x88 source-id layout and remaps out-of-order ids', () => {
+  const payload = a88Payload({
+    segments: [
+      { sourceId: 2, parentSourceId: 0, length: 100, angle: 0, width: 1, flag: 0, color: [1, 2, 3] },
+      { sourceId: 1, parentSourceId: 2, length: 50, angle: Math.PI / 2, width: 2.125, flag: 1, color: [4, 5, 6] },
+      { sourceId: 3, parentSourceId: 1, length: 25, angle: Math.PI, width: 0, flag: 1, color: [7, 8, 9] }
+    ],
+    curves: [{ index: 0, bend: 0.5 }, { index: 2, bend: -0.75 }],
+    polygons: [{ color: [10, 20, 30], vertices: [0, 1, 2] }],
+    ranks: [1, 2, 3, 0]
+  });
+  const decoded = decodeStkBytes(payload, STK_WRAPPER_V5);
+  assert.equal(decoded.payloadHeader, '880300');
+  assert.deepEqual(decoded.segments.map(segment => [segment.id, segment.sourceId, segment.parent]), [[1, 2, 0], [2, 1, 1], [3, 3, 2]], 'source ids remap to record order');
+  assert.equal(decoded.segments[0].bend, 0.5, 'curves use 0-based record indices');
+  assert.equal(decoded.segments[2].bend, -0.75);
+  assert.equal(decoded.segments[1].width, 2.125);
+  assert.deepEqual(decoded.drawRanks, [1, 2, 3, 0]);
+  validateStkArtwork(decoded);
+  const figure = createFigureFromStk(decoded, { x: 0, y: 0 });
+  assert.equal(figure.joints.filter(joint => joint.handleVisible !== false).length, 2, 'root plus one flag-0 segment');
+});
+
+test('rejects malformed Pivot 5 0x88 records', () => {
+  const forwardParent = a88Payload({ segments: [
+    { sourceId: 1, parentSourceId: 2, length: 10, angle: 0, width: 1, flag: 0, color: [1, 2, 3] },
+    { sourceId: 2, parentSourceId: 0, length: 10, angle: 0, width: 1, flag: 0, color: [1, 2, 3] }
+  ] });
+  assert.throws(() => decodeStkBytes(forwardParent, STK_WRAPPER_V5), /forward parent/);
+  const duplicateId = a88Payload({ segments: [
+    { sourceId: 1, parentSourceId: 0, length: 10, angle: 0, width: 1, flag: 0, color: [1, 2, 3] },
+    { sourceId: 1, parentSourceId: 0, length: 10, angle: 0, width: 1, flag: 0, color: [1, 2, 3] }
+  ] });
+  assert.throws(() => decodeStkBytes(duplicateId, STK_WRAPPER_V5), /duplicate source id/);
+  const valid = a88Payload({ segments: [
+    { sourceId: 1, parentSourceId: 0, length: 10, angle: 0, width: 1, flag: 0, color: [1, 2, 3] }
+  ] });
+  assert.throws(() => decodeStkBytes(valid.subarray(0, -1), STK_WRAPPER_V5), /incomplete|trailing/);
+});
+
+test('decodes the supplied Spider-Man 0x88 fixture completely', { skip: !fs.existsSync('/Users/crayner/Downloads/Spider-Man_Eysi.c1dee0f9.stk') }, async () => {
+  const bytes = fs.readFileSync('/Users/crayner/Downloads/Spider-Man_Eysi.c1dee0f9.stk');
+  const decoded = await decodeStk(bytes);
+  assert.equal(decoded.sourceBytes, 1230);
+  assert.equal(decoded.payloadBytes, 1727);
+  assert.equal(decoded.payloadHeader, '883c00');
+  assert.equal(decoded.segments.length, 60);
+  assert.equal(decoded.parameters.length, 10);
+  assert.equal(decoded.polygons.length, 0);
+  assert.equal(decoded.drawRanks.length, 60);
+  assert.deepEqual(decoded.segments.reduce((counts, segment) => { counts[segment.type] += 1; return counts; }, [0, 0]), [59, 1]);
+  assert.deepEqual(decoded.segments.reduce((counts, segment) => { counts[segment.flag] += 1; return counts; }, [0, 0]), [15, 45]);
+  validateStkArtwork(decoded);
+  const figure = createFigureFromStk(decoded, { x: 0, y: 0 });
+  assert.equal(figure.joints.length, 61);
+  assert.equal(figure.joints.filter(joint => joint.handleVisible !== false).length, 16, 'root plus 15 flag-0 controls');
+  const bounds = getStkArtworkBounds(figure);
+  assert.ok(bounds.minY < -100 && bounds.maxY > 100 && bounds.maxX - bounds.minX < 60, 'tall thin standing figure');
 });
 
 test('rejects malformed Pivot 5 a9 style and unaccounted bytes', () => {

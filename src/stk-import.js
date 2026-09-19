@@ -300,6 +300,121 @@ function parseV5A9(payload) {
   };
 }
 
+// Pivot 5's 0x88 payload is the a8 layout with a uint16 source id inserted
+// after the parent reference, making each segment record 25 bytes:
+// [parent uint16][source id uint16][length float32][angle float64]
+// [width float32][type byte][flag byte][RGB bytes].  Source ids need not be
+// sequential, and parents reference source ids, so parents are remapped to
+// record-order ids.  Curve references are 0-based record indices, as in a8.
+function parseV5A8Id(payload) {
+  ensureBytes(payload, 0, 3, 'Pivot 5 88 header');
+  if (payload[0] !== 0x88) fail(`unsupported Pivot 5 88 payload header ${payload[0].toString(16).padStart(2, '0')}.`);
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const segmentCount = view.getUint16(1, true);
+  if (segmentCount < 1 || segmentCount > STK_MAX_SEGMENTS) fail('Pivot 5 88 segment count is outside the supported range.');
+  ensureBytes(payload, 3, segmentCount * 25, 'Pivot 5 88 segment records');
+  const sourceSegments = [];
+  const sourceIds = new Set();
+  const sourceIdToRecord = new Map();
+  for (let index = 0; index < segmentCount; index += 1) {
+    const record = 3 + index * 25;
+    const parentSourceId = view.getUint16(record, true);
+    const sourceId = view.getUint16(record + 2, true);
+    const length = view.getFloat32(record + 4, true);
+    const angle = view.getFloat64(record + 8, true);
+    const width = view.getFloat32(record + 16, true);
+    const type = payload[record + 20];
+    const flag = payload[record + 21];
+    const color = readRgb(payload, record + 22, `Pivot 5 88 segment ${index + 1} colour`);
+    if (sourceId < 1 || sourceId > segmentCount || sourceIds.has(sourceId)) fail(`Pivot 5 88 segment ${index + 1} has an invalid or duplicate source id.`);
+    finiteNumber(length, `Pivot 5 88 segment ${sourceId} length`, 0, STK_MAX_SEGMENT_LENGTH);
+    finiteNumber(angle, `Pivot 5 88 segment ${sourceId} angle`, -1000000, 1000000);
+    finiteNumber(width, `Pivot 5 88 segment ${sourceId} width`, 0, STK_MAX_SEGMENT_WIDTH);
+    if (![0, 1, 3, 4, 6].includes(type)) fail(`Pivot 5 88 segment ${sourceId} uses unsupported type ${type}.`);
+    if (flag !== 0 && flag !== 1) fail(`Pivot 5 88 segment ${sourceId} uses unsupported flag ${flag}.`);
+    sourceIds.add(sourceId);
+    sourceIdToRecord.set(sourceId, index);
+    sourceSegments.push({ index, sourceId, parentSourceId, length, angle, bend: 0, width, type, flag, color, transparency: 0 });
+  }
+  sourceSegments.forEach(segment => {
+    if (segment.parentSourceId === 0) return;
+    if (!sourceIds.has(segment.parentSourceId)) fail(`Pivot 5 88 segment ${segment.sourceId} references an unknown parent.`);
+    if (sourceIdToRecord.get(segment.parentSourceId) >= segment.index) fail(`Pivot 5 88 segment ${segment.sourceId} has a forward parent.`);
+  });
+  const internalIdBySourceId = new Map(sourceSegments.map(segment => [segment.sourceId, segment.index + 1]));
+  const segments = sourceSegments.map(segment => ({
+    ...segment,
+    id: segment.index + 1,
+    parent: segment.parentSourceId === 0 ? 0 : internalIdBySourceId.get(segment.parentSourceId)
+  }));
+  let offset = 3 + segmentCount * 25;
+
+  ensureBytes(payload, offset, 2, 'Pivot 5 88 curve count');
+  const curveCount = view.getUint16(offset, true); offset += 2;
+  if (curveCount > segmentCount) fail('Pivot 5 88 curve count exceeds the segment count.');
+  const seenCurves = new Set();
+  const parameters = [];
+  for (let index = 0; index < curveCount; index += 1) {
+    ensureBytes(payload, offset, 10, 'Pivot 5 88 curve records');
+    const segmentIndex = view.getUint16(offset, true);
+    const bend = view.getFloat64(offset + 2, true);
+    if (segmentIndex >= segmentCount) fail(`Pivot 5 88 curve ${index + 1} references an unknown segment.`);
+    if (seenCurves.has(segmentIndex)) fail(`Pivot 5 88 curve records contain a duplicate segment ${segmentIndex + 1}.`);
+    finiteNumber(bend, `Pivot 5 88 curve ${index + 1} bend`, -STK_MAX_ABS_BEND, STK_MAX_ABS_BEND);
+    seenCurves.add(segmentIndex);
+    segments[segmentIndex].bend = bend;
+    parameters.push({ index: segmentIndex, segmentId: segmentIndex + 1, value: bend });
+    offset += 10;
+  }
+
+  ensureBytes(payload, offset, 2, 'Pivot 5 88 polygon count');
+  const polygonCount = view.getUint16(offset, true); offset += 2;
+  if (polygonCount > STK_MAX_POLYGONS) fail('Pivot 5 88 polygon count is outside the supported range.');
+  const polygons = [];
+  let totalVertices = 0;
+  for (let index = 0; index < polygonCount; index += 1) {
+    ensureBytes(payload, offset, 6, 'Pivot 5 88 polygon header');
+    const vertexCount = view.getUint16(offset, true);
+    const color = readRgb(payload, offset + 2, `Pivot 5 88 polygon ${index + 1}`);
+    const reserved = payload[offset + 5];
+    if (reserved !== 0) fail(`Pivot 5 88 polygon ${index + 1} uses an unsupported colour/reserved byte.`);
+    if (vertexCount < 3 || vertexCount > STK_MAX_POLYGON_VERTICES) fail(`Pivot 5 88 polygon ${index + 1} has an invalid vertex count.`);
+    totalVertices += vertexCount;
+    if (totalVertices > STK_MAX_POLYGON_VERTICES) fail('Pivot 5 88 polygon vertices exceed the safety limit.');
+    offset += 6;
+    ensureBytes(payload, offset, vertexCount * 2, 'Pivot 5 88 polygon vertices');
+    const vertices = [];
+    for (let vertex = 0; vertex < vertexCount; vertex += 1) {
+      const reference = view.getUint16(offset, true);
+      if (reference > segmentCount) fail(`Pivot 5 88 polygon ${index + 1} references an unknown node.`);
+      if (vertex > 0 && vertices[vertex - 1] === reference) fail(`Pivot 5 88 polygon ${index + 1} repeats an adjacent node.`);
+      vertices.push(reference); offset += 2;
+    }
+    if (vertices[0] === vertices[vertices.length - 1]) fail(`Pivot 5 88 polygon ${index + 1} repeats its closing node.`);
+    polygons.push({ id: segmentCount + index, color, vertices, transparency: 0, reserved });
+  }
+
+  const itemCount = segmentCount + polygonCount;
+  if (itemCount > STK_MAX_DRAW_ITEMS) fail('Pivot 5 88 draw-item count is outside the supported range.');
+  const remaining = payload.byteLength - offset;
+  if (remaining !== itemCount * 2) fail('Pivot 5 88 payload has incomplete or unsupported trailing draw-order data.');
+  const drawRanks = [];
+  const rankSet = new Set();
+  for (let index = 0; index < itemCount; index += 1) {
+    const rank = view.getUint16(offset, true); offset += 2;
+    if (rank >= itemCount || rankSet.has(rank)) fail('Pivot 5 88 draw ranks are not a complete permutation.');
+    rankSet.add(rank); drawRanks.push(rank);
+  }
+  if (offset !== payload.byteLength) fail('Pivot 5 88 payload has unsupported trailing data.');
+  return {
+    format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V5,
+    payloadHeader: Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join(''),
+    segments, parameters, polygons, drawRanks,
+    sourceBytes: 0, payloadBytes: payload.byteLength,
+    warnings: ['Pivot 5 88 source ids are remapped to record order; flag 0 marks pose controls and positive-width strokes paint.']
+  };
+}
+
 function parseV4(payload) {
   ensureBytes(payload, 0, 1, 'Pivot 4 header');
   const segmentCount = payload[0];
@@ -344,6 +459,7 @@ function parseV4(payload) {
 function parseV5(payload) {
   ensureBytes(payload, 0, 3, 'Pivot 5 header');
   if (payload[0] === 0xa9) return parseV5A9(payload);
+  if (payload[0] === 0x88) return parseV5A8Id(payload);
   const hasTransparency = payload[0] === 0xa0;
   if (payload[0] !== 0xa8 && !hasTransparency) fail(`unsupported Pivot 5 payload header ${Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join('')}.`);
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
@@ -453,7 +569,7 @@ export function validateStkArtwork(value) {
   if (!Number.isInteger(value.sourceBytes) || value.sourceBytes < 0 || value.sourceBytes > STK_MAX_FILE_BYTES || !Number.isInteger(value.payloadBytes) || value.payloadBytes < 1 || value.payloadBytes > STK_MAX_PAYLOAD_BYTES) fail('the imported source-size metadata is invalid.');
   if (value.wrapper === STK_WRAPPER_V3 && value.payloadHeader !== '01') fail('the Pivot 3 payload header metadata is invalid.');
   if (value.wrapper === STK_WRAPPER_V4 && value.payloadHeader !== null) fail('the Pivot 4 payload header metadata is invalid.');
-  if (value.wrapper === STK_WRAPPER_V5 && (typeof value.payloadHeader !== 'string' || !/^(?:a0|a8|a9)[0-9a-f]{4}$/.test(value.payloadHeader))) fail('the Pivot 5 payload header metadata is invalid.');
+  if (value.wrapper === STK_WRAPPER_V5 && (typeof value.payloadHeader !== 'string' || !/^(?:a0|a8|a9|88)[0-9a-f]{4}$/.test(value.payloadHeader))) fail('the Pivot 5 payload header metadata is invalid.');
   const hasV5Transparency = value.wrapper === STK_WRAPPER_V5 && value.payloadHeader.startsWith('a0');
   if (!Array.isArray(value.segments) || value.segments.length < 1 || value.segments.length > STK_MAX_SEGMENTS) fail('the imported segment metadata count is invalid.');
   const segments = value.segments;
