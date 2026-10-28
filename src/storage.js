@@ -21,7 +21,14 @@ function openDatabase() {
       const database = request.result;
       if (!database.objectStoreNames.contains(STORE_NAME)) database.createObjectStore(STORE_NAME);
     };
-    request.onsuccess = () => resolve(request.result);
+    request.onsuccess = () => {
+      const database = request.result;
+      // Reopen on next use if the browser closes this connection (e.g. site data cleared)
+      // or another tab needs to upgrade the database.
+      database.onclose = () => { databasePromise = null; };
+      database.onversionchange = () => { database.close(); databasePromise = null; };
+      resolve(database);
+    };
     request.onerror = () => reject(request.error || storageError('The project database could not be opened.'));
     request.onblocked = () => reject(storageError('The project database is blocked by another browser tab.'));
   });

@@ -61,6 +61,8 @@ function view(length) {
   return { bytes, data: new DataView(bytes.buffer) };
 }
 
+const UTF8_NAMES = 0x0800; // ZIP general-purpose flag bit 11: file names are UTF-8
+
 export async function createStoredZip(files, modifiedAt = new Date()) {
   const encoder = new TextEncoder();
   const localParts = [];
@@ -74,6 +76,7 @@ export async function createStoredZip(files, modifiedAt = new Date()) {
     const local = view(30 + name.length);
     local.data.setUint32(0, 0x04034b50, true);
     local.data.setUint16(4, 20, true);
+    local.data.setUint16(6, UTF8_NAMES, true);
     local.data.setUint16(8, 0, true);
     local.data.setUint16(10, stamp.time, true);
     local.data.setUint16(12, stamp.date, true);
@@ -88,6 +91,7 @@ export async function createStoredZip(files, modifiedAt = new Date()) {
     central.data.setUint32(0, 0x02014b50, true);
     central.data.setUint16(4, 20, true);
     central.data.setUint16(6, 20, true);
+    central.data.setUint16(8, UTF8_NAMES, true);
     central.data.setUint16(10, 0, true);
     central.data.setUint16(12, stamp.time, true);
     central.data.setUint16(14, stamp.date, true);

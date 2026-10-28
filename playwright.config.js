@@ -12,7 +12,7 @@ export default defineConfig({
     screenshot: 'only-on-failure'
   },
   webServer: {
-    command: 'python3 -m http.server 4173',
+    command: 'node tests/static-server.mjs',
     port: 4173,
     reuseExistingServer: true
   }

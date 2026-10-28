@@ -324,6 +324,32 @@ Turn StickMotion into a dependable, accessible, classroom-ready animation editor
 - Published the verified StickMotion build to the `main` branch, which GitHub Pages serves from the repository root.
 - Confirmed the GitHub Pages build for commit `6be67dc` completed successfully at `https://kiwispin.github.io/stick-motion/`.
 
+### Completed — Code review: protecting student work
+
+- An autosave that fails to reopen is kept in a separate backup slot and offered as a download, instead of being overwritten by the fresh project. If even the backup cannot be written, autosave pauses rather than destroy the only copy.
+- Stopping, choosing a frame, pasting, or exporting during playback can no longer store a generated in-between pose over a real frame.
+- Editor controls stay within the limits the project loader accepts (scale 0.05–100, 1,000-character text, 250 figures per frame, 100 pivots per figure, 250 groups, speech-tail length), so every project the editor creates can be reopened.
+- Deleting the only frame (or every selected frame) is refused, like Pivot, instead of resetting the whole project. Deleting selected frames keeps the student on the frame they were viewing.
+- Files dropped onto the timeline are ignored instead of corrupting frames; frame selection now follows Undo, Redo and project opening.
+- Open validates the chosen file, then asks before replacing the current animation.
+- Only the most recently opened tab autosaves; an older tab pauses and offers "Use this tab", so two tabs cannot silently overwrite each other.
+- Regrouping figures removes them from their old groups and dissolves groups left with one member; new group names are unique.
+- Smaller fixes: with Loop off the final pose is drawn exactly; STK import warnings render as plain text; autosave reconnects if the browser closes the database; PNG ZIP entries declare UTF-8 names.
+- Removed an unreachable duplicate of the project loader (and its helpers) from `index.html`, plus a commented-out hit test.
+- Timeline thumbnails of unchanged frames are cached and reused, so adding a frame no longer redraws every thumbnail (typical 120-frame project: timeline rebuild 155 → 48 ms at 4× CPU slowdown).
+- The e2e suite now starts its own Node static server (`tests/static-server.mjs`) instead of `python3`, and module-patching tests read files from disk, removing an intermittent `ECONNREFUSED` failure.
+
+### Verified
+
+- Every fix has a regression test that was seen to fail before the fix and pass after it.
+- 23 module tests (3 more skip without the off-machine `.stk` fixtures) and 69 browser tests pass, repeated to check for flakiness; real mouse drag-reordering and two-tab hand-over were exercised in Chromium.
+
+### Deferred deliberately
+
+- **Consolidating the three Pivot 5 parsers** in `src/stk-import.js`: a refactor rather than a fix, and the real-world `.stk` fixtures needed to prove it safe exist on only one machine (`/Users/crayner/Downloads/...`). Commit those fixtures to `tests/fixtures/` first.
+- **Restricting imported STK artwork to known fields**: needs an exact field list from every parser path; a missed field would silently damage real imports. Same prerequisite as above.
+- **Faster autosave on very large projects**: `JSON.stringify` of the whole project runs on each save (≈20 ms for a typical project, ≈185 ms for 300 frames × 15 figures at 4× CPU slowdown). A per-frame serialisation cache would fix it but changes the save path, so it waits until large projects are common.
+
 ### Next
 
 Close the remaining original-audit usability gaps with Pivot compatibility preserved, beginning with reviewing transport/navigation controls and identifying only changes that improve clarity without changing established shortcuts.

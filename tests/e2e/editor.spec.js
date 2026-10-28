@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
+// Tests that patch a module read it from disk rather than route.fetch(), so they never depend on the server under load.
+const projectFile = (...parts) => path.join(path.dirname(test.info().config.configFile), ...parts);
+
 async function openEditor(page) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await page.goto('/index.html');
@@ -90,10 +93,8 @@ test('an autosave that cannot be reopened is kept as a backup instead of being o
 });
 
 test('autosave pauses rather than overwrite an unreadable draft it could not back up', async ({ page }) => {
-  // Read from disk rather than route.fetch(), so the test does not depend on the local server under load.
-  const storagePath = path.join(path.dirname(test.info().config.configFile), 'src', 'storage.js');
   await page.route('**/src/storage.js', async route => {
-    let source = await readFile(storagePath, 'utf8');
+    let source = await readFile(projectFile('src', 'storage.js'), 'utf8');
     source = source.replace('export function writeUnreadableBackup(', 'function originalWriteUnreadableBackup(');
     source += '\nexport function writeUnreadableBackup() { return Promise.reject(new Error("Reviewer simulated backup failure")); }\n';
     await route.fulfill({ status: 200, contentType: 'text/javascript', body: source });
@@ -155,11 +156,10 @@ test('only the newest tab autosaves, so an older tab cannot overwrite newer work
 
 test('reports Saving until the latest queued autosave settles', async ({ page }) => {
   await page.route('**/src/storage.js', async route => {
-    const response = await route.fetch();
-    let source = await response.text();
+    let source = await readFile(projectFile('src', 'storage.js'), 'utf8');
     source = source.replace('export function writeStoredProject(', 'function originalWriteStoredProject(');
     source += '\nexport function writeStoredProject(payload) { if (window.reviewFailWrites) return Promise.reject(new Error("Reviewer simulated storage failure")); if (!window.reviewHoldWrites) return originalWriteStoredProject(payload); return new Promise((resolve, reject) => { window.reviewWriteGates.push(() => originalWriteStoredProject(payload).then(resolve, reject)); }); }\n';
-    await route.fulfill({ response, body: source });
+    await route.fulfill({ status: 200, contentType: 'text/javascript', body: source });
   });
   await openEditor(page);
 
@@ -695,6 +695,49 @@ test('withdrawn starter templates have no student-facing entry point', async ({ 
   expect(controls).toEqual({ openTemplates: 'undefined', applyTemplate: 'undefined' });
 });
 
+test('timeline reuses unchanged thumbnails but never shows a stale one', async ({ page }) => {
+  await openEditor(page);
+  const result = await page.evaluate(async () => {
+    app.newProject();
+    for (let i = 1; i < 6; i++) { app.figures[0].x = 100 + i * 40; app.saveLocal(); app.addFrame(); }
+    app.updateTimeline(); // every stored thumbnail is now cached
+
+    let renders = 0;
+    const original = app.renderTimelineThumbnail;
+    app.renderTimelineThumbnail = function (...args) { renders++; return original.apply(this, args); };
+    app.addFrame();
+    const rendersForAddFrame = renders;
+    app.renderTimelineThumbnail = original;
+
+    const thumb = index => document.querySelector(`.frame-thumb[data-frame-index="${index}"] canvas`).toDataURL();
+    app.loadFrame(1); app.loadFrame(3);
+    const beforeEdit = thumb(1);
+    app.loadFrame(1); app.figures[0].x += 150; app.saveLocal(); app.loadFrame(3); app.updateTimeline();
+    const editShows = thumb(1) !== beforeEdit;
+
+    // A live pose drawn into a thumbnail, then discarded without saving, must not stand in for the stored frame.
+    app.loadFrame(2); app.figures[0].x += 300; app.render();
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    app.loadFrame(4, false); app.updateTimeline();
+    const expected = app.newThumbnailCanvas(); app.renderTimelineThumbnail(expected, app.frames[2]);
+    const discardedEditHidden = thumb(2) === expected.toDataURL();
+
+    const beforeResize = thumb(1);
+    app.applyCanvasSize(400, 500); app.updateTimeline();
+    const resizeShows = thumb(1) !== beforeResize;
+
+    const source = document.createElement('canvas'); source.width = 2; source.height = 2;
+    const sourceContext = source.getContext('2d'); sourceContext.fillStyle = '#16a34a'; sourceContext.fillRect(0, 0, 2, 2);
+    const image = new Image();
+    await new Promise((resolve, reject) => { image.onload = resolve; image.onerror = reject; image.src = source.toDataURL('image/png'); });
+    const beforeBackground = thumb(1);
+    app.bgImage = image; app.updateTimeline();
+    const backgroundShows = thumb(1) !== beforeBackground;
+    return { rendersForAddFrame, editShows, discardedEditHidden, resizeShows, backgroundShows };
+  });
+  expect(result).toEqual({ rendersForAddFrame: 2, editShows: true, discardedEditHidden: true, resizeShows: true, backgroundShows: true });
+});
+
 test('timeline previews show the actual frame and do not rebuild for duration scrubbing', async ({ page }) => {
   await openEditor(page);
   const result = await page.evaluate(async () => {
@@ -948,6 +991,22 @@ test('choosing a frame or pasting during playback never stores an in-between pos
   expect(result).toEqual({ playing: false, firstFigureX: [100, 500] });
 });
 
+test('with Loop off, smooth playback draws the exact final pose before stopping', async ({ page }) => {
+  await openEditor(page);
+  const drawnOnLastFrame = await page.evaluate(async () => {
+    app.newProject(); app.isSmooth = true; app.isLooping = false; app.updateFps(4);
+    app.figures[0].x = 100; app.saveLocal(); app.addFrame(); app.figures[0].x = 500; app.saveLocal(); app.loadFrame(0);
+    const seen = [];
+    const original = app.render.bind(app);
+    app.render = () => { if (app.isPlaying && app.currentFrameIndex === 1) seen.push(app.figures[0].x); return original(); };
+    app.play();
+    await new Promise(resolve => { const wait = () => (app.isPlaying ? requestAnimationFrame(wait) : resolve()); wait(); });
+    app.render = original;
+    return seen;
+  });
+  expect(drawnOnLastFrame).toContain(500);
+});
+
 test('autosave never stores a pose that a running export is rendering', async ({ page }) => {
   await openEditor(page);
   const stored = await page.evaluate(async () => {
@@ -987,6 +1046,30 @@ test('onion skin only draws an actual previous frame', async ({ page }) => {
     return { firstFrameGhosts, laterFrameGhosts };
   });
   expect(result).toEqual({ firstFrameGhosts: 0, laterFrameGhosts: 1 });
+});
+
+test('regrouping figures leaves no empty or stale groups behind', async ({ page }) => {
+  await openEditor(page);
+  const result = await page.evaluate(() => {
+    app.newProject(); app.addFigure(); app.addFigure();
+    const [a, b, c] = app.figures.map(figure => figure.id);
+    const group = (...ids) => { app.selectedFigureIds = new Set(ids); app.groupSelected(); };
+    const snapshot = () => ({
+      groups: app.groups.map(g => ({ label: g.label, members: [...g.figureIds].sort() })),
+      groupIds: app.figures.map(figure => figure.groupId === null ? null : app.groups.find(g => g.id === figure.groupId)?.label)
+    });
+    group(a, b); group(a, b);
+    const afterRegroup = snapshot();
+    group(b, c); // b leaves the a+b group, which is left with only a
+    const afterMove = snapshot();
+    app.ungroupSelected(app.groups[0].id); group(a, b); group(a, c);
+    return { afterRegroup, afterMove, labelsUnique: new Set(app.groups.map(g => g.label)).size === app.groups.length };
+  });
+  expect(result.afterRegroup.groups).toHaveLength(1);
+  expect(result.afterRegroup.groupIds).toEqual([result.afterRegroup.groups[0].label, result.afterRegroup.groups[0].label, null]);
+  expect(result.afterMove.groups).toHaveLength(1);
+  expect(result.afterMove.groupIds[0]).toBeNull();
+  expect(result.labelsUnique).toBe(true);
 });
 
 test('selection, grouping, deletion, and undo preserve editor state', async ({ page }) => {

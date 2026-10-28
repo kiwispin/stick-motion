@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import zlib from 'node:zlib';
 
 function fixture({ type = 0 } = {}) {
@@ -27,6 +29,21 @@ async function openCleanEditor(page) {
     await app.saveLocal();
   });
 }
+
+test('STK import warnings are shown as plain text, never as markup', async ({ page }) => {
+  const importerPath = path.join(path.dirname(test.info().config.configFile), 'src', 'stk-import.js');
+  await page.route('**/src/stk-import.js', async route => {
+    let source = await readFile(importerPath, 'utf8');
+    source = source.replace('export async function decodeStk(', 'async function originalDecodeStk(');
+    source += '\nexport async function decodeStk(input) { const decoded = await originalDecodeStk(input); return { ...decoded, warnings: [...(decoded.warnings || []), \'<img src="x" onerror="window.injected=true">Check this part\'] }; }\n';
+    await route.fulfill({ status: 200, contentType: 'text/javascript', body: source });
+  });
+  await openCleanEditor(page);
+  await page.locator('#stk-input').setInputFiles({ name: 'synthetic-line.stk', mimeType: 'application/octet-stream', buffer: fixture() });
+  await expect(page.locator('#stk-import-warnings')).toContainText('<img src="x" onerror="window.injected=true">Check this part');
+  expect(await page.locator('#stk-import-warnings img').count()).toBe(0);
+  expect(await page.evaluate(() => window.injected)).toBeUndefined();
+});
 
 test('STK preview cancel is non-mutating; confirmed import is additive, undoable, and durable', async ({ page }) => {
   await openCleanEditor(page);

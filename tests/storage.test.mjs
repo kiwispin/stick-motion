@@ -102,7 +102,10 @@ class FakeDatabase {
 
   createObjectStore() {}
 
+  close() { this.closed = true; }
+
   transaction(_storeName, mode) {
+    if (this.closed) throw new Error('The fake database connection is closed.');
     return new FakeTransaction(this, mode);
   }
 
@@ -144,6 +147,34 @@ function createFakeIndexedDb(database) {
     }
   };
 }
+
+test('storage reopens the database after the browser closes the connection', async () => {
+  const database = new FakeDatabase();
+  const fake = createFakeIndexedDb(database);
+  let opens = 0;
+  globalThis.indexedDB = { open(...args) { opens += 1; database.closed = false; return fake.open(...args); } };
+  const { writeStoredProject } = await import(`../src/storage.js?reopen-test=${Date.now()}`);
+  const save = async payload => {
+    const write = writeStoredProject(payload);
+    await waitFor(() => database.requests.length === 1);
+    database.succeedNextRequest();
+    database.completeNextTransaction();
+    await write;
+  };
+
+  await save('first');
+  assert.equal(opens, 1);
+  database.closed = true;
+  database.onclose?.(); // e.g. the student cleared site data while the editor was open
+  await save('after close');
+  assert.equal(opens, 2);
+
+  database.onversionchange?.(); // another tab upgrades the database
+  assert.equal(database.closed, true, 'the old connection is released so the upgrade is not blocked');
+  await save('after upgrade');
+  assert.equal(opens, 3);
+  assert.equal(database.values.get('current'), 'after upgrade');
+});
 
 test('storage waits for transaction completion and rejects an aborted transaction', async () => {
   const database = new FakeDatabase();
