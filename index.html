@@ -1469,6 +1469,7 @@ const app={
     if(this.frames.length===0)this.render();
     this.updateToggleControls();
     if(restored)this.showToast('Recovered your last draft');else if(this.unreadableDraft)this.showUnreadableDraftNotice();else this.showWelcomeIfNeeded();
+    this.watchOtherTabs();
   },
 
   buildColorSwatches(){
@@ -1729,6 +1730,23 @@ const app={
       ?'StickMotion started a new project, but could not keep a backup of your last one, so autosave is paused to protect it. Download the backup now, and download a project copy of any new work.'
       :'StickMotion kept a backup copy and started a new project. Download the backup and give it to your teacher so your work can be recovered.';
     this.showModal("Your last project couldn't be reopened",message,()=>this.downloadUnreadableDraft(),{confirm:'Download backup',cancel:'Not now'});
+  },
+  // Only the most recently opened tab autosaves, so an older tab cannot overwrite newer work.
+  watchOtherTabs(){
+    if(typeof BroadcastChannel==='undefined')return;
+    this.tabId=`${Date.now()}-${Math.random().toString(36).slice(2,10)}`; // sorts by opening time
+    this.tabChannel=new BroadcastChannel('stickmotion-tabs');
+    this.tabChannel.onmessage=e=>{
+      const other=e.data;
+      if(other?.type==='opened'&&typeof other.tabId==='string'&&other.tabId>this.tabId&&!this.yieldedToNewerTab)this.yieldToNewerTab();
+    };
+    this.tabChannel.postMessage({type:'opened',tabId:this.tabId});
+  },
+  yieldToNewerTab(){
+    this.yieldedToNewerTab=true;this.autosavePaused=true;
+    if(this.isPlaying)this.stop();
+    this.updateSaveStatus('Autosave paused',true);
+    this.showModal('StickMotion is open in another tab','To protect your newest work, this tab has stopped saving. Carry on in the other tab, or use this one instead: it will reload with your latest saved work.',()=>location.reload(),{confirm:'Use this tab',cancel:'Not now'});
   },
   downloadUnreadableDraft(){
     if(!this.unreadableDraft)return;
@@ -2695,10 +2713,21 @@ const app={
     if(!i.files||!i.files[0])return;
     const file=i.files[0];
     if(file.size>MAX_PROJECT_FILE_BYTES){this.showToast('This project file is too large to open (maximum 25 MB).','error');i.value='';return;}
-    this.invalidateStkImport();
-    this.stop();this.saveState();const r=new FileReader();
-    r.onload=e=>{try{this.applyProjectData(JSON.parse(e.target.result));this.history.clear();this.saveLocal();this.showToast(`Opened ${this.projectName}`);}catch(err){console.error(err);this.showToast('This project file could not be opened.','error');}finally{i.value='';}};
+    const r=new FileReader();
+    r.onload=e=>{
+      // Validate first, then ask: opening replaces the current animation and clears Undo.
+      let data,incoming;
+      try{data=JSON.parse(e.target.result);incoming=this.normaliseProject(data).name;}
+      catch(err){console.error(err);this.showToast('This project file could not be opened.','error');return;}
+      finally{i.value='';}
+      this.showModal('Open project?',`Opening "${incoming}" replaces "${this.projectName}". Download a copy of your current animation first if you want to keep it.`,()=>this.openProjectData(data),{confirm:'Open project',cancel:'Cancel'});
+    };
     r.onerror=()=>{this.showToast('This project file could not be read.','error');i.value='';};r.readAsText(file);
+  },
+  openProjectData(data){
+    this.invalidateStkImport();this.stop();
+    try{this.applyProjectData(data);this.history.clear();this.saveLocal();this.showToast(`Opened ${this.projectName}`);}
+    catch(err){console.error(err);this.showToast('This project file could not be opened.','error');}
   },
 
   downloadBlob(blob,name){

@@ -109,6 +109,50 @@ test('autosave pauses rather than overwrite an unreadable draft it could not bac
   expect(await page.evaluate(() => window.reviewStore('get', 'current'))).toBe(original);
 });
 
+test('opening a project file asks before replacing the current animation', async ({ page }) => {
+  await openEditor(page);
+  const project = await page.evaluate(() => {
+    app.newProject(); app.setProjectName('Current work'); app.figures[0].x = 111; app.saveLocal();
+    const incoming = JSON.parse(JSON.stringify(app.serializeProject()));
+    incoming.name = 'Incoming project'; incoming.frames[0][0].x = 222;
+    return incoming;
+  });
+  const current = () => page.evaluate(() => ({ name: app.projectName, x: app.frames[0][0].x }));
+  const choose = () => page.locator('#load-input').setInputFiles({ name: 'incoming.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(project)) });
+
+  await choose();
+  await expect(page.locator('#confirm-title')).toHaveText('Open project?');
+  await expect(page.locator('#confirm-msg')).toContainText('"Incoming project" replaces "Current work"');
+  await page.locator('#confirm-cancel').click();
+  expect(await current()).toEqual({ name: 'Current work', x: 111 });
+
+  await choose();
+  await page.locator('#confirm-ok').click();
+  await expect(page.locator('#sm-toast')).toContainText('Opened Incoming project');
+  expect(await current()).toEqual({ name: 'Incoming project', x: 222 });
+});
+
+test('only the newest tab autosaves, so an older tab cannot overwrite newer work', async ({ context }) => {
+  const older = await context.newPage();
+  await openEditor(older);
+  await older.evaluate(async () => { app.newProject(); app.setProjectName('Shared work'); app.figures[0].x = 111; app.saveLocal(); await app.localSaveQueue; });
+
+  const newer = await context.newPage();
+  await openEditor(newer);
+  await expect(newer.locator('#project-name')).toHaveValue('Shared work');
+  await expect(older.locator('#confirm-title')).toHaveText('StickMotion is open in another tab');
+  await expect(older.locator('#storage-status')).toHaveText('Autosave paused');
+
+  await newer.evaluate(async () => { app.figures[0].x = 333; app.saveLocal(); await app.localSaveQueue; });
+  await older.evaluate(async () => { app.figures[0].x = 999; app.saveLocal(); await app.localSaveQueue; });
+
+  await Promise.all([older.waitForEvent('load'), older.locator('#confirm-ok').click()]); // "Use this tab"
+  await older.waitForFunction(() => window.app?.frames?.length > 0);
+  expect(await older.evaluate(() => app.frames[0][0].x)).toBe(333);
+  await expect(newer.locator('#confirm-title')).toHaveText('StickMotion is open in another tab');
+  await expect(newer.locator('#storage-status')).toHaveText('Autosave paused');
+});
+
 test('reports Saving until the latest queued autosave settles', async ({ page }) => {
   await page.route('**/src/storage.js', async route => {
     const response = await route.fetch();
@@ -1157,6 +1201,7 @@ test('opens projects containing accumulated multi-turn joint angles', async ({ p
     mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify(project))
   });
+  await page.locator('#confirm-ok').click(); // Open asks before replacing the current animation
   await expect(page.locator('#sm-toast')).toContainText('Opened Recovered student project');
   await expect.poll(() => page.evaluate(() => app.frames[0][0].joints[1].angle)).toBeCloseTo(-2.2832170134537895);
 });
