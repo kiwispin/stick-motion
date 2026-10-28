@@ -65,8 +65,14 @@ export class Figure {
   }
 
   updatePositions() {
+    // Index children once, so a large imported figure costs time in proportion to its joints, not their square.
     const jointsById = {};
-    this.joints.forEach(joint => { jointsById[joint.id] = joint; });
+    const childrenByParent = new Map();
+    this.joints.forEach(joint => {
+      jointsById[joint.id] = joint;
+      if (!childrenByParent.has(joint.parentId)) childrenByParent.set(joint.parentId, []);
+      childrenByParent.get(joint.parentId).push(joint);
+    });
     const calculate = joint => {
       if (joint.parentId === null) {
         joint.x = this.x;
@@ -81,9 +87,9 @@ export class Figure {
     };
     const process = joint => {
       calculate(joint);
-      this.joints.filter(child => child.parentId === joint.id).forEach(process);
+      (childrenByParent.get(joint.id) || []).forEach(process);
     };
-    this.joints.filter(joint => joint.parentId === null).forEach(process);
+    (childrenByParent.get(null) || []).forEach(process);
   }
 }
 

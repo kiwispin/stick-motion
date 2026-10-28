@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node tests/static-server.mjs",
     "test:unit": "node --test tests/*.test.mjs",
+    "test:stk-corpus": "node tests/stk-corpus.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed"
   },

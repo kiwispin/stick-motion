@@ -355,6 +355,12 @@ Turn StickMotion into a dependable, accessible, classroom-ready animation editor
 - Every real figure's decoded data, built figure, all 3,857 drawing calls, bounds, clone and reopened copy were snapshotted before the change and are byte-identical after it.
 - A differential fuzz of 5,445 corrupted and cross-layout payloads gave identical results from the old and new parsers: the same decoded output, or the same error message.
 
+### Completed — Pivot STK library coverage
+
+- Tested the importer against all 1,125 figures in the public Pivot STK library and raised coverage from 379 (34%) to 1,052 (94%): Pivot 2 is now supported (448/448), Pivot 4 fully (41/41), and Pivot 5's header byte is read as the bit field it is (544/616). Figures that import also draw as their library thumbnails show: type 4 circles are rings, a zero-width outlined circle is invisible, and source-id layouts name polygon corners by source id.
+- Raised the part cap to 1,024 with an import notice for detailed figures, and made joint-position updates linear so large figures pose smoothly.
+- Details, the format findings and the 73 figures still unsupported are in `STK-LIBRARY-CHANGE-LOG.md`.
+
 ### Deferred deliberately
 
 - **Faster autosave on very large projects**: `JSON.stringify` of the whole project runs on each save (≈20 ms for a typical project, ≈185 ms for 300 frames × 15 figures at 4× CPU slowdown). A per-frame serialisation cache would fix it but changes the save path, so it waits until large projects are common.

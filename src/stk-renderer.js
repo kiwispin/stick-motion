@@ -1,9 +1,66 @@
-import { getStkNodes, isStkCircleSegment, orderedStkDrawItems, pointOnStkSegment, validateStkArtwork } from './stk-import.js';
+import { getStkNodes, isStkCircleSegment, isStkFilledCircleSegment, orderedStkDrawItems, pointOnStkSegment, validateStkArtwork } from './stk-import.js';
 
 const EPSILON = 1e-8;
 
 function rgbColor(color, fallback = '#000000') {
   return Array.isArray(color) ? `rgb(${color[0]},${color[1]},${color[2]})` : fallback;
+}
+
+function rgbaColor(color, transparency) {
+  const rgb = Array.isArray(color) ? color : [0, 0, 0];
+  return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${1 - (Number(transparency) || 0) / 255})`;
+}
+
+// Pivot 5 gradients run from the segment colour at its start to the gradient colour at its end, each
+// with its own transparency, so the stops carry the alpha instead of globalAlpha.
+function segmentGradient(context, segment, node) {
+  if (!Array.isArray(segment.gradient) || typeof context.createLinearGradient !== 'function') return null;
+  const gradient = context.createLinearGradient(node.start.x, node.start.y, node.end.x, node.end.y);
+  if (!gradient || typeof gradient.addColorStop !== 'function') return null;
+  gradient.addColorStop(0, rgbaColor(segment.color, segment.transparency));
+  gradient.addColorStop(1, rgbaColor(segment.gradient, segment.gradient[3]));
+  return gradient;
+}
+
+// The Pivot 5 figure outline (header bit 0x40): [thickness, R, G, B, transparency], drawn beneath
+// the whole figure by widening every painted item by the thickness on each side.
+function figureOutline(artwork) {
+  const trailer = artwork.figureTrailer;
+  return Array.isArray(trailer) && trailer[0] > 0 ? { thickness: trailer[0], color: trailer.slice(1, 4), transparency: trailer[4] } : null;
+}
+
+function drawStkOutline(context, artwork, figure, nodes, outline) {
+  const grow = outline.thickness * figure.scale;
+  context.save();
+  applyStkTransparency(context, outline);
+  context.strokeStyle = rgbColor(outline.color); context.fillStyle = context.strokeStyle;
+  context.lineJoin = 'round';
+  for (const item of orderedStkDrawItems(artwork)) {
+    if (item < artwork.segments.length) {
+      const segment = artwork.segments[item];
+      const node = nodes[segment.id];
+      const circle = isStkCircleSegment(artwork, segment);
+      if (!node || (segment.width <= 0 && !isStkFilledCircleSegment(artwork, segment)) || (Number(segment.transparency) >= 255 && !segment.gradient)) continue;
+      const width = (Number(segment.width) || 0) * figure.scale;
+      if (circle) {
+        const center = { x: (node.start.x + node.end.x) / 2, y: (node.start.y + node.end.y) / 2 };
+        const chord = Math.hypot(node.end.x - node.start.x, node.end.y - node.start.y);
+        context.beginPath();
+        if (segment.type === 4) { context.lineWidth = width + 2 * grow; context.arc(center.x, center.y, chord / 2, 0, Math.PI * 2); context.stroke(); }
+        else { context.arc(center.x, center.y, Math.max(0, (chord + width) / 2 + grow), 0, Math.PI * 2); context.fill(); }
+      } else {
+        context.lineCap = artwork.wrapper === 0x7a && segment.type === 6 ? 'square' : 'round';
+        context.lineWidth = width + 2 * grow;
+        context.beginPath(); context.moveTo(node.start.x, node.start.y); appendArcPath(context, segment, node, false, figure.scale); context.stroke();
+      }
+    } else {
+      const polygon = artwork.polygons[item - artwork.segments.length];
+      if (!polygon || Number(polygon.transparency) >= 255) continue;
+      context.beginPath(); appendPolygonPath(context, artwork, nodes, polygon, figure.scale);
+      context.lineWidth = 2 * grow; context.fill(); context.stroke();
+    }
+  }
+  context.restore();
 }
 
 function applyStkTransparency(context, item) {
@@ -47,6 +104,14 @@ function drawCircle(context, node, segment, figureScale) {
   else context.stroke();
 }
 
+// Type 4: a ring, i.e. a hollow circle on the chord stroked at the segment width (the context line width),
+// e.g. a tyre around its rim.
+function drawRing(context, node) {
+  const center = { x: (node.start.x + node.end.x) / 2, y: (node.start.y + node.end.y) / 2 };
+  context.beginPath(); context.arc(center.x, center.y, Math.hypot(node.end.x - node.start.x, node.end.y - node.start.y) / 2, 0, Math.PI * 2);
+  context.stroke();
+}
+
 function drawLegacyHollowCircle(context, node, segment, figureScale) {
   const center = { x: (node.start.x + node.end.x) / 2, y: (node.start.y + node.end.y) / 2 };
   const radius = Math.max(0, Math.hypot(node.end.x - node.start.x, node.end.y - node.start.y) / 2);
@@ -84,18 +149,22 @@ export function drawStkFigure({ context, figure, showHandles = false, handleRadi
   const nodes = getStkNodes(figure);
   const joints = new Map(figure.joints.map(joint => [joint.id, joint]));
   context.lineCap = 'round'; context.lineJoin = 'round';
+  const outline = figureOutline(artwork);
+  if (outline) drawStkOutline(context, artwork, figure, nodes, outline);
   for (const item of orderedStkDrawItems(artwork)) {
     if (item < artwork.segments.length) {
       const segment = artwork.segments[item];
       const node = nodes[segment.id];
-      if (!node || (segment.width <= 0 && !isStkCircleSegment(artwork, segment))) continue;
+      if (!node || (segment.width <= 0 && !isStkFilledCircleSegment(artwork, segment))) continue;
       context.save();
-      applyStkTransparency(context, segment);
-      context.strokeStyle = rgbColor(segment.color, node.joint.color || figure.color);
+      const gradient = segmentGradient(context, segment, node);
+      if (!gradient) applyStkTransparency(context, segment);
+      context.strokeStyle = gradient || rgbColor(segment.color, node.joint.color || figure.color);
       context.fillStyle = context.strokeStyle;
       context.lineWidth = Math.max(0.65, segment.width * figure.scale);
       if (isStkCircleSegment(artwork, segment)) {
-        if ((artwork.wrapper === 0x78 || artwork.wrapper === 0x7a) && segment.type === 1) drawLegacyHollowCircle(context, node, segment, figure.scale);
+        if (segment.type === 1) drawLegacyHollowCircle(context, node, segment, figure.scale);
+        else if (segment.type === 4) drawRing(context, node);
         else drawCircle(context, node, segment, figure.scale);
       }
       else {
@@ -147,14 +216,14 @@ export function getStkArtworkBounds(figure, includeHandles = false) {
     }
   }
   for (const segment of figure.stkArtwork.segments) {
-    const fullyTransparent = Number(segment.transparency) >= 255;
+    const fullyTransparent = Number(segment.transparency) >= 255 && !(Array.isArray(segment.gradient) && segment.gradient[3] < 255);
     // A transparent construction segment can still be the curved boundary of
     // an opaque polygon. Keep its path for the polygon's fit envelope, but do
     // not add stroke padding for the invisible segment itself.
     if (fullyTransparent && !arcRefs.has(segment.id)) continue;
     const node = nodes[segment.id];
     const isCircle = isStkCircleSegment(figure.stkArtwork, segment);
-    if (segment.width <= 0 && !isCircle && !arcRefs.has(segment.id)) continue;
+    if (segment.width <= 0 && !isStkFilledCircleSegment(figure.stkArtwork, segment) && !arcRefs.has(segment.id)) continue;
     const steps = Math.max(8, Math.ceil(Math.abs(segment.bend || 0) * 32 / Math.PI));
     const chordLength = Math.hypot(node.end.x - node.start.x, node.end.y - node.start.y);
     const chordAngle = Math.atan2(node.end.y - node.start.y, node.end.x - node.start.x);
@@ -180,7 +249,8 @@ export function getStkArtworkBounds(figure, includeHandles = false) {
   }
   if (includeHandles) for (const joint of figure.joints) if (joint.handleVisible !== false) add({ x: joint.x, y: joint.y }, handleRadiusSafe(figure.scale));
   if (!xs.length) return { minX: figure.x - 1, maxX: figure.x + 1, minY: figure.y - 1, maxY: figure.y + 1 };
-  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+  const grow = (figureOutline(figure.stkArtwork)?.thickness || 0) * figure.scale;
+  return { minX: Math.min(...xs) - grow, maxX: Math.max(...xs) + grow, minY: Math.min(...ys) - grow, maxY: Math.max(...ys) + grow };
 }
 
 function handleRadiusSafe(scale) { return Math.max(1, 5 / Math.max(0.01, scale)); }

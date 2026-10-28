@@ -1,5 +1,5 @@
 import { marqueeBounds } from './marquee.js';
-import { isStkCircleSegment } from './stk-import.js';
+import { isStkFilledCircleSegment } from './stk-import.js';
 
 function isStkConstruction(figure, joint) {
   if (!figure?.stkArtwork || joint.parentId === null) return false;
@@ -16,7 +16,7 @@ function isStkNonPaintedSegment(figure, joint) {
   const match = /^stk-(\d+)$/.exec(joint.id);
   if (!match) return false;
   const segment = figure.stkArtwork.segments[Number(match[1]) - 1];
-  const filledCircle = isStkCircleSegment(figure.stkArtwork, segment);
+  const filledCircle = isStkFilledCircleSegment(figure.stkArtwork, segment);
   return Boolean(segment && Number(segment.width) <= 0 && !filledCircle);
 }
 

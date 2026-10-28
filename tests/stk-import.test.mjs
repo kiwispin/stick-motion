@@ -3,8 +3,8 @@ import fs from 'node:fs';
 import test from 'node:test';
 import zlib from 'node:zlib';
 import {
-  STK_MAX_FILE_BYTES, STK_MAX_PAYLOAD_BYTES, STK_WRAPPER_V3, STK_WRAPPER_V4, STK_WRAPPER_V5, createFigureFromStk, decodeStk, decodeStkBytes,
-  isStkCircleSegment, pointOnStkSegment, validateStkArtwork
+  STK_MAX_FILE_BYTES, STK_MAX_PAYLOAD_BYTES, STK_MAX_SEGMENTS, STK_WRAPPER_V2, STK_WRAPPER_V3, STK_WRAPPER_V4, STK_WRAPPER_V5, createFigureFromStk, decodeStk, decodeStkBytes,
+  isStkCircleSegment, isStkFilledCircleSegment, pointOnStkSegment, validateStkArtwork
 } from '../src/stk-import.js';
 import { findDragTarget } from '../src/drag-controller.js';
 import { normaliseProject } from '../src/project.js';
@@ -39,7 +39,7 @@ function v4Payload(records) {
   records.forEach((record, index) => {
     const offset = 1 + index * 24;
     payload[offset] = record.parent;
-    payload[offset + 1] = index + 1;
+    payload[offset + 1] = record.id ?? index + 1;
     payload.writeUInt16LE(record.reserved ?? 0, offset + 2);
     payload.writeFloatLE(record.length, offset + 4);
     payload.writeDoubleLE(record.angle, offset + 8);
@@ -173,6 +173,54 @@ test('topologically orders Pivot 3 forward-parent records while preserving sourc
   ])));
   assert.deepEqual(decoded.segments.map(segment => [segment.sourceId, segment.parent]), [[1, 0], [2, 1]]);
   assert.deepEqual(decoded.drawRanks, [1, 0]);
+});
+
+test('decodes uncompressed Pivot 2 files as the Pivot 3 record layout with ignored padding bytes', async () => {
+  // Pivot 2 leaves record padding uninitialised; library files repeat one arbitrary value per file.
+  const records = [
+    { parent: 0, id: 3, length: 30, angle: 0, width: 10, flag: 0, reserved: 0x0d5f, trailing: 0x0039 },
+    { parent: 3, id: 1, length: 20, angle: Math.PI / 2, width: 8, flag: 1, reserved: 0x0d5f, trailing: 0x0039 },
+    { parent: 1, id: 2, length: 12, angle: Math.PI, width: 6, type: 1, flag: 1, reserved: 0x0d5f, trailing: 0x0039 }
+  ];
+  const bytes = v3Payload(records);
+  const decoded = await decodeStk(bytes);
+  assert.equal(decoded.wrapper, STK_WRAPPER_V2);
+  assert.equal(decoded.payloadHeader, '01');
+  assert.equal(decoded.sourceBytes, bytes.length);
+  assert.equal(decoded.payloadBytes, bytes.length);
+  assert.deepEqual(decoded.segments.map(segment => [segment.id, segment.sourceId, segment.parent, segment.reserved, segment.trailing]), [[1, 3, 0, 0x0d5f, 0x39], [2, 1, 1, 0x0d5f, 0x39], [3, 2, 2, 0x0d5f, 0x39]]);
+  assert.equal(decoded.segments[2].color, null);
+  assert.ok(isStkCircleSegment(decoded, decoded.segments[2]));
+  assert.equal(isStkCircleSegment(decoded, decoded.segments[0]), false);
+  assert.deepEqual(decoded.warnings, ['Pivot 2 type 1 circles are rendered as hollow circles with white interiors.']);
+  const figure = createFigureFromStk(decoded);
+  assert.deepEqual(figure.joints.map(joint => joint.handleVisible), [true, true, false, false]);
+  assert.deepEqual(normaliseProject({ frames: [[lineFigureData(figure)]] }).frames[0][0].stkArtwork, figure.stkArtwork);
+  // The same payload compressed is Pivot 3, which still requires zero padding.
+  await assert.rejects(() => decodeStk(compressed(STK_WRAPPER_V3, bytes)), /Pivot 3 segment 3 uses an unsupported record layout/);
+});
+
+test('rejects malformed Pivot 2 files with clear messages', async () => {
+  const good = v3Payload([{ parent: 0, id: 1, length: 10, angle: 0, width: 2 }, { parent: 1, id: 2, length: 10, angle: 0, width: 2 }]);
+  await decodeStk(good);
+  await assert.rejects(() => decodeStk(good.subarray(0, -1)), /STK import rejected: Pivot 2 segment records are incomplete/);
+  await assert.rejects(() => decodeStk(Buffer.concat([good, Buffer.from([0])])), /STK import rejected: Pivot 2 payload has unsupported trailing data/);
+  await assert.rejects(() => decodeStk(Buffer.from([1, 0])), /STK import rejected: Pivot 2 segment count/);
+  await assert.rejects(() => decodeStk(Buffer.from([1])), /STK import rejected: the file is too short/);
+  const cycle = Buffer.from(good); cycle[2] = 2;
+  await assert.rejects(() => decodeStk(cycle), /STK import rejected: Pivot 2 segment hierarchy contains a cycle/);
+  const unknownParent = Buffer.from(good); unknownParent[26] = 9;
+  await assert.rejects(() => decodeStk(unknownParent), /STK import rejected: Pivot 2 segment 2 references an unknown parent/);
+  const duplicate = Buffer.from(good); duplicate[27] = 1;
+  await assert.rejects(() => decodeStk(duplicate), /STK import rejected: Pivot 2 segment 2 has an invalid or duplicate source id/);
+  const badType = Buffer.from(good); badType[2 + 20] = 3;
+  await assert.rejects(() => decodeStk(badType), /STK import rejected: Pivot 2 segment 1 uses unsupported type 3/);
+  const badWidth = Buffer.from(good); badWidth.writeFloatLE(Number.NaN, 2 + 16);
+  await assert.rejects(() => decodeStk(badWidth), /STK import rejected: Pivot 2 segment 1 width is invalid/);
+  const decoded = decodeStkBytes(good, STK_WRAPPER_V2);
+  assert.throws(() => validateStkArtwork({ ...decoded, polygons: [{ id: 2, color: [0, 0, 0], vertices: [0, 1, 2] }], drawRanks: [0, 1, 2] }), /Pivot 2 polygon metadata is unsupported/);
+  assert.throws(() => validateStkArtwork({ ...decoded, payloadHeader: null }), /Pivot 2 payload header metadata is invalid/);
+  assert.throws(() => validateStkArtwork({ ...decoded, segments: [{ ...decoded.segments[0], type: 3 }, decoded.segments[1]] }), /unsupported type/);
 });
 
 test('decodes the measured Pivot 4 layout and preserves the filled circle mapping', async () => {
@@ -495,8 +543,9 @@ test('rejects incomplete or mismatched V5 transparency metadata and payloads', a
   a8.segments[0].transparency = 1;
   assert.throws(() => validateStkArtwork(a8), /unsupported transparency for its payload layout/);
   assert.throws(() => decodeStkBytes(a0Payload.slice(0, -1), STK_WRAPPER_V5), /incomplete|trailing/);
-  const unknownHeader = Buffer.from(a0Payload); unknownHeader[0] = 0xa1;
-  assert.throws(() => decodeStkBytes(unknownHeader, STK_WRAPPER_V5), /unsupported Pivot 5 payload header/);
+  // a1 drops the type byte, so a0-sized records no longer line up with the tables that follow.
+  const misreadHeader = Buffer.from(a0Payload); misreadHeader[0] = 0xa1;
+  assert.throws(() => decodeStkBytes(misreadHeader, STK_WRAPPER_V5), /STK import rejected: Pivot 5 a1/);
 });
 
 test('accepts measured V5 type-6 lines and type-1/type-3 wheel circles', async () => {
@@ -560,8 +609,9 @@ test('rejects unsupported types, malformed parents, trailing sections and source
   await assert.rejects(() => decodeStk(compressed(STK_WRAPPER_V5, badParent)), /parent/);
   const good = v4Payload([{ parent: 0, length: 10, angle: 0, width: 2 }]);
   await assert.throws(() => decodeStkBytes(Buffer.concat([good, Buffer.from([0])]), STK_WRAPPER_V4), /trailing/);
-  const unknownV4 = v4Payload([{ parent: 0, length: 10, angle: 0, width: 2, trailing: 0 }]);
-  await assert.rejects(() => decodeStk(compressed(STK_WRAPPER_V4, unknownV4)), /record layout/);
+  // Pivot 3 zero-fills its record padding, so non-zero padding is still rejected there (Pivot 2 and 4 allow it).
+  const paddedV3 = v3Payload([{ parent: 0, id: 1, length: 10, angle: 0, width: 2, trailing: 5 }]);
+  await assert.rejects(() => decodeStk(compressed(STK_WRAPPER_V3, paddedV3)), /record layout/);
 });
 
 test('project validation binds imported metadata to native joints before render', async () => {
@@ -665,6 +715,8 @@ test('reopening a project rejects junk inside known but previously unchecked STK
     ['segment reserved bytes', artwork => { artwork.segments[0].reserved = [0, 0, 0]; }],
     ['segment trailing bytes', artwork => { artwork.segments[0].trailing = -1; }],
     ['polygon reserved byte', artwork => { artwork.polygons[0].reserved = 'x'; }],
+    ['segment gradient', artwork => { artwork.segments[0].gradient = Array.from({ length: 1000 }, () => 1); }],
+    ['figure trailer', artwork => { artwork.figureTrailer = [1, 2, 3, 4, 5]; }],
     ['warning count', artwork => { artwork.warnings = Array.from({ length: 33 }, () => 'warning'); }]
   ];
   for (const [label, corrupt] of cases) {
@@ -672,4 +724,176 @@ test('reopening a project rejects junk inside known but previously unchecked STK
     corrupt(artworkOf(project));
     assert.throws(() => normaliseProject(project), /STK import rejected/, label);
   }
+});
+
+test('decodes real-world Pivot 4 variations: any padding, flag 1, out-of-order ids and circle types 1, 3 and 4', async () => {
+  // Library files carry arbitrary per-file padding values, construction (flag 1) segments and source ids out of order.
+  const decoded = await decodeStk(compressed(STK_WRAPPER_V4, v4Payload([
+    { parent: 0, id: 3, length: 30, angle: 0, width: 10, trailing: 0 },
+    { parent: 3, id: 1, length: 20, angle: Math.PI / 2, width: 8, flag: 1, type: 1, reserved: 772, trailing: 6450 },
+    { parent: 1, id: 2, length: 110, angle: Math.PI, width: 22, flag: 1, type: 4, trailing: 25 },
+    { parent: 3, id: 4, length: 12, angle: 0, width: 4, type: 3 }
+  ])));
+  assert.equal(decoded.wrapper, STK_WRAPPER_V4);
+  assert.deepEqual(decoded.segments.map(segment => [segment.id, segment.sourceId, segment.parent]), [[1, 3, 0], [2, 1, 1], [3, 2, 2], [4, 4, 1]]);
+  assert.deepEqual(decoded.segments.map(segment => [segment.reserved, segment.trailing]), [[0, 0], [772, 6450], [0, 25], [0, 3133]]);
+  assert.deepEqual(decoded.segments.map(segment => isStkCircleSegment(decoded, segment)), [false, true, true, true]);
+  assert.deepEqual(decoded.segments.map(segment => isStkFilledCircleSegment(decoded, segment)), [false, false, false, true]);
+  const figure = createFigureFromStk(decoded);
+  assert.deepEqual(figure.joints.map(joint => joint.handleVisible), [true, true, false, false, true]);
+  assert.deepEqual(normaliseProject({ frames: [[lineFigureData(figure)]] }).frames[0][0].stkArtwork, figure.stkArtwork);
+});
+
+test('draws circle types as measured: rings, white-interior circles and solid discs', async () => {
+  const decoded = await decodeStk(compressed(STK_WRAPPER_V5, v5Payload({ segments: [
+    { parent: 0, length: 40, angle: 0, width: 6, type: 4, color: [10, 10, 10] },
+    { parent: 0, length: 20, angle: 0, width: 2, type: 1, color: [20, 20, 20] },
+    { parent: 0, length: 10, angle: 0, width: 0, type: 3, color: [30, 30, 30] },
+    { parent: 0, length: 10, angle: 0, width: 0, type: 1, color: [40, 40, 40] }
+  ] })));
+  const painted = [];
+  const state = { fillStyle: '#000000', strokeStyle: '#000000', lineWidth: 1, lineCap: 'round', lineJoin: 'round', globalAlpha: 1 };
+  const stack = [];
+  const context = new Proxy(state, {
+    get(target, key) {
+      if (key === 'save') return () => stack.push({ ...target });
+      if (key === 'restore') return () => Object.assign(target, stack.pop());
+      if (key === 'fill') return () => painted.push(['fill', target.fillStyle]);
+      if (key === 'stroke') return () => painted.push(['stroke', target.strokeStyle, target.lineWidth]);
+      if (key === 'arc') return (x, y, radius) => painted.push(['arc', radius]);
+      return key in target ? target[key] : () => {};
+    },
+    set(target, key, value) { target[key] = value; return true; }
+  });
+  drawStkFigure({ context, figure: createFigureFromStk(decoded, { x: 0, y: 0 }) });
+  assert.deepEqual(painted, [
+    ['arc', 20], ['stroke', 'rgb(10,10,10)', 6],                         // type 4: a ring stroked at the segment width
+    ['arc', 10], ['fill', '#ffffff'], ['stroke', 'rgb(20,20,20)', 2],    // type 1: white interior, coloured outline
+    ['arc', 5], ['fill', 'rgb(30,30,30)']                                // type 3: a solid disc paints even at zero width
+  ]);                                                                    // a zero-width type 1 paints nothing
+});
+
+test('Pivot 5 0x88 polygons name their corners by source id', async () => {
+  const decoded = await decodeStk(compressed(STK_WRAPPER_V5, a88Payload({
+    segments: [
+      { sourceId: 3, parentSourceId: 0, length: 10, angle: 0, width: 1 },
+      { sourceId: 1, parentSourceId: 3, length: 10, angle: Math.PI / 2, width: 1 },
+      { sourceId: 2, parentSourceId: 1, length: 10, angle: Math.PI, width: 1 }
+    ],
+    polygons: [{ vertices: [3, 1, 2], color: [1, 2, 3] }, { vertices: [0, 1, 2], color: [4, 5, 6] }],
+    ranks: [0, 1, 2, 3, 4]
+  })));
+  // Source ids 3, 1 and 2 are records 1, 2 and 3; node 0 is the figure's root.
+  assert.deepEqual(decoded.polygons.map(polygon => polygon.vertices), [[1, 2, 3], [0, 2, 3]]);
+});
+
+test('imports detailed figures up to the part cap with a warning, and rejects larger ones', async () => {
+  const chain = count => v5Payload({ segments: Array.from({ length: count }, (_, index) => ({ parent: index, length: 2, angle: 0, width: 1, color: [0, 0, 0] })) });
+  const decoded = await decodeStk(compressed(STK_WRAPPER_V5, chain(STK_MAX_SEGMENTS)));
+  assert.equal(decoded.segments.length, STK_MAX_SEGMENTS);
+  assert.ok(decoded.warnings.some(warning => /parts/.test(warning)), 'detailed figures warn that frames save a lot of data');
+  const figure = createFigureFromStk(decoded);
+  assert.equal(normaliseProject({ frames: [[lineFigureData(figure)]] }).frames[0][0].joints.length, STK_MAX_SEGMENTS + 1);
+  await assert.rejects(() => decodeStk(compressed(STK_WRAPPER_V5, chain(STK_MAX_SEGMENTS + 1))), /segment count/);
+});
+
+// Builds a Pivot 5 payload whose record fields follow the header bits (see the layout table in
+// src/stk-import.js).  Segment `gradient` is [R, G, B, transparency]; `trailer` is the 0x40 figure trailer.
+function bitPayload({ header, segments, curves = [], polygons = [], ranks = null, trailer = null }) {
+  const chunks = [Buffer.from([header, segments.length & 0xff, segments.length >> 8])];
+  segments.forEach((segment, index) => {
+    const u16 = value => { const bytes = Buffer.alloc(2); bytes.writeUInt16LE(value); chunks.push(bytes); };
+    u16(segment.parent);
+    if (!(header & 0x20)) u16(segment.sourceId ?? index + 1);
+    const geometry = Buffer.alloc(16);
+    geometry.writeFloatLE(segment.length, 0); geometry.writeDoubleLE(segment.angle, 4); geometry.writeFloatLE(segment.width, 12);
+    chunks.push(geometry);
+    if (!(header & 0x01)) chunks.push(Buffer.from([segment.type ?? 0]));
+    if (!(header & 0x02)) chunks.push(Buffer.from([segment.flag ?? 0]));
+    if (!(header & 0x04)) chunks.push(Buffer.from(segment.color ?? [0, 0, 0]));
+    if (!(header & 0x08)) chunks.push(Buffer.from([segment.transparency ?? 0]));
+    if (!(header & 0x80)) chunks.push(Buffer.from(segment.gradient ? [segment.marker ?? 1, ...segment.gradient] : [segment.marker ?? 0]));
+  });
+  const curveHeader = Buffer.alloc(2); curveHeader.writeUInt16LE(curves.length); chunks.push(curveHeader);
+  for (const curve of curves) { const record = Buffer.alloc(10); record.writeUInt16LE(curve.index, 0); record.writeDoubleLE(curve.bend, 2); chunks.push(record); }
+  const polygonHeader = Buffer.alloc(2); polygonHeader.writeUInt16LE(polygons.length); chunks.push(polygonHeader);
+  for (const polygon of polygons) {
+    const record = Buffer.alloc(6 + polygon.vertices.length * 2);
+    record.writeUInt16LE(polygon.vertices.length, 0); record.set(polygon.color, 2); record[5] = polygon.transparency ?? 0;
+    polygon.vertices.forEach((vertex, index) => record.writeUInt16LE(vertex, 6 + index * 2)); chunks.push(record);
+  }
+  if (!(header & 0x10)) {
+    const drawRanks = ranks ?? Array.from({ length: segments.length + polygons.length }, (_, index) => index);
+    const tail = Buffer.alloc(drawRanks.length * 2); drawRanks.forEach((rank, index) => tail.writeUInt16LE(rank, index * 2)); chunks.push(tail);
+  }
+  if (trailer) { const record = Buffer.alloc(8); record.writeFloatLE(trailer[0], 0); record.set(trailer.slice(1), 4); chunks.push(record); }
+  return Buffer.concat(chunks);
+}
+
+test('restores Pivot 5 fields that the header bits omit as their defaults', () => {
+  // ad = a8 | 0x04 | 0x01: no type byte and no colour, so every record is 19 bytes.
+  const ad = decodeStkBytes(bitPayload({ header: 0xad, segments: [
+    { parent: 0, length: 10, angle: 0, width: 2, flag: 0 },
+    { parent: 1, length: 5, angle: 1, width: 3, flag: 1 }
+  ] }), STK_WRAPPER_V5);
+  assert.equal(ad.payloadHeader, 'ad0200');
+  assert.deepEqual(ad.segments.map(segment => [segment.type, segment.flag, segment.color, segment.transparency]), [[0, 0, [0, 0, 0], 0], [0, 1, [0, 0, 0], 0]]);
+  // aa = a8 | 0x02: the flag byte is omitted, the type byte is kept.
+  const aa = decodeStkBytes(bitPayload({ header: 0xaa, segments: [
+    { parent: 0, length: 10, angle: 0, width: 2, type: 3, color: [9, 8, 7] }
+  ] }), STK_WRAPPER_V5);
+  assert.deepEqual([aa.segments[0].type, aa.segments[0].flag, aa.segments[0].color], [3, 0, [9, 8, 7]]);
+  // 80: source ids and segment transparency are both present.
+  const x80 = decodeStkBytes(bitPayload({ header: 0x80, segments: [
+    { parent: 0, sourceId: 2, length: 10, angle: 0, width: 2, transparency: 40 },
+    { parent: 2, sourceId: 1, length: 5, angle: 1, width: 3 }
+  ] }), STK_WRAPPER_V5);
+  assert.deepEqual(x80.segments.map(segment => [segment.id, segment.parent, segment.sourceId, segment.transparency]), [[1, 0, 2, 40], [2, 1, 1, 0]]);
+  for (const decoded of [ad, aa, x80]) validateStkArtwork(decoded);
+  const typed = JSON.parse(JSON.stringify(ad)); typed.segments[0].type = 3;
+  assert.throws(() => validateStkArtwork(typed), /unsupported type/);
+  const flagged = JSON.parse(JSON.stringify(aa)); flagged.segments[0].flag = 1;
+  assert.throws(() => validateStkArtwork(flagged), /unsupported flag/);
+});
+
+test('decodes Pivot 5 gradient segments and draws them as a start-to-end gradient', () => {
+  const decoded = decodeStkBytes(bitPayload({ header: 0x28, segments: [
+    { parent: 0, length: 10, angle: 0, width: 2, color: [0, 0, 0], gradient: [255, 0, 0, 30] },
+    { parent: 1, length: 5, angle: 1, width: 3, color: [1, 2, 3] }
+  ] }), STK_WRAPPER_V5);
+  assert.deepEqual(decoded.segments[0].gradient, [255, 0, 0, 30]);
+  assert.equal(decoded.segments[1].gradient, undefined);
+  assert.ok(decoded.warnings.some(warning => /gradient/.test(warning)));
+  const stops = [];
+  const { context } = recordingCanvasContext();
+  context.createLinearGradient = () => ({ addColorStop: (offset, color) => stops.push([offset, color]) });
+  drawStkFigure({ context, figure: createFigureFromStk(decoded) });
+  assert.deepEqual(stops, [[0, 'rgba(0,0,0,1)'], [1, `rgba(255,0,0,${1 - 30 / 255})`]]);
+  const misplaced = JSON.parse(JSON.stringify(decoded)); misplaced.payloadHeader = 'a80200';
+  assert.throws(() => validateStkArtwork(misplaced), /gradient its payload layout cannot hold/);
+  const malformed = JSON.parse(JSON.stringify(decoded)); malformed.segments[0].gradient = [1, 2, 3];
+  assert.throws(() => validateStkArtwork(malformed), /invalid gradient/);
+  assert.throws(() => decodeStkBytes(bitPayload({ header: 0x28, segments: [{ parent: 0, length: 10, angle: 0, width: 2, marker: 2 }] }), STK_WRAPPER_V5), /gradient marker 2/);
+  assert.throws(() => decodeStkBytes(bitPayload({ header: 0x28, segments: [{ parent: 0, length: 10, angle: 0, width: 2, gradient: [1, 2, 3, 4] }] }).subarray(0, 28), STK_WRAPPER_V5), /incomplete/);
+});
+
+test('reads record-order drawing, the figure outline trailer and polygon transparency', () => {
+  // b8 = a8 | 0x10: no draw ranks; items draw in record order.
+  const twoLines = [{ parent: 0, length: 10, angle: 0, width: 2 }, { parent: 1, length: 5, angle: 1, width: 3 }];
+  const b8 = decodeStkBytes(bitPayload({ header: 0xb8, segments: twoLines }), STK_WRAPPER_V5);
+  assert.deepEqual(b8.drawRanks, [0, 1]);
+  assert.throws(() => decodeStkBytes(bitPayload({ header: 0xb8, segments: twoLines, polygons: [{ color: [1, 2, 3], vertices: [0, 1, 2] }] }), STK_WRAPPER_V5), /omits the draw order of its polygons/);
+  // e8 = a8 | 0x40: an 8-byte outline trailer [thickness float32][RGB][transparency] after the ranks.
+  const e8 = decodeStkBytes(bitPayload({ header: 0xe8, segments: [{ parent: 0, length: 10, angle: 0, width: 2 }], trailer: [2, 0, 255, 0, 0] }), STK_WRAPPER_V5);
+  assert.deepEqual(e8.figureTrailer, [2, 0, 255, 0, 0]);
+  const plain = { ...e8, payloadHeader: 'a80100' }; delete plain.figureTrailer;
+  validateStkArtwork(plain);
+  assert.equal(getStkArtworkBounds(createFigureFromStk(e8)).maxX - getStkArtworkBounds(createFigureFromStk(plain)).maxX, 2);
+  assert.throws(() => validateStkArtwork({ ...plain, figureTrailer: [2, 0, 0, 0, 0] }), /figure trailer metadata does not match/);
+  assert.throws(() => validateStkArtwork({ ...e8, figureTrailer: [Infinity, 0, 0, 0, 0] }), /figure trailer metadata is malformed/);
+  assert.throws(() => decodeStkBytes(bitPayload({ header: 0xe8, segments: [{ parent: 0, length: 10, angle: 0, width: 2 }] }), STK_WRAPPER_V5), /trailing draw-order data/);
+  // The polygon transparency byte is read in every layout, including a8 where segments have none.
+  const a8 = decodeStkBytes(bitPayload({ header: 0xa8, segments: twoLines, polygons: [{ color: [1, 2, 3], vertices: [0, 1, 2], transparency: 200 }] }), STK_WRAPPER_V5);
+  assert.deepEqual([a8.polygons[0].transparency, a8.polygons[0].reserved], [200, 0]);
+  validateStkArtwork(a8);
 });

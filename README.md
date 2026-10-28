@@ -25,6 +25,7 @@ npm run test:e2e
 
 - **Unit tests** (`tests/*.test.mjs`) cover project storage, GIF timing, ZIP export and the `.stk` importer.
 - **Real Pivot figures:** put `.stk` files in a `stk/` folder at the project root to test against them. Every `.stk` there is checked to decode, draw, and survive saving and reopening, and the sheep, basketball hoop and Spider-Man files have detailed checks of their own (which skip when the files are absent). The folder is git-ignored because the figures are other people's work.
+- **The whole Pivot STK library:** with the library test set in `stk/library/`, `npm run test:stk-corpus` reports how many of its 1,125 figures import (1,052 at the last count) and flags any figure whose import or drawing changed since the saved baseline. See `STK-LIBRARY-CHANGE-LOG.md`.
 - **Browser tests** (`tests/e2e/`) drive the real editor in Chromium. Playwright starts the local server automatically.
 
 ## Deploy

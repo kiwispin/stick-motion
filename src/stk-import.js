@@ -1,15 +1,23 @@
 import { Figure, Joint, SEGMENT_LINE } from './models.js';
 
-// STK is a compressed binary format.  The importer deliberately accepts only
-// the Pivot 3, Pivot 4 and measured Pivot 5 layouts reverse-engineered from
-// local samples.  A file that does not match one of those complete layouts
-// fails before a Figure is created; no unsupported feature is silently discarded.
+// STK is a binary format.  The importer deliberately accepts only the Pivot 2,
+// Pivot 3, Pivot 4 and measured Pivot 5 layouts reverse-engineered from local
+// samples.  A file that does not match one of those complete layouts fails
+// before a Figure is created; no unsupported feature is silently discarded.
+//
+// Pivot 2 files are not compressed: the whole file is the 0x01-headed payload
+// that Pivot 3 later wrapped in zlib.  As with Pivot 3's 0x78, `wrapper`
+// records the first byte of the file rather than a separate wrapper byte.
+export const STK_WRAPPER_V2 = 0x01;
 export const STK_WRAPPER_V3 = 0x78;
 export const STK_WRAPPER_V4 = 0x79;
 export const STK_WRAPPER_V5 = 0x7a;
 export const STK_MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const STK_MAX_PAYLOAD_BYTES = 16 * 1024 * 1024;
-export const STK_MAX_SEGMENTS = 512;
+// Figures above about 1,000 parts slow posing and make each saved frame large (about 400 KB per 1,000 parts),
+// so the cap keeps every project a student saves within the 25 MB the editor can reopen.
+export const STK_MAX_SEGMENTS = 1024;
+const STK_DETAILED_SEGMENTS = 512;
 export const STK_MAX_POLYGONS = 512;
 export const STK_MAX_POLYGON_VERTICES = 16384;
 export const STK_MAX_DRAW_ITEMS = STK_MAX_SEGMENTS + STK_MAX_POLYGONS;
@@ -22,10 +30,19 @@ export const STK_MAX_SEGMENT_WIDTH = 500;
 const STK_MAX_WARNINGS = 32; // the importer itself produces at most four
 const EPSILON = 1e-8;
 
+// Circle types, measured against library thumbnails: type 1 is a white-interior circle outlined in the
+// segment colour, type 3 a solid disc and type 4 a hollow ring (transparent interior) stroked at the
+// segment width. Each circle's diameter is the segment chord.
 export function isStkCircleSegment(artwork, segment) {
-  return Boolean(segment && ((artwork?.wrapper === STK_WRAPPER_V3 && segment.type === 1) ||
-    (artwork?.wrapper === STK_WRAPPER_V4 && segment.type === 3) ||
-    (artwork?.wrapper === STK_WRAPPER_V5 && (segment.type === 1 || segment.type === 3))));
+  return Boolean(segment && (((artwork?.wrapper === STK_WRAPPER_V2 || artwork?.wrapper === STK_WRAPPER_V3) && segment.type === 1) ||
+    (artwork?.wrapper === STK_WRAPPER_V4 && (segment.type === 1 || segment.type === 3 || segment.type === 4)) ||
+    (artwork?.wrapper === STK_WRAPPER_V5 && (segment.type === 1 || segment.type === 3 || segment.type === 4))));
+}
+
+// Only a solid disc paints at zero width; outlined circles and rings, like lines, need a positive width.
+export function isStkFilledCircleSegment(artwork, segment) {
+  return Boolean(segment && ((artwork?.wrapper === STK_WRAPPER_V4 && segment.type === 3) ||
+    (artwork?.wrapper === STK_WRAPPER_V5 && segment.type === 3)));
 }
 
 function fail(message) {
@@ -99,20 +116,18 @@ function validateRgb(color, label) {
   return [...color];
 }
 
-function parseV3(payload) {
-  ensureBytes(payload, 0, 2, 'Pivot 3 header');
-  if (payload[0] !== 1) fail(`unsupported Pivot 3 payload header ${payload[0].toString(16).padStart(2, '0')}.`);
-  const segmentCount = payload[1];
-  if (segmentCount < 1 || segmentCount > 255) fail('Pivot 3 segment count is outside the supported range.');
-  const expectedBytes = 2 + segmentCount * 24;
-  if (payload.byteLength < expectedBytes) fail('Pivot 3 segment records are incomplete.');
-  if (payload.byteLength > expectedBytes) fail('Pivot 3 payload has unsupported trailing data.');
+// Pivot 2, 3 and 4 share one 24-byte segment record:
+//   [parent source id u8][source id u8][reserved u16][length f32][angle f64][width f32][type u8][flag u8][trailing u16]
+// Parents reference source ids, which need not be sequential, so segments are given record-order ids.  The
+// file's drawing order is kept whenever parent records precede their children; if a parent comes later, the
+// rig uses a stable topological order and drawRanks keep the file's order.  Neither version has a colour field.
+function readLegacySegments(payload, first, segmentCount, label, { types, checkPadding }) {
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
   const sourceSegments = [];
   const sourceIds = new Set();
   const sourceIdToRecord = new Map();
   for (let index = 0; index < segmentCount; index += 1) {
-    const offset = 2 + index * 24;
+    const offset = first + index * 24;
     const parentSourceId = payload[offset];
     const sourceId = payload[offset + 1];
     const reserved = view.getUint16(offset + 2, true);
@@ -122,27 +137,23 @@ function parseV3(payload) {
     const type = payload[offset + 20];
     const flag = payload[offset + 21];
     const trailing = view.getUint16(offset + 22, true);
-    if (sourceId < 1 || sourceId > segmentCount || sourceIds.has(sourceId)) fail(`Pivot 3 segment ${index + 1} has an invalid or duplicate source id.`);
-    if (reserved !== 0 || trailing !== 0) fail(`Pivot 3 segment ${sourceId} uses an unsupported record layout.`);
-    finiteNumber(length, `Pivot 3 segment ${sourceId} length`, 0, STK_MAX_SEGMENT_LENGTH);
-    finiteNumber(angle, `Pivot 3 segment ${sourceId} angle`, -1000000, 1000000);
-    finiteNumber(width, `Pivot 3 segment ${sourceId} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    if (type !== 0 && type !== 1) fail(`Pivot 3 segment ${sourceId} uses unsupported type ${type}.`);
-    if (flag !== 0 && flag !== 1) fail(`Pivot 3 segment ${sourceId} uses unsupported flag ${flag}.`);
+    if (sourceId < 1 || sourceId > segmentCount || sourceIds.has(sourceId)) fail(`${label} segment ${index + 1} has an invalid or duplicate source id.`);
+    if (checkPadding && (reserved !== 0 || trailing !== 0)) fail(`${label} segment ${sourceId} uses an unsupported record layout.`);
+    finiteNumber(length, `${label} segment ${sourceId} length`, 0, STK_MAX_SEGMENT_LENGTH);
+    finiteNumber(angle, `${label} segment ${sourceId} angle`, -1000000, 1000000);
+    finiteNumber(width, `${label} segment ${sourceId} width`, 0, STK_MAX_SEGMENT_WIDTH);
+    if (!types.includes(type)) fail(`${label} segment ${sourceId} uses unsupported type ${type}.`);
+    if (flag !== 0 && flag !== 1) fail(`${label} segment ${sourceId} uses unsupported flag ${flag}.`);
     sourceIds.add(sourceId);
     sourceIdToRecord.set(sourceId, index);
     sourceSegments.push({ index, sourceId, parentSourceId, length, angle, bend: 0, width, type, flag,
-      // Pivot 3 has no colour field; type 1's legacy hollow-circle renderer
-      // supplies its white interior and black outline.
+      // No colour field: type 1's legacy hollow-circle renderer supplies its white interior and black outline.
       color: null, reserved, trailing });
   }
   sourceSegments.forEach(segment => {
-    if (segment.parentSourceId !== 0 && !sourceIds.has(segment.parentSourceId)) fail(`Pivot 3 segment ${segment.sourceId} references an unknown parent.`);
+    if (segment.parentSourceId !== 0 && !sourceIds.has(segment.parentSourceId)) fail(`${label} segment ${segment.sourceId} references an unknown parent.`);
   });
 
-  // Keep the file's drawing order whenever its parent records already precede
-  // their children.  If a future V3 file has forward parent references, use a
-  // stable topological order for the rig and retain source order in drawRanks.
   const recordOrderValid = sourceSegments.every(segment => segment.parentSourceId === 0 ||
     sourceIdToRecord.get(segment.parentSourceId) < segment.index);
   let orderedSourceSegments;
@@ -163,7 +174,7 @@ function parseV3(payload) {
         if (indegree.get(child.sourceId) === 0) queue.push(child);
       }
     }
-    if (sorted.length !== sourceSegments.length) fail('Pivot 3 segment hierarchy contains a cycle.');
+    if (sorted.length !== sourceSegments.length) fail(`${label} segment hierarchy contains a cycle.`);
     orderedSourceSegments = sorted;
   }
   const internalIdBySourceId = new Map(orderedSourceSegments.map((segment, index) => [segment.sourceId, index + 1]));
@@ -173,12 +184,27 @@ function parseV3(payload) {
     parent: source.parentSourceId === 0 ? 0 : internalIdBySourceId.get(source.parentSourceId)
   }));
   const drawRanks = segments.map(segment => sourceIdToRecord.get(segment.sourceId));
+  return { segments, drawRanks };
+}
+
+// Pivot 2 is the Pivot 3 payload stored uncompressed.  Pivot 3 zero-fills the two padding fields; Pivot 2 leaves
+// them uninitialised (every record of a file repeats the same leftover bytes), so only Pivot 3 checks them.
+function parseV2V3(payload, wrapper) {
+  const label = wrapper === STK_WRAPPER_V2 ? 'Pivot 2' : 'Pivot 3';
+  ensureBytes(payload, 0, 2, `${label} header`);
+  if (payload[0] !== 1) fail(`unsupported ${label} payload header ${payload[0].toString(16).padStart(2, '0')}.`);
+  const segmentCount = payload[1];
+  if (segmentCount < 1 || segmentCount > 255) fail(`${label} segment count is outside the supported range.`);
+  const expectedBytes = 2 + segmentCount * 24;
+  if (payload.byteLength < expectedBytes) fail(`${label} segment records are incomplete.`);
+  if (payload.byteLength > expectedBytes) fail(`${label} payload has unsupported trailing data.`);
+  const { segments, drawRanks } = readLegacySegments(payload, 2, segmentCount, label, { types: [0, 1], checkPadding: wrapper === STK_WRAPPER_V3 });
   return {
-    format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V3,
+    format: 'pivot-stk', schemaVersion: 1, wrapper,
     payloadHeader: '01', segments, polygons: [], drawRanks,
     sourceBytes: 0, payloadBytes: payload.byteLength,
     warnings: segments.some(segment => segment.type === 1)
-      ? ['Pivot 3 type 1 circles are rendered as hollow circles with white interiors.'] : []
+      ? [`${label} type 1 circles are rendered as hollow circles with white interiors.`] : []
   };
 }
 
@@ -191,6 +217,9 @@ export function endpointFor(segment, start) {
   };
 }
 
+// Pivot 4 is the Pivot 3 record without the 01 header byte.  Its reserved and trailing fields vary from file to
+// file (0, 3133, 6450, ...) without affecting the figure, so they are kept for round trips but not checked.
+// Flag 1 marks construction segments as in Pivot 3 and 5; type 1 is the hollow circle, type 3 a filled circle and type 4 a circle outline.
 function parseV4(payload) {
   ensureBytes(payload, 0, 1, 'Pivot 4 header');
   const segmentCount = payload[0];
@@ -198,123 +227,125 @@ function parseV4(payload) {
   const expectedBytes = 1 + segmentCount * 24;
   if (payload.byteLength < expectedBytes) fail('Pivot 4 segment records are incomplete.');
   if (payload.byteLength > expectedBytes) fail('Pivot 4 payload has unsupported trailing data.');
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-  const segments = [];
-  for (let index = 0; index < segmentCount; index += 1) {
-    const offset = 1 + index * 24;
-    const parent = payload[offset];
-    const id = payload[offset + 1];
-    const reserved = view.getUint16(offset + 2, true);
-    const length = view.getFloat32(offset + 4, true);
-    const angle = view.getFloat64(offset + 8, true);
-    const width = view.getFloat32(offset + 16, true);
-    const type = payload[offset + 20];
-    const flag = payload[offset + 21];
-    const trailing = view.getUint16(offset + 22, true);
-    if (id !== index + 1) fail(`Pivot 4 segment ${index + 1} has a non-sequential id.`);
-    if (parent > index) fail(`Pivot 4 segment ${id} has a forward or unknown parent.`);
-    finiteNumber(length, `Pivot 4 segment ${id} length`, 0, STK_MAX_SEGMENT_LENGTH);
-    finiteNumber(angle, `Pivot 4 segment ${id} angle`, -1000000, 1000000);
-    finiteNumber(width, `Pivot 4 segment ${id} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    if (type !== 0 && type !== 3) fail(`Pivot 4 segment ${id} uses unsupported type ${type}.`);
-    if (flag !== 0) fail(`Pivot 4 segment ${id} uses unsupported flag ${flag}.`);
-    if (reserved !== 0 || trailing !== 3133) fail(`Pivot 4 segment ${id} uses an unsupported record layout.`);
-    // The two unlabelled fields are retained for forensic round trips.  They
-    // are not interpreted as a feature and therefore do not affect rendering.
-    segments.push({ id, parent, length, angle, bend: 0, width, type, flag, color: null, reserved, trailing });
-  }
+  const { segments, drawRanks } = readLegacySegments(payload, 1, segmentCount, 'Pivot 4', { types: [0, 1, 3, 4], checkPadding: false });
   return {
     format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V4,
-    payloadHeader: null, segments, polygons: [], drawRanks: segments.map((_, index) => index),
+    payloadHeader: null, segments, polygons: [], drawRanks,
     sourceBytes: 0, payloadBytes: payload.byteLength,
-    warnings: segments.some(segment => segment.type === 3)
-      ? ['Pivot 4 circle segments are rendered from their endpoint pair using the measured filled-circle mapping.'] : []
+    warnings: [
+      ...(segments.some(segment => segment.type === 3)
+        ? ['Pivot 4 circle segments are rendered from their endpoint pair using the measured filled-circle mapping.'] : []),
+      ...(segments.some(segment => segment.type === 4)
+        ? ['Pivot 4 type 4 segments are drawn as hollow rings stroked at the segment width, measured against library thumbnails.'] : []),
+      ...(segments.some(segment => segment.type === 1)
+        ? ['Pivot 4 type 1 circles are rendered as hollow circles with white interiors.'] : [])
+    ]
   };
 }
 
-// Pivot 5 payloads share one shape after their segment records:
+// Pivot 5 payloads share one shape:
 //   [header byte][segment count uint16][segment records]
-//   [curve count uint16][curve records][polygon count uint16][polygons][draw ranks]
-// Only the segment record layout differs between the measured variants:
+//   [curve count uint16][curve records][polygon count uint16][polygons][draw ranks][figure trailer]
+// The header byte is a bit field, not a layout id.  Pivot leaves a field out of every record when
+// all segments hold its default value, and sets the matching bit; 0x40 instead adds a trailer:
 //
-// a8: [parent uint16][length float32][angle float64][width float32][type byte][flag byte][RGB bytes]
-// a0: the a8 record plus a trailing transparency byte; its polygons store a transparency byte where
-//     a8 keeps a zero reserved byte.
-// a9: the a8 record with the per-record type byte removed, so every 22-byte record is
-//     [parent uint16][length float32][angle float64][width float32][flag byte][RGB bytes].  The earlier
-//     "reordered" reading that placed the first style at the end of the segment section misaligned
-//     every style by one segment, so each segment inherited the previous segment's width/flag/colour
-//     and the real skeleton was hidden.  Flag 0 segments are the figure's controls (matching the
-//     measured a8/a0 layouts); flag 1 marks construction paths whose strokes are not painted but which
-//     remain available to polygon boundaries.
-// 88: the a8 record with a uint16 source id inserted after the parent reference, making each record
-//     25 bytes: [parent uint16][source id uint16][length float32][angle float64][width float32]
-//     [type byte][flag byte][RGB bytes].  Source ids need not be sequential, and parents reference
-//     source ids, so parents are remapped to record-order ids.  Curve references are 0-based record
-//     indices, as in a8.
+//   0x01  type byte omitted: every segment is a line (type 0)
+//   0x02  flag byte omitted: every segment has flag 0 (a pose control)
+//   0x04  RGB omitted: every segment is black
+//   0x08  transparency byte omitted: every segment is opaque.  Polygons always keep their own
+//         transparency byte (the sixth byte of each polygon header), whatever this bit says.
+//   0x10  draw ranks omitted: items draw in record order (only measured on figures without polygons)
+//   0x20  source ids omitted: ids follow record order
+//   0x40  an 8-byte figure trailer follows the draw ranks: [float32][RGB][byte].  It is kept but
+//         not interpreted.
+//   0x80  gradient marker omitted: no segment has a gradient
+//
+// A record therefore holds, in order, the fields its header keeps:
+//   [parent uint16][source id uint16 (0x20 clear)][length float32][angle float64][width float32]
+//   [type byte (0x01 clear)][flag byte (0x02 clear)][RGB (0x04 clear)][transparency (0x08 clear)]
+//   [gradient marker byte (0x80 clear): 0, or 1 followed by the gradient end RGB + transparency]
+// The common headers are a8 (type, flag, RGB), a0 (a8 + transparency), a9 (a8 without type) and
+// 88 (a8 + source ids).  Without bit 0x20, source ids need not be sequential and parents reference
+// them, so both are remapped to record order; curve references are always 0-based record indices, but
+// polygon vertices name nodes by source id too (a tail polygon in the library raptors interleaves source
+// ids 1-4 and 116-118, its two edge chains), so they are remapped to record-order node ids as well.
+// Flag 0 segments are the figure's controls and flag 1 marks construction paths; a segment is painted
+// whenever it has a positive width, independent of the flag.  (Reading the a9 flag as visibility
+// once erased whole figures such as the basketball hoop, and an earlier "reordered" a9 reading
+// misaligned every style by one segment.)
 const V5_SEGMENT_TYPES = [0, 1, 3, 4, 6];
+const V5_NO_TYPE = 0x01;
+const V5_NO_FLAG = 0x02;
+const V5_NO_COLOUR = 0x04;
+const V5_NO_TRANSPARENCY = 0x08;
+const V5_NO_DRAW_RANKS = 0x10;
+const V5_NO_SOURCE_IDS = 0x20;
+const V5_FIGURE_TRAILER = 0x40;
+const V5_NO_GRADIENTS = 0x80;
+const V5_FIGURE_TRAILER_BYTES = 8;
+const STK_MAX_FIGURE_TRAILER_VALUE = 1000000;
+
+function v5HeaderByte(payloadHeader) {
+  return parseInt(payloadHeader.slice(0, 2), 16);
+}
 
 function v5Label(header) {
-  return header === 0xa9 ? 'Pivot 5 a9' : header === 0x88 ? 'Pivot 5 88' : 'Pivot 5';
+  return header === 0xa8 || header === 0xa0 ? 'Pivot 5' : `Pivot 5 ${header.toString(16).padStart(2, '0')}`;
 }
 
-// a8, a0 and a9: records in parent-before-child order with sequential ids.
-function readSequentialV5Segments(payload, view, segmentCount, label, { hasType, hasTransparency }) {
-  const recordBytes = 22 + (hasType ? 1 : 0) + (hasTransparency ? 1 : 0);
-  ensureBytes(payload, 3, segmentCount * recordBytes, `${label} segment records`);
-  const segments = [];
-  for (let index = 0; index < segmentCount; index += 1) {
-    const record = 3 + index * recordBytes;
-    const parent = view.getUint16(record, true);
-    const length = view.getFloat32(record + 2, true);
-    const angle = view.getFloat64(record + 6, true);
-    const width = view.getFloat32(record + 14, true);
-    // A9 has no per-record type byte. Every measured record is a line; keep the explicit zero in the
-    // normalized schema so future unsupported types are rejected instead of guessed.
-    const type = hasType ? payload[record + 18] : 0;
-    const style = record + (hasType ? 19 : 18);
-    const flag = payload[style];
-    const color = readRgb(payload, style + 1, `${label} segment ${index + 1} colour`);
-    if (parent > index) fail(`${label} segment ${index + 1} has a forward or unknown parent.`);
-    finiteNumber(length, `${label} segment ${index + 1} length`, 0, STK_MAX_SEGMENT_LENGTH);
-    finiteNumber(angle, `${label} segment ${index + 1} angle`, -1000000, 1000000);
-    finiteNumber(width, `${label} segment ${index + 1} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    if (hasType && !V5_SEGMENT_TYPES.includes(type)) fail(`${label} segment ${index + 1} uses unsupported type ${type}.`);
-    if (flag !== 0 && flag !== 1) fail(`${label} segment ${index + 1} uses unsupported flag ${flag}.`);
-    // Flag 0 marks a pose control; a segment is painted whenever it has a positive width, independent
-    // of the flag. (Letting the a9 flag hide strokes once erased whole figures such as the basketball hoop.)
-    const transparency = hasTransparency ? payload[record + 23] : 0;
-    segments.push({ id: index + 1, parent, length, angle, bend: 0, width, type, flag, color, transparency });
-  }
-  return { segments, offset: 3 + segmentCount * recordBytes };
-}
-
-// 88: records carry their own source ids, which parents reference; remap both to record order.
-function readSourceIdV5Segments(payload, view, segmentCount, label) {
-  ensureBytes(payload, 3, segmentCount * 25, `${label} segment records`);
+function readV5Segments(payload, view, segmentCount, label, header) {
+  const hasSourceIds = !(header & V5_NO_SOURCE_IDS);
+  const hasType = !(header & V5_NO_TYPE);
+  const hasFlag = !(header & V5_NO_FLAG);
+  const hasColour = !(header & V5_NO_COLOUR);
+  const hasTransparency = !(header & V5_NO_TRANSPARENCY);
+  const hasGradients = !(header & V5_NO_GRADIENTS);
+  const recordBytes = 18 + (hasSourceIds ? 2 : 0) + (hasType ? 1 : 0) + (hasFlag ? 1 : 0) +
+    (hasColour ? 3 : 0) + (hasTransparency ? 1 : 0) + (hasGradients ? 1 : 0);
+  // Without gradients every record has the same size, so the whole section is checked up front.
+  if (!hasGradients) ensureBytes(payload, 3, segmentCount * recordBytes, `${label} segment records`);
   const sourceSegments = [];
   const sourceIds = new Set();
   const sourceIdToRecord = new Map();
+  let offset = 3;
   for (let index = 0; index < segmentCount; index += 1) {
-    const record = 3 + index * 25;
-    const parentSourceId = view.getUint16(record, true);
-    const sourceId = view.getUint16(record + 2, true);
-    const length = view.getFloat32(record + 4, true);
-    const angle = view.getFloat64(record + 8, true);
-    const width = view.getFloat32(record + 16, true);
-    const type = payload[record + 20];
-    const flag = payload[record + 21];
-    const color = readRgb(payload, record + 22, `${label} segment ${index + 1} colour`);
-    if (sourceId < 1 || sourceId > segmentCount || sourceIds.has(sourceId)) fail(`${label} segment ${index + 1} has an invalid or duplicate source id.`);
+    if (hasGradients) ensureBytes(payload, offset, recordBytes, `${label} segment records`);
+    const parent = view.getUint16(offset, true); offset += 2;
+    const sourceId = hasSourceIds ? view.getUint16(offset, true) : index + 1;
+    if (hasSourceIds) offset += 2;
+    const length = view.getFloat32(offset, true);
+    const angle = view.getFloat64(offset + 4, true);
+    const width = view.getFloat32(offset + 12, true);
+    offset += 16;
+    const type = hasType ? payload[offset++] : 0;
+    const flag = hasFlag ? payload[offset++] : 0;
+    const color = hasColour ? readRgb(payload, offset, `${label} segment ${index + 1} colour`) : [0, 0, 0];
+    if (hasColour) offset += 3;
+    const transparency = hasTransparency ? payload[offset++] : 0;
+    const gradientMarker = hasGradients ? payload[offset++] : 0;
+    if (hasSourceIds) {
+      if (sourceId < 1 || sourceId > segmentCount || sourceIds.has(sourceId)) fail(`${label} segment ${index + 1} has an invalid or duplicate source id.`);
+    } else if (parent > index) fail(`${label} segment ${index + 1} has a forward or unknown parent.`);
     finiteNumber(length, `${label} segment ${sourceId} length`, 0, STK_MAX_SEGMENT_LENGTH);
     finiteNumber(angle, `${label} segment ${sourceId} angle`, -1000000, 1000000);
     finiteNumber(width, `${label} segment ${sourceId} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    if (!V5_SEGMENT_TYPES.includes(type)) fail(`${label} segment ${sourceId} uses unsupported type ${type}.`);
+    if (hasType && !V5_SEGMENT_TYPES.includes(type)) fail(`${label} segment ${sourceId} uses unsupported type ${type}.`);
     if (flag !== 0 && flag !== 1) fail(`${label} segment ${sourceId} uses unsupported flag ${flag}.`);
+    if (gradientMarker !== 0 && gradientMarker !== 1) fail(`${label} segment ${sourceId} uses an unsupported gradient marker ${gradientMarker}.`);
+    let gradient = null;
+    if (gradientMarker === 1) {
+      ensureBytes(payload, offset, 4, `${label} segment ${sourceId} gradient`);
+      gradient = [payload[offset], payload[offset + 1], payload[offset + 2], payload[offset + 3]];
+      offset += 4;
+    }
     sourceIds.add(sourceId);
     sourceIdToRecord.set(sourceId, index);
-    sourceSegments.push({ index, sourceId, parentSourceId, length, angle, bend: 0, width, type, flag, color, transparency: 0 });
+    const style = { width, type, flag, color, transparency, ...(gradient ? { gradient } : {}) };
+    sourceSegments.push(hasSourceIds
+      ? { index, sourceId, parentSourceId: parent, length, angle, bend: 0, ...style }
+      : { id: index + 1, parent, length, angle, bend: 0, ...style });
   }
+  if (!hasSourceIds) return { segments: sourceSegments, offset };
   sourceSegments.forEach(segment => {
     if (segment.parentSourceId === 0) return;
     if (!sourceIds.has(segment.parentSourceId)) fail(`${label} segment ${segment.sourceId} references an unknown parent.`);
@@ -326,12 +357,13 @@ function readSourceIdV5Segments(payload, view, segmentCount, label) {
     id: segment.index + 1,
     parent: segment.parentSourceId === 0 ? 0 : internalIdBySourceId.get(segment.parentSourceId)
   }));
-  return { segments, offset: 3 + segmentCount * 25 };
+  return { segments, offset, nodeIdBySourceId: internalIdBySourceId };
 }
 
-// The curve, polygon and draw-order tables that follow the segment records in every Pivot 5 variant.
-function readV5Tables(payload, view, segments, start, label, hasTransparency) {
+// The curve, polygon, draw-order and figure-trailer tables that follow the segment records.
+function readV5Tables(payload, view, segments, start, label, header, nodeIdBySourceId = null) {
   const segmentCount = segments.length;
+  const hasTransparency = !(header & V5_NO_TRANSPARENCY);
   let offset = start;
 
   ensureBytes(payload, offset, 2, `${label} curve count`);
@@ -361,9 +393,10 @@ function readV5Tables(payload, view, segments, start, label, hasTransparency) {
     ensureBytes(payload, offset, 6, `${label} polygon header`);
     const vertexCount = view.getUint16(offset, true);
     const color = readRgb(payload, offset + 2, `${label} polygon ${index + 1}`);
-    const transparency = hasTransparency ? payload[offset + 5] : 0;
-    const reserved = hasTransparency ? null : payload[offset + 5];
-    if (!hasTransparency && reserved !== 0) fail(`${label} polygon ${index + 1} uses an unsupported colour/reserved byte.`);
+    // The sixth byte is the polygon's transparency in every layout (bit 0x08 only covers segments);
+    // layouts without segment transparency keep their historical zero reserved field.
+    const transparency = payload[offset + 5];
+    const reserved = hasTransparency ? null : 0;
     if (vertexCount < 3 || vertexCount > STK_MAX_POLYGON_VERTICES) fail(`${label} polygon ${index + 1} has an invalid vertex count.`);
     totalVertices += vertexCount;
     if (totalVertices > STK_MAX_POLYGON_VERTICES) fail(`${label} polygon vertices exceed the safety limit.`);
@@ -371,8 +404,9 @@ function readV5Tables(payload, view, segments, start, label, hasTransparency) {
     ensureBytes(payload, offset, vertexCount * 2, `${label} polygon vertices`);
     const vertices = [];
     for (let vertex = 0; vertex < vertexCount; vertex += 1) {
-      const reference = view.getUint16(offset, true);
-      if (reference > segmentCount) fail(`${label} polygon ${index + 1} references an unknown node.`);
+      const sourceReference = view.getUint16(offset, true);
+      const reference = nodeIdBySourceId && sourceReference !== 0 ? nodeIdBySourceId.get(sourceReference) : sourceReference;
+      if (reference === undefined || reference > segmentCount) fail(`${label} polygon ${index + 1} references an unknown node.`);
       if (vertex > 0 && vertices[vertex - 1] === reference) fail(`${label} polygon ${index + 1} repeats an adjacent node.`);
       vertices.push(reference); offset += 2;
     }
@@ -382,27 +416,46 @@ function readV5Tables(payload, view, segments, start, label, hasTransparency) {
 
   const itemCount = segmentCount + polygonCount;
   if (itemCount > STK_MAX_DRAW_ITEMS) fail(`${label} draw-item count is outside the supported range.`);
+  const hasDrawRanks = !(header & V5_NO_DRAW_RANKS);
+  // Record-order drawing is only measured on figures without polygons; where a polygon would sit
+  // in that order is not established, so such files are rejected rather than guessed.
+  if (!hasDrawRanks && polygonCount > 0) fail(`${label} omits the draw order of its polygons, which is not supported.`);
+  const trailerBytes = header & V5_FIGURE_TRAILER ? V5_FIGURE_TRAILER_BYTES : 0;
   const remaining = payload.byteLength - offset;
-  if (remaining !== itemCount * 2) fail(`${label} payload has incomplete or unsupported trailing draw-order data.`);
+  if (remaining !== (hasDrawRanks ? itemCount * 2 : 0) + trailerBytes) fail(`${label} payload has incomplete or unsupported trailing draw-order data.`);
   const drawRanks = [];
   const rankSet = new Set();
   for (let index = 0; index < itemCount; index += 1) {
-    const rank = view.getUint16(offset, true); offset += 2;
+    const rank = hasDrawRanks ? view.getUint16(offset, true) : index;
+    if (hasDrawRanks) offset += 2;
     if (rank >= itemCount || rankSet.has(rank)) fail(`${label} draw ranks are not a complete permutation.`);
     rankSet.add(rank); drawRanks.push(rank);
   }
+  let figureTrailer = null;
+  if (trailerBytes) {
+    const value = view.getFloat32(offset, true);
+    finiteNumber(value, `${label} figure trailer value`, 0, STK_MAX_FIGURE_TRAILER_VALUE);
+    figureTrailer = [value, payload[offset + 4], payload[offset + 5], payload[offset + 6], payload[offset + 7]];
+    offset += trailerBytes;
+  }
   if (offset !== payload.byteLength) fail(`${label} payload has unsupported trailing data.`);
-  return { parameters, polygons, drawRanks };
+  return { parameters, polygons, drawRanks, figureTrailer };
 }
 
-function v5Warnings(header, segments, polygons) {
+function v5Warnings(header, segments, polygons, figureTrailer) {
   if (header === 0xa9) return ['Pivot 5 a9 records use the measured a8-order geometry/style layout without a per-record type byte; positive-width strokes are painted and flag 0 marks pose controls.'];
   if (header === 0x88) return ['Pivot 5 88 source ids are remapped to record order; flag 0 marks pose controls and positive-width strokes paint.'];
+  const measuredHeader = header === 0xa8 || header === 0xa0;
   return [
-    ...(header === 0xa0 && (segments.some(segment => segment.transparency > 0) || polygons.some(polygon => polygon.transparency > 0))
+    ...(measuredHeader ? [] : [`Pivot 5 header ${header.toString(16).padStart(2, '0')} omits per-segment fields that hold their default in every segment; they are restored as line, flag 0, black and opaque.`]),
+    ...(!(header & V5_NO_SOURCE_IDS) ? ['Pivot 5 source ids are remapped to record order.'] : []),
+    ...(segments.some(segment => segment.transparency > 0) || polygons.some(polygon => polygon.transparency > 0)
       ? ['Pivot 5 transparency bytes are preserved and composited over the existing canvas alpha.'] : []),
+    ...(segments.some(segment => segment.gradient)
+      ? ['Pivot 5 gradient segments are drawn with a straight start-to-end gradient; the exact Pivot gradient geometry is not established.'] : []),
+    ...(figureTrailer ? ['The Pivot 5 figure trailer (a number, a colour and one byte) is preserved but not applied.'] : []),
     ...(segments.some(segment => segment.type === 4)
-      ? ['Type 4 cap style is approximated with round caps in this experimental import.'] : []),
+      ? ['Type 4 segments are drawn as hollow rings stroked at the segment width, measured against library thumbnails.'] : []),
     ...(segments.some(segment => segment.type === 6)
       ? ['Type 6 line caps are approximated with square caps from the supplied V5 reference geometry; the numeric enum is not documented.'] : []),
     ...(segments.some(segment => segment.type === 1 || segment.type === 3)
@@ -414,32 +467,31 @@ function parseV5(payload) {
   ensureBytes(payload, 0, 3, 'Pivot 5 header');
   const header = payload[0];
   const payloadHeader = Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join('');
-  if (header !== 0xa8 && header !== 0xa0 && header !== 0xa9 && header !== 0x88) fail(`unsupported Pivot 5 payload header ${payloadHeader}.`);
   const label = v5Label(header);
-  const hasTransparency = header === 0xa0;
   const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
   const segmentCount = view.getUint16(1, true);
   if (segmentCount < 1 || segmentCount > STK_MAX_SEGMENTS) fail(`${label} segment count is outside the supported range.`);
-  const { segments, offset } = header === 0x88
-    ? readSourceIdV5Segments(payload, view, segmentCount, label)
-    : readSequentialV5Segments(payload, view, segmentCount, label, { hasType: header !== 0xa9, hasTransparency });
-  const { parameters, polygons, drawRanks } = readV5Tables(payload, view, segments, offset, label, hasTransparency);
+  const { segments, offset, nodeIdBySourceId } = readV5Segments(payload, view, segmentCount, label, header);
+  const { parameters, polygons, drawRanks, figureTrailer } = readV5Tables(payload, view, segments, offset, label, header, nodeIdBySourceId);
   return {
     format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V5,
     payloadHeader, segments, parameters, polygons, drawRanks,
+    ...(figureTrailer ? { figureTrailer } : {}),
     sourceBytes: 0, payloadBytes: payload.byteLength,
-    warnings: v5Warnings(header, segments, polygons)
+    warnings: v5Warnings(header, segments, polygons, figureTrailer)
   };
 }
 
 export function validateStkArtwork(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || value.format !== 'pivot-stk' || value.schemaVersion !== 1) fail('the imported artwork metadata is malformed.');
-  if (value.wrapper !== STK_WRAPPER_V3 && value.wrapper !== STK_WRAPPER_V4 && value.wrapper !== STK_WRAPPER_V5) fail('the imported artwork wrapper is unsupported.');
+  if (value.wrapper !== STK_WRAPPER_V2 && value.wrapper !== STK_WRAPPER_V3 && value.wrapper !== STK_WRAPPER_V4 && value.wrapper !== STK_WRAPPER_V5) fail('the imported artwork wrapper is unsupported.');
   if (!Number.isInteger(value.sourceBytes) || value.sourceBytes < 0 || value.sourceBytes > STK_MAX_FILE_BYTES || !Number.isInteger(value.payloadBytes) || value.payloadBytes < 1 || value.payloadBytes > STK_MAX_PAYLOAD_BYTES) fail('the imported source-size metadata is invalid.');
-  if (value.wrapper === STK_WRAPPER_V3 && value.payloadHeader !== '01') fail('the Pivot 3 payload header metadata is invalid.');
+  if ((value.wrapper === STK_WRAPPER_V2 || value.wrapper === STK_WRAPPER_V3) && value.payloadHeader !== '01') fail(`the Pivot ${value.wrapper === STK_WRAPPER_V2 ? 2 : 3} payload header metadata is invalid.`);
   if (value.wrapper === STK_WRAPPER_V4 && value.payloadHeader !== null) fail('the Pivot 4 payload header metadata is invalid.');
-  if (value.wrapper === STK_WRAPPER_V5 && (typeof value.payloadHeader !== 'string' || !/^(?:a0|a8|a9|88)[0-9a-f]{4}$/.test(value.payloadHeader))) fail('the Pivot 5 payload header metadata is invalid.');
-  const hasV5Transparency = value.wrapper === STK_WRAPPER_V5 && value.payloadHeader.startsWith('a0');
+  if (value.wrapper === STK_WRAPPER_V5 && (typeof value.payloadHeader !== 'string' || !/^[0-9a-f]{6}$/.test(value.payloadHeader))) fail('the Pivot 5 payload header metadata is invalid.');
+  const v5Header = value.wrapper === STK_WRAPPER_V5 ? v5HeaderByte(value.payloadHeader) : null;
+  const hasV5Transparency = v5Header !== null && !(v5Header & V5_NO_TRANSPARENCY);
+  const hasV5Gradients = v5Header !== null && !(v5Header & V5_NO_GRADIENTS);
   if (!Array.isArray(value.segments) || value.segments.length < 1 || value.segments.length > STK_MAX_SEGMENTS) fail('the imported segment metadata count is invalid.');
   const segments = value.segments;
   const ids = new Set();
@@ -451,9 +503,9 @@ export function validateStkArtwork(value) {
     finiteNumber(Number(segment.angle), `imported segment ${index + 1} angle`, -1000000, 1000000);
     finiteNumber(Number(segment.bend), `imported segment ${index + 1} bend`, -STK_MAX_ABS_BEND, STK_MAX_ABS_BEND);
     finiteNumber(Number(segment.width), `imported segment ${index + 1} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    const allowedTypes = value.wrapper === STK_WRAPPER_V3 ? [0, 1] : value.wrapper === STK_WRAPPER_V4 ? [0, 3] : value.payloadHeader.startsWith('a9') ? [0] : [0, 1, 3, 4, 6];
+    const allowedTypes = value.wrapper === STK_WRAPPER_V2 || value.wrapper === STK_WRAPPER_V3 ? [0, 1] : value.wrapper === STK_WRAPPER_V4 ? [0, 1, 3, 4] : v5Header & V5_NO_TYPE ? [0] : V5_SEGMENT_TYPES;
     if (!allowedTypes.includes(segment.type)) fail(`imported segment ${index + 1} has an unsupported type.`);
-    const allowedFlags = value.wrapper === STK_WRAPPER_V4 ? [0] : [0, 1];
+    const allowedFlags = v5Header & V5_NO_FLAG ? [0] : [0, 1];
     if (!allowedFlags.includes(segment.flag)) fail(`imported segment ${index + 1} has an unsupported flag.`);
     if (segment.controlVisible !== undefined && typeof segment.controlVisible !== 'boolean') fail(`imported segment ${index + 1} has an invalid control visibility flag.`);
     // Source-record bookkeeping kept from Pivot 3/4 and 0x88 files: small integers, or absent.
@@ -462,16 +514,20 @@ export function validateStkArtwork(value) {
       if (field !== undefined && field !== null && (!Number.isInteger(field) || field < 0 || field > 0xffff)) fail(`imported segment ${index + 1} has an invalid ${key}.`);
     }
     if (segment.color !== null) validateRgb(segment.color, `imported segment ${index + 1}`);
+    if (segment.gradient !== undefined) {
+      if (!hasV5Gradients) fail(`imported segment ${index + 1} has a gradient its payload layout cannot hold.`);
+      if (!Array.isArray(segment.gradient) || segment.gradient.length !== 4 || segment.gradient.some(channel => !Number.isInteger(channel) || channel < 0 || channel > 255)) fail(`imported segment ${index + 1} has an invalid gradient.`);
+    }
     const transparency = segment.transparency === undefined ? 0 : segment.transparency;
     if (!Number.isInteger(transparency) || transparency < 0 || transparency > 255) fail(`imported segment ${index + 1} has an invalid transparency.`);
     if (value.wrapper !== STK_WRAPPER_V5 && transparency !== 0) fail(`imported segment ${index + 1} uses unsupported transparency.`);
     if (value.wrapper === STK_WRAPPER_V5 && !hasV5Transparency && transparency !== 0) fail(`imported segment ${index + 1} uses unsupported transparency for its payload layout.`);
     if (value.wrapper === STK_WRAPPER_V5 && hasV5Transparency && segment.transparency === undefined) fail(`imported segment ${index + 1} is missing its transparency byte.`);
-    if ((value.wrapper === STK_WRAPPER_V3 || value.wrapper === STK_WRAPPER_V4) && (segment.reserved !== 0 || segment.trailing !== (value.wrapper === STK_WRAPPER_V3 ? 0 : 3133))) fail(`imported segment ${index + 1} has an unsupported record layout.`);
+    if (value.wrapper === STK_WRAPPER_V3 && (segment.reserved !== 0 || segment.trailing !== 0)) fail(`imported segment ${index + 1} has an unsupported record layout.`);
   });
   if (!Array.isArray(value.polygons)) fail('imported polygon metadata is missing.');
   const polygons = value.polygons;
-  if ((value.wrapper === STK_WRAPPER_V3 || value.wrapper === STK_WRAPPER_V4) && polygons.length) fail(`Pivot ${value.wrapper === STK_WRAPPER_V3 ? 3 : 4} polygon metadata is unsupported.`);
+  if (value.wrapper !== STK_WRAPPER_V5 && polygons.length) fail(`Pivot ${value.wrapper === STK_WRAPPER_V2 ? 2 : value.wrapper === STK_WRAPPER_V3 ? 3 : 4} polygon metadata is unsupported.`);
   if (!Array.isArray(polygons) || polygons.length > STK_MAX_POLYGONS) fail('imported polygon metadata count is invalid.');
   let vertexTotal = 0;
   polygons.forEach((polygon, index) => {
@@ -480,7 +536,6 @@ export function validateStkArtwork(value) {
     const transparency = polygon.transparency === undefined ? 0 : polygon.transparency;
     if (!Number.isInteger(transparency) || transparency < 0 || transparency > 255) fail(`imported polygon ${index + 1} has an invalid transparency.`);
     if (value.wrapper !== STK_WRAPPER_V5 && transparency !== 0) fail(`imported polygon ${index + 1} uses unsupported transparency.`);
-    if (value.wrapper === STK_WRAPPER_V5 && !hasV5Transparency && transparency !== 0) fail(`imported polygon ${index + 1} uses unsupported transparency for its payload layout.`);
     if (value.wrapper === STK_WRAPPER_V5 && hasV5Transparency && polygon.transparency === undefined) fail(`imported polygon ${index + 1} is missing its transparency byte.`);
     if (value.wrapper === STK_WRAPPER_V5 && !hasV5Transparency && polygon.reserved !== undefined && polygon.reserved !== 0) fail(`imported polygon ${index + 1} uses an unsupported colour/reserved byte.`);
     if (polygon.reserved !== undefined && polygon.reserved !== null && (!Number.isInteger(polygon.reserved) || polygon.reserved < 0 || polygon.reserved > 255)) fail(`imported polygon ${index + 1} has an invalid reserved byte.`);
@@ -500,6 +555,11 @@ export function validateStkArtwork(value) {
       parameterSegments.add(parameter.index);
     });
   }
+  if ((v5Header !== null && Boolean(v5Header & V5_FIGURE_TRAILER)) !== (value.figureTrailer !== undefined)) fail('imported figure trailer metadata does not match its payload layout.');
+  if (value.figureTrailer !== undefined) {
+    const [trailerValue, ...bytes] = Array.isArray(value.figureTrailer) ? value.figureTrailer : [];
+    if (value.figureTrailer.length !== 5 || !Number.isFinite(trailerValue) || trailerValue < 0 || trailerValue > STK_MAX_FIGURE_TRAILER_VALUE || bytes.some(byte => !Number.isInteger(byte) || byte < 0 || byte > 255)) fail('imported figure trailer metadata is malformed.');
+  }
   const itemCount = segments.length + polygons.length;
   if (!Array.isArray(value.drawRanks) || value.drawRanks.length !== itemCount) fail('imported draw ranks are malformed.');
   const ranks = new Set(value.drawRanks);
@@ -511,8 +571,8 @@ export function validateStkArtwork(value) {
 // Every field the parsers above can produce (controlVisible is accepted from older saved projects).
 // A copy keeps only these, in their original order, so data hidden in a project file cannot ride
 // along into every frame and Undo step. Their values are flat JSON primitives or flat arrays.
-const STK_ARTWORK_FIELDS = new Set(['format', 'schemaVersion', 'wrapper', 'payloadHeader', 'segments', 'parameters', 'polygons', 'drawRanks', 'sourceBytes', 'payloadBytes', 'warnings']);
-const STK_SEGMENT_FIELDS = new Set(['index', 'sourceId', 'parentSourceId', 'id', 'parent', 'length', 'angle', 'bend', 'width', 'type', 'flag', 'color', 'transparency', 'reserved', 'trailing', 'controlVisible']);
+const STK_ARTWORK_FIELDS = new Set(['format', 'schemaVersion', 'wrapper', 'payloadHeader', 'segments', 'parameters', 'polygons', 'drawRanks', 'figureTrailer', 'sourceBytes', 'payloadBytes', 'warnings']);
+const STK_SEGMENT_FIELDS = new Set(['index', 'sourceId', 'parentSourceId', 'id', 'parent', 'length', 'angle', 'bend', 'width', 'type', 'flag', 'color', 'transparency', 'gradient', 'reserved', 'trailing', 'controlVisible']);
 const STK_POLYGON_FIELDS = new Set(['id', 'color', 'vertices', 'transparency', 'reserved']);
 const STK_PARAMETER_FIELDS = new Set(['index', 'segmentId', 'value']);
 
@@ -536,8 +596,9 @@ export function orderedStkDrawItems(artwork) {
 }
 
 export function decodeStkBytes(payload, wrapper, sourceBytes = 0) {
-  const parsed = wrapper === STK_WRAPPER_V3 ? parseV3(payload) : wrapper === STK_WRAPPER_V4 ? parseV4(payload) : wrapper === STK_WRAPPER_V5 ? parseV5(payload) : fail(`unsupported STK wrapper 0x${wrapper?.toString(16) || '00'}`);
+  const parsed = wrapper === STK_WRAPPER_V2 || wrapper === STK_WRAPPER_V3 ? parseV2V3(payload, wrapper) : wrapper === STK_WRAPPER_V4 ? parseV4(payload) : wrapper === STK_WRAPPER_V5 ? parseV5(payload) : fail(`unsupported STK wrapper 0x${wrapper?.toString(16) || '00'}`);
   parsed.sourceBytes = sourceBytes;
+  if (parsed.segments.length > STK_DETAILED_SEGMENTS) parsed.warnings.push(`This figure has ${parsed.segments.length.toLocaleString()} parts, so each frame that uses it saves a lot of data. Keep animations with it short.`);
   validateStkArtwork(parsed);
   return parsed;
 }
@@ -548,6 +609,9 @@ export async function decodeStk(input) {
   if (bytes.byteLength < 2) fail('the file is too short.');
   if (bytes.byteLength > STK_MAX_FILE_BYTES) fail(`the file exceeds the ${STK_MAX_FILE_BYTES.toLocaleString()} byte safety limit.`);
   const wrapper = bytes[0];
+  // Pivot 2 files are the raw payload itself.  0x01 cannot begin a zlib stream (its compression-method
+  // nibble is not 8), so this never shadows the compressed layouts below.
+  if (wrapper === STK_WRAPPER_V2) return decodeStkBytes(bytes, wrapper, bytes.byteLength);
   if (wrapper !== STK_WRAPPER_V3 && wrapper !== STK_WRAPPER_V4 && wrapper !== STK_WRAPPER_V5) fail(`unsupported STK wrapper 0x${wrapper.toString(16)}.`);
   // Pivot 3's 0x78 byte is the first byte of the zlib stream itself. Pivot 4
   // and 5 use a one-byte wrapper followed by their zlib stream.
