@@ -1,3 +1,6 @@
 node_modules/
 playwright-report/
 test-results/
+
+# Real-world Pivot figures used by the tests; other people's work, so kept out of the public repo
+stk/

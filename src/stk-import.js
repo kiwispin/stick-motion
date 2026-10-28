@@ -19,6 +19,7 @@ export const MAX_IMPORTED_JOINTS_PER_FIGURE = STK_MAX_SEGMENTS + 1;
 export const STK_MAX_ABS_BEND = 1.95 * Math.PI;
 export const STK_MAX_SEGMENT_LENGTH = 10000;
 export const STK_MAX_SEGMENT_WIDTH = 500;
+const STK_MAX_WARNINGS = 32; // the importer itself produces at most four
 const EPSILON = 1e-8;
 
 export function isStkCircleSegment(artwork, segment) {
@@ -190,231 +191,6 @@ export function endpointFor(segment, start) {
   };
 }
 
-// Pivot 5's a9 payload is the a8 layout with the per-record type byte removed
-// and the width/flag/RGB style bytes stored after the geometry: every 22-byte
-// record is [parent uint16][length float32][angle float64][width float32]
-// [flag byte][RGB bytes].  The earlier "reordered" reading that placed the
-// first style at the end of the segment section misaligned every style by one
-// segment, so each segment inherited the previous segment's width/flag/colour
-// and the real skeleton was hidden.  Flag 0 segments are the figure's controls
-// (matching the measured a8/a0 layouts); flag 1 marks construction paths whose
-// strokes are not painted but which remain available to polygon boundaries.
-// Curve, polygon and draw-rank tables match the measured a8/a0 layouts.
-function parseV5A9(payload) {
-  ensureBytes(payload, 0, 3, 'Pivot 5 a9 header');
-  if (payload[0] !== 0xa9) fail(`unsupported Pivot 5 a9 payload header ${payload[0].toString(16).padStart(2, '0')}.`);
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-  const segmentCount = view.getUint16(1, true);
-  if (segmentCount < 1 || segmentCount > STK_MAX_SEGMENTS) fail('Pivot 5 a9 segment count is outside the supported range.');
-
-  let offset = 3;
-  ensureBytes(payload, offset, segmentCount * 22, 'Pivot 5 a9 segment records');
-  const segments = [];
-  for (let index = 0; index < segmentCount; index += 1) {
-    const record = offset + index * 22;
-    const parent = view.getUint16(record, true);
-    const length = view.getFloat32(record + 2, true);
-    const angle = view.getFloat64(record + 6, true);
-    const width = view.getFloat32(record + 14, true);
-    const flag = payload[record + 18];
-    const color = readRgb(payload, record + 19, `Pivot 5 a9 segment ${index + 1} colour`);
-    if (parent > index) fail(`Pivot 5 a9 segment ${index + 1} has a forward or unknown parent.`);
-    finiteNumber(length, `Pivot 5 a9 segment ${index + 1} length`, 0, STK_MAX_SEGMENT_LENGTH);
-    finiteNumber(angle, `Pivot 5 a9 segment ${index + 1} angle`, -1000000, 1000000);
-    finiteNumber(width, `Pivot 5 a9 segment ${index + 1} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    if (flag !== 0 && flag !== 1) fail(`Pivot 5 a9 segment ${index + 1} uses unsupported flag ${flag}.`);
-    // A9 has no per-record type byte. Every measured record is a line; keep
-    // the explicit zero in the normalized schema so future unsupported types
-    // are rejected instead of guessed.
-    // Flag 0 marks a pose control, matching the measured a8/a0 layouts; a
-    // segment is painted whenever it has a positive width, independent of the
-    // flag. The earlier a9 behaviour let flag hide strokes, which erased whole
-    // figures such as the supplied basketball hoop.
-    segments.push({ id: index + 1, parent, length, angle, bend: 0, width, type: 0, flag, color, transparency: 0 });
-  }
-  offset += segmentCount * 22;
-
-  ensureBytes(payload, offset, 2, 'Pivot 5 a9 curve count');
-  const curveCount = view.getUint16(offset, true); offset += 2;
-  if (curveCount > segmentCount) fail('Pivot 5 a9 curve count exceeds the segment count.');
-  const seenCurves = new Set();
-  const parameters = [];
-  for (let index = 0; index < curveCount; index += 1) {
-    ensureBytes(payload, offset, 10, 'Pivot 5 a9 curve records');
-    const segmentIndex = view.getUint16(offset, true);
-    const bend = view.getFloat64(offset + 2, true);
-    if (segmentIndex >= segmentCount) fail(`Pivot 5 a9 curve ${index + 1} references an unknown segment.`);
-    if (seenCurves.has(segmentIndex)) fail(`Pivot 5 a9 curve records contain a duplicate segment ${segmentIndex + 1}.`);
-    finiteNumber(bend, `Pivot 5 a9 curve ${index + 1} bend`, -STK_MAX_ABS_BEND, STK_MAX_ABS_BEND);
-    seenCurves.add(segmentIndex);
-    segments[segmentIndex].bend = bend;
-    parameters.push({ index: segmentIndex, segmentId: segmentIndex + 1, value: bend });
-    offset += 10;
-  }
-
-  ensureBytes(payload, offset, 2, 'Pivot 5 a9 polygon count');
-  const polygonCount = view.getUint16(offset, true); offset += 2;
-  if (polygonCount > STK_MAX_POLYGONS) fail('Pivot 5 a9 polygon count is outside the supported range.');
-  const polygons = [];
-  let totalVertices = 0;
-  for (let index = 0; index < polygonCount; index += 1) {
-    ensureBytes(payload, offset, 6, 'Pivot 5 a9 polygon header');
-    const vertexCount = view.getUint16(offset, true);
-    const color = readRgb(payload, offset + 2, `Pivot 5 a9 polygon ${index + 1}`);
-    const reserved = payload[offset + 5];
-    if (reserved !== 0) fail(`Pivot 5 a9 polygon ${index + 1} uses an unsupported colour/reserved byte.`);
-    if (vertexCount < 3 || vertexCount > STK_MAX_POLYGON_VERTICES) fail(`Pivot 5 a9 polygon ${index + 1} has an invalid vertex count.`);
-    totalVertices += vertexCount;
-    if (totalVertices > STK_MAX_POLYGON_VERTICES) fail('Pivot 5 a9 polygon vertices exceed the safety limit.');
-    offset += 6;
-    ensureBytes(payload, offset, vertexCount * 2, 'Pivot 5 a9 polygon vertices');
-    const vertices = [];
-    for (let vertex = 0; vertex < vertexCount; vertex += 1) {
-      const reference = view.getUint16(offset, true);
-      if (reference > segmentCount) fail(`Pivot 5 a9 polygon ${index + 1} references an unknown node.`);
-      if (vertex > 0 && vertices[vertex - 1] === reference) fail(`Pivot 5 a9 polygon ${index + 1} repeats an adjacent node.`);
-      vertices.push(reference); offset += 2;
-    }
-    if (vertices[0] === vertices[vertices.length - 1]) fail(`Pivot 5 a9 polygon ${index + 1} repeats its closing node.`);
-    polygons.push({ id: segmentCount + index, color, vertices, transparency: 0, reserved });
-  }
-
-  const itemCount = segmentCount + polygonCount;
-  if (itemCount > STK_MAX_DRAW_ITEMS) fail('Pivot 5 a9 draw-item count is outside the supported range.');
-  const remaining = payload.byteLength - offset;
-  if (remaining !== itemCount * 2) fail('Pivot 5 a9 payload has incomplete or unsupported trailing draw-order data.');
-  const drawRanks = [];
-  const rankSet = new Set();
-  for (let index = 0; index < itemCount; index += 1) {
-    const rank = view.getUint16(offset, true); offset += 2;
-    if (rank >= itemCount || rankSet.has(rank)) fail('Pivot 5 a9 draw ranks are not a complete permutation.');
-    rankSet.add(rank); drawRanks.push(rank);
-  }
-  if (offset !== payload.byteLength) fail('Pivot 5 a9 payload has unsupported trailing data.');
-  return {
-    format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V5,
-    payloadHeader: Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join(''),
-    segments, parameters, polygons, drawRanks,
-    sourceBytes: 0, payloadBytes: payload.byteLength,
-    warnings: ['Pivot 5 a9 records use the measured a8-order geometry/style layout without a per-record type byte; positive-width strokes are painted and flag 0 marks pose controls.']
-  };
-}
-
-// Pivot 5's 0x88 payload is the a8 layout with a uint16 source id inserted
-// after the parent reference, making each segment record 25 bytes:
-// [parent uint16][source id uint16][length float32][angle float64]
-// [width float32][type byte][flag byte][RGB bytes].  Source ids need not be
-// sequential, and parents reference source ids, so parents are remapped to
-// record-order ids.  Curve references are 0-based record indices, as in a8.
-function parseV5A8Id(payload) {
-  ensureBytes(payload, 0, 3, 'Pivot 5 88 header');
-  if (payload[0] !== 0x88) fail(`unsupported Pivot 5 88 payload header ${payload[0].toString(16).padStart(2, '0')}.`);
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-  const segmentCount = view.getUint16(1, true);
-  if (segmentCount < 1 || segmentCount > STK_MAX_SEGMENTS) fail('Pivot 5 88 segment count is outside the supported range.');
-  ensureBytes(payload, 3, segmentCount * 25, 'Pivot 5 88 segment records');
-  const sourceSegments = [];
-  const sourceIds = new Set();
-  const sourceIdToRecord = new Map();
-  for (let index = 0; index < segmentCount; index += 1) {
-    const record = 3 + index * 25;
-    const parentSourceId = view.getUint16(record, true);
-    const sourceId = view.getUint16(record + 2, true);
-    const length = view.getFloat32(record + 4, true);
-    const angle = view.getFloat64(record + 8, true);
-    const width = view.getFloat32(record + 16, true);
-    const type = payload[record + 20];
-    const flag = payload[record + 21];
-    const color = readRgb(payload, record + 22, `Pivot 5 88 segment ${index + 1} colour`);
-    if (sourceId < 1 || sourceId > segmentCount || sourceIds.has(sourceId)) fail(`Pivot 5 88 segment ${index + 1} has an invalid or duplicate source id.`);
-    finiteNumber(length, `Pivot 5 88 segment ${sourceId} length`, 0, STK_MAX_SEGMENT_LENGTH);
-    finiteNumber(angle, `Pivot 5 88 segment ${sourceId} angle`, -1000000, 1000000);
-    finiteNumber(width, `Pivot 5 88 segment ${sourceId} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    if (![0, 1, 3, 4, 6].includes(type)) fail(`Pivot 5 88 segment ${sourceId} uses unsupported type ${type}.`);
-    if (flag !== 0 && flag !== 1) fail(`Pivot 5 88 segment ${sourceId} uses unsupported flag ${flag}.`);
-    sourceIds.add(sourceId);
-    sourceIdToRecord.set(sourceId, index);
-    sourceSegments.push({ index, sourceId, parentSourceId, length, angle, bend: 0, width, type, flag, color, transparency: 0 });
-  }
-  sourceSegments.forEach(segment => {
-    if (segment.parentSourceId === 0) return;
-    if (!sourceIds.has(segment.parentSourceId)) fail(`Pivot 5 88 segment ${segment.sourceId} references an unknown parent.`);
-    if (sourceIdToRecord.get(segment.parentSourceId) >= segment.index) fail(`Pivot 5 88 segment ${segment.sourceId} has a forward parent.`);
-  });
-  const internalIdBySourceId = new Map(sourceSegments.map(segment => [segment.sourceId, segment.index + 1]));
-  const segments = sourceSegments.map(segment => ({
-    ...segment,
-    id: segment.index + 1,
-    parent: segment.parentSourceId === 0 ? 0 : internalIdBySourceId.get(segment.parentSourceId)
-  }));
-  let offset = 3 + segmentCount * 25;
-
-  ensureBytes(payload, offset, 2, 'Pivot 5 88 curve count');
-  const curveCount = view.getUint16(offset, true); offset += 2;
-  if (curveCount > segmentCount) fail('Pivot 5 88 curve count exceeds the segment count.');
-  const seenCurves = new Set();
-  const parameters = [];
-  for (let index = 0; index < curveCount; index += 1) {
-    ensureBytes(payload, offset, 10, 'Pivot 5 88 curve records');
-    const segmentIndex = view.getUint16(offset, true);
-    const bend = view.getFloat64(offset + 2, true);
-    if (segmentIndex >= segmentCount) fail(`Pivot 5 88 curve ${index + 1} references an unknown segment.`);
-    if (seenCurves.has(segmentIndex)) fail(`Pivot 5 88 curve records contain a duplicate segment ${segmentIndex + 1}.`);
-    finiteNumber(bend, `Pivot 5 88 curve ${index + 1} bend`, -STK_MAX_ABS_BEND, STK_MAX_ABS_BEND);
-    seenCurves.add(segmentIndex);
-    segments[segmentIndex].bend = bend;
-    parameters.push({ index: segmentIndex, segmentId: segmentIndex + 1, value: bend });
-    offset += 10;
-  }
-
-  ensureBytes(payload, offset, 2, 'Pivot 5 88 polygon count');
-  const polygonCount = view.getUint16(offset, true); offset += 2;
-  if (polygonCount > STK_MAX_POLYGONS) fail('Pivot 5 88 polygon count is outside the supported range.');
-  const polygons = [];
-  let totalVertices = 0;
-  for (let index = 0; index < polygonCount; index += 1) {
-    ensureBytes(payload, offset, 6, 'Pivot 5 88 polygon header');
-    const vertexCount = view.getUint16(offset, true);
-    const color = readRgb(payload, offset + 2, `Pivot 5 88 polygon ${index + 1}`);
-    const reserved = payload[offset + 5];
-    if (reserved !== 0) fail(`Pivot 5 88 polygon ${index + 1} uses an unsupported colour/reserved byte.`);
-    if (vertexCount < 3 || vertexCount > STK_MAX_POLYGON_VERTICES) fail(`Pivot 5 88 polygon ${index + 1} has an invalid vertex count.`);
-    totalVertices += vertexCount;
-    if (totalVertices > STK_MAX_POLYGON_VERTICES) fail('Pivot 5 88 polygon vertices exceed the safety limit.');
-    offset += 6;
-    ensureBytes(payload, offset, vertexCount * 2, 'Pivot 5 88 polygon vertices');
-    const vertices = [];
-    for (let vertex = 0; vertex < vertexCount; vertex += 1) {
-      const reference = view.getUint16(offset, true);
-      if (reference > segmentCount) fail(`Pivot 5 88 polygon ${index + 1} references an unknown node.`);
-      if (vertex > 0 && vertices[vertex - 1] === reference) fail(`Pivot 5 88 polygon ${index + 1} repeats an adjacent node.`);
-      vertices.push(reference); offset += 2;
-    }
-    if (vertices[0] === vertices[vertices.length - 1]) fail(`Pivot 5 88 polygon ${index + 1} repeats its closing node.`);
-    polygons.push({ id: segmentCount + index, color, vertices, transparency: 0, reserved });
-  }
-
-  const itemCount = segmentCount + polygonCount;
-  if (itemCount > STK_MAX_DRAW_ITEMS) fail('Pivot 5 88 draw-item count is outside the supported range.');
-  const remaining = payload.byteLength - offset;
-  if (remaining !== itemCount * 2) fail('Pivot 5 88 payload has incomplete or unsupported trailing draw-order data.');
-  const drawRanks = [];
-  const rankSet = new Set();
-  for (let index = 0; index < itemCount; index += 1) {
-    const rank = view.getUint16(offset, true); offset += 2;
-    if (rank >= itemCount || rankSet.has(rank)) fail('Pivot 5 88 draw ranks are not a complete permutation.');
-    rankSet.add(rank); drawRanks.push(rank);
-  }
-  if (offset !== payload.byteLength) fail('Pivot 5 88 payload has unsupported trailing data.');
-  return {
-    format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V5,
-    payloadHeader: Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join(''),
-    segments, parameters, polygons, drawRanks,
-    sourceBytes: 0, payloadBytes: payload.byteLength,
-    warnings: ['Pivot 5 88 source ids are remapped to record order; flag 0 marks pose controls and positive-width strokes paint.']
-  };
-}
-
 function parseV4(payload) {
   ensureBytes(payload, 0, 1, 'Pivot 4 header');
   const segmentCount = payload[0];
@@ -456,110 +232,203 @@ function parseV4(payload) {
   };
 }
 
-function parseV5(payload) {
-  ensureBytes(payload, 0, 3, 'Pivot 5 header');
-  if (payload[0] === 0xa9) return parseV5A9(payload);
-  if (payload[0] === 0x88) return parseV5A8Id(payload);
-  const hasTransparency = payload[0] === 0xa0;
-  if (payload[0] !== 0xa8 && !hasTransparency) fail(`unsupported Pivot 5 payload header ${Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join('')}.`);
-  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
-  const segmentCount = view.getUint16(1, true);
-  if (segmentCount < 1 || segmentCount > STK_MAX_SEGMENTS) fail('Pivot 5 segment count is outside the supported range.');
-  let offset = 3;
-  const segmentRecordBytes = hasTransparency ? 24 : 23;
-  ensureBytes(payload, offset, segmentCount * segmentRecordBytes, 'Pivot 5 segment records');
+// Pivot 5 payloads share one shape after their segment records:
+//   [header byte][segment count uint16][segment records]
+//   [curve count uint16][curve records][polygon count uint16][polygons][draw ranks]
+// Only the segment record layout differs between the measured variants:
+//
+// a8: [parent uint16][length float32][angle float64][width float32][type byte][flag byte][RGB bytes]
+// a0: the a8 record plus a trailing transparency byte; its polygons store a transparency byte where
+//     a8 keeps a zero reserved byte.
+// a9: the a8 record with the per-record type byte removed, so every 22-byte record is
+//     [parent uint16][length float32][angle float64][width float32][flag byte][RGB bytes].  The earlier
+//     "reordered" reading that placed the first style at the end of the segment section misaligned
+//     every style by one segment, so each segment inherited the previous segment's width/flag/colour
+//     and the real skeleton was hidden.  Flag 0 segments are the figure's controls (matching the
+//     measured a8/a0 layouts); flag 1 marks construction paths whose strokes are not painted but which
+//     remain available to polygon boundaries.
+// 88: the a8 record with a uint16 source id inserted after the parent reference, making each record
+//     25 bytes: [parent uint16][source id uint16][length float32][angle float64][width float32]
+//     [type byte][flag byte][RGB bytes].  Source ids need not be sequential, and parents reference
+//     source ids, so parents are remapped to record-order ids.  Curve references are 0-based record
+//     indices, as in a8.
+const V5_SEGMENT_TYPES = [0, 1, 3, 4, 6];
+
+function v5Label(header) {
+  return header === 0xa9 ? 'Pivot 5 a9' : header === 0x88 ? 'Pivot 5 88' : 'Pivot 5';
+}
+
+// a8, a0 and a9: records in parent-before-child order with sequential ids.
+function readSequentialV5Segments(payload, view, segmentCount, label, { hasType, hasTransparency }) {
+  const recordBytes = 22 + (hasType ? 1 : 0) + (hasTransparency ? 1 : 0);
+  ensureBytes(payload, 3, segmentCount * recordBytes, `${label} segment records`);
   const segments = [];
   for (let index = 0; index < segmentCount; index += 1) {
-    const record = offset;
+    const record = 3 + index * recordBytes;
     const parent = view.getUint16(record, true);
     const length = view.getFloat32(record + 2, true);
     const angle = view.getFloat64(record + 6, true);
     const width = view.getFloat32(record + 14, true);
-    const type = payload[record + 18];
-    const flag = payload[record + 19];
-    const color = readRgb(payload, record + 20, `Pivot 5 segment ${index + 1}`);
-    if (parent > index) fail(`Pivot 5 segment ${index + 1} has a forward or unknown parent.`);
-    finiteNumber(length, `Pivot 5 segment ${index + 1} length`, 0, STK_MAX_SEGMENT_LENGTH);
-    finiteNumber(angle, `Pivot 5 segment ${index + 1} angle`, -1000000, 1000000);
-    finiteNumber(width, `Pivot 5 segment ${index + 1} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    if (![0, 1, 3, 4, 6].includes(type)) fail(`Pivot 5 segment ${index + 1} uses unsupported type ${type}.`);
-    if (flag !== 0 && flag !== 1) fail(`Pivot 5 segment ${index + 1} uses unsupported flag ${flag}.`);
+    // A9 has no per-record type byte. Every measured record is a line; keep the explicit zero in the
+    // normalized schema so future unsupported types are rejected instead of guessed.
+    const type = hasType ? payload[record + 18] : 0;
+    const style = record + (hasType ? 19 : 18);
+    const flag = payload[style];
+    const color = readRgb(payload, style + 1, `${label} segment ${index + 1} colour`);
+    if (parent > index) fail(`${label} segment ${index + 1} has a forward or unknown parent.`);
+    finiteNumber(length, `${label} segment ${index + 1} length`, 0, STK_MAX_SEGMENT_LENGTH);
+    finiteNumber(angle, `${label} segment ${index + 1} angle`, -1000000, 1000000);
+    finiteNumber(width, `${label} segment ${index + 1} width`, 0, STK_MAX_SEGMENT_WIDTH);
+    if (hasType && !V5_SEGMENT_TYPES.includes(type)) fail(`${label} segment ${index + 1} uses unsupported type ${type}.`);
+    if (flag !== 0 && flag !== 1) fail(`${label} segment ${index + 1} uses unsupported flag ${flag}.`);
+    // Flag 0 marks a pose control; a segment is painted whenever it has a positive width, independent
+    // of the flag. (Letting the a9 flag hide strokes once erased whole figures such as the basketball hoop.)
     const transparency = hasTransparency ? payload[record + 23] : 0;
     segments.push({ id: index + 1, parent, length, angle, bend: 0, width, type, flag, color, transparency });
-    offset += segmentRecordBytes;
   }
+  return { segments, offset: 3 + segmentCount * recordBytes };
+}
 
-  ensureBytes(payload, offset, 2, 'Pivot 5 curve count');
+// 88: records carry their own source ids, which parents reference; remap both to record order.
+function readSourceIdV5Segments(payload, view, segmentCount, label) {
+  ensureBytes(payload, 3, segmentCount * 25, `${label} segment records`);
+  const sourceSegments = [];
+  const sourceIds = new Set();
+  const sourceIdToRecord = new Map();
+  for (let index = 0; index < segmentCount; index += 1) {
+    const record = 3 + index * 25;
+    const parentSourceId = view.getUint16(record, true);
+    const sourceId = view.getUint16(record + 2, true);
+    const length = view.getFloat32(record + 4, true);
+    const angle = view.getFloat64(record + 8, true);
+    const width = view.getFloat32(record + 16, true);
+    const type = payload[record + 20];
+    const flag = payload[record + 21];
+    const color = readRgb(payload, record + 22, `${label} segment ${index + 1} colour`);
+    if (sourceId < 1 || sourceId > segmentCount || sourceIds.has(sourceId)) fail(`${label} segment ${index + 1} has an invalid or duplicate source id.`);
+    finiteNumber(length, `${label} segment ${sourceId} length`, 0, STK_MAX_SEGMENT_LENGTH);
+    finiteNumber(angle, `${label} segment ${sourceId} angle`, -1000000, 1000000);
+    finiteNumber(width, `${label} segment ${sourceId} width`, 0, STK_MAX_SEGMENT_WIDTH);
+    if (!V5_SEGMENT_TYPES.includes(type)) fail(`${label} segment ${sourceId} uses unsupported type ${type}.`);
+    if (flag !== 0 && flag !== 1) fail(`${label} segment ${sourceId} uses unsupported flag ${flag}.`);
+    sourceIds.add(sourceId);
+    sourceIdToRecord.set(sourceId, index);
+    sourceSegments.push({ index, sourceId, parentSourceId, length, angle, bend: 0, width, type, flag, color, transparency: 0 });
+  }
+  sourceSegments.forEach(segment => {
+    if (segment.parentSourceId === 0) return;
+    if (!sourceIds.has(segment.parentSourceId)) fail(`${label} segment ${segment.sourceId} references an unknown parent.`);
+    if (sourceIdToRecord.get(segment.parentSourceId) >= segment.index) fail(`${label} segment ${segment.sourceId} has a forward parent.`);
+  });
+  const internalIdBySourceId = new Map(sourceSegments.map(segment => [segment.sourceId, segment.index + 1]));
+  const segments = sourceSegments.map(segment => ({
+    ...segment,
+    id: segment.index + 1,
+    parent: segment.parentSourceId === 0 ? 0 : internalIdBySourceId.get(segment.parentSourceId)
+  }));
+  return { segments, offset: 3 + segmentCount * 25 };
+}
+
+// The curve, polygon and draw-order tables that follow the segment records in every Pivot 5 variant.
+function readV5Tables(payload, view, segments, start, label, hasTransparency) {
+  const segmentCount = segments.length;
+  let offset = start;
+
+  ensureBytes(payload, offset, 2, `${label} curve count`);
   const curveCount = view.getUint16(offset, true); offset += 2;
-  if (curveCount > segmentCount) fail('Pivot 5 curve count exceeds the segment count.');
+  if (curveCount > segmentCount) fail(`${label} curve count exceeds the segment count.`);
   const seenCurves = new Set();
   const parameters = [];
   for (let index = 0; index < curveCount; index += 1) {
-    ensureBytes(payload, offset, 10, 'Pivot 5 curve records');
+    ensureBytes(payload, offset, 10, `${label} curve records`);
     const segmentIndex = view.getUint16(offset, true);
     const bend = view.getFloat64(offset + 2, true);
-    if (segmentIndex >= segmentCount) fail(`Pivot 5 curve ${index + 1} references an unknown segment.`);
-    if (seenCurves.has(segmentIndex)) fail(`Pivot 5 curve records contain a duplicate segment ${segmentIndex + 1}.`);
-    finiteNumber(bend, `Pivot 5 curve ${index + 1} bend`, -STK_MAX_ABS_BEND, STK_MAX_ABS_BEND);
+    if (segmentIndex >= segmentCount) fail(`${label} curve ${index + 1} references an unknown segment.`);
+    if (seenCurves.has(segmentIndex)) fail(`${label} curve records contain a duplicate segment ${segmentIndex + 1}.`);
+    finiteNumber(bend, `${label} curve ${index + 1} bend`, -STK_MAX_ABS_BEND, STK_MAX_ABS_BEND);
     seenCurves.add(segmentIndex);
     segments[segmentIndex].bend = bend;
     parameters.push({ index: segmentIndex, segmentId: segmentIndex + 1, value: bend });
     offset += 10;
   }
 
-  ensureBytes(payload, offset, 2, 'Pivot 5 polygon count');
+  ensureBytes(payload, offset, 2, `${label} polygon count`);
   const polygonCount = view.getUint16(offset, true); offset += 2;
-  if (polygonCount > STK_MAX_POLYGONS) fail('Pivot 5 polygon count is outside the supported range.');
+  if (polygonCount > STK_MAX_POLYGONS) fail(`${label} polygon count is outside the supported range.`);
   const polygons = [];
   let totalVertices = 0;
   for (let index = 0; index < polygonCount; index += 1) {
-    ensureBytes(payload, offset, 6, 'Pivot 5 polygon header');
+    ensureBytes(payload, offset, 6, `${label} polygon header`);
     const vertexCount = view.getUint16(offset, true);
-    const color = readRgb(payload, offset + 2, `Pivot 5 polygon ${index + 1}`);
+    const color = readRgb(payload, offset + 2, `${label} polygon ${index + 1}`);
     const transparency = hasTransparency ? payload[offset + 5] : 0;
     const reserved = hasTransparency ? null : payload[offset + 5];
-    if (!hasTransparency && reserved !== 0) fail(`Pivot 5 polygon ${index + 1} uses an unsupported colour/reserved byte.`);
-    if (vertexCount < 3 || vertexCount > STK_MAX_POLYGON_VERTICES) fail(`Pivot 5 polygon ${index + 1} has an invalid vertex count.`);
+    if (!hasTransparency && reserved !== 0) fail(`${label} polygon ${index + 1} uses an unsupported colour/reserved byte.`);
+    if (vertexCount < 3 || vertexCount > STK_MAX_POLYGON_VERTICES) fail(`${label} polygon ${index + 1} has an invalid vertex count.`);
     totalVertices += vertexCount;
-    if (totalVertices > STK_MAX_POLYGON_VERTICES) fail('Pivot 5 polygon vertices exceed the safety limit.');
+    if (totalVertices > STK_MAX_POLYGON_VERTICES) fail(`${label} polygon vertices exceed the safety limit.`);
     offset += 6;
-    ensureBytes(payload, offset, vertexCount * 2, 'Pivot 5 polygon vertices');
+    ensureBytes(payload, offset, vertexCount * 2, `${label} polygon vertices`);
     const vertices = [];
     for (let vertex = 0; vertex < vertexCount; vertex += 1) {
       const reference = view.getUint16(offset, true);
-      if (reference > segmentCount) fail(`Pivot 5 polygon ${index + 1} references an unknown node.`);
-      if (vertex > 0 && vertices[vertex - 1] === reference) fail(`Pivot 5 polygon ${index + 1} repeats an adjacent node.`);
+      if (reference > segmentCount) fail(`${label} polygon ${index + 1} references an unknown node.`);
+      if (vertex > 0 && vertices[vertex - 1] === reference) fail(`${label} polygon ${index + 1} repeats an adjacent node.`);
       vertices.push(reference); offset += 2;
     }
-    if (vertices[0] === vertices[vertices.length - 1]) fail(`Pivot 5 polygon ${index + 1} repeats its closing node.`);
+    if (vertices[0] === vertices[vertices.length - 1]) fail(`${label} polygon ${index + 1} repeats its closing node.`);
     polygons.push({ id: segmentCount + index, color, vertices, transparency, reserved });
   }
 
   const itemCount = segmentCount + polygonCount;
-  if (itemCount > STK_MAX_DRAW_ITEMS) fail('Pivot 5 draw-item count is outside the supported range.');
+  if (itemCount > STK_MAX_DRAW_ITEMS) fail(`${label} draw-item count is outside the supported range.`);
   const remaining = payload.byteLength - offset;
-  if (remaining !== itemCount * 2) fail('Pivot 5 payload has incomplete or unsupported trailing draw-order data.');
+  if (remaining !== itemCount * 2) fail(`${label} payload has incomplete or unsupported trailing draw-order data.`);
   const drawRanks = [];
   const rankSet = new Set();
   for (let index = 0; index < itemCount; index += 1) {
     const rank = view.getUint16(offset, true); offset += 2;
-    if (rank >= itemCount || rankSet.has(rank)) fail('Pivot 5 draw ranks are not a complete permutation.');
+    if (rank >= itemCount || rankSet.has(rank)) fail(`${label} draw ranks are not a complete permutation.`);
     rankSet.add(rank); drawRanks.push(rank);
   }
+  if (offset !== payload.byteLength) fail(`${label} payload has unsupported trailing data.`);
+  return { parameters, polygons, drawRanks };
+}
+
+function v5Warnings(header, segments, polygons) {
+  if (header === 0xa9) return ['Pivot 5 a9 records use the measured a8-order geometry/style layout without a per-record type byte; positive-width strokes are painted and flag 0 marks pose controls.'];
+  if (header === 0x88) return ['Pivot 5 88 source ids are remapped to record order; flag 0 marks pose controls and positive-width strokes paint.'];
+  return [
+    ...(header === 0xa0 && (segments.some(segment => segment.transparency > 0) || polygons.some(polygon => polygon.transparency > 0))
+      ? ['Pivot 5 transparency bytes are preserved and composited over the existing canvas alpha.'] : []),
+    ...(segments.some(segment => segment.type === 4)
+      ? ['Type 4 cap style is approximated with round caps in this experimental import.'] : []),
+    ...(segments.some(segment => segment.type === 6)
+      ? ['Type 6 line caps are approximated with square caps from the supplied V5 reference geometry; the numeric enum is not documented.'] : []),
+    ...(segments.some(segment => segment.type === 1 || segment.type === 3)
+      ? ['V5 type 1 and type 3 circles use the tentative white-interior/solid-fill mapping; other circle fill variants are not established.'] : [])
+  ];
+}
+
+function parseV5(payload) {
+  ensureBytes(payload, 0, 3, 'Pivot 5 header');
+  const header = payload[0];
+  const payloadHeader = Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join('');
+  if (header !== 0xa8 && header !== 0xa0 && header !== 0xa9 && header !== 0x88) fail(`unsupported Pivot 5 payload header ${payloadHeader}.`);
+  const label = v5Label(header);
+  const hasTransparency = header === 0xa0;
+  const view = new DataView(payload.buffer, payload.byteOffset, payload.byteLength);
+  const segmentCount = view.getUint16(1, true);
+  if (segmentCount < 1 || segmentCount > STK_MAX_SEGMENTS) fail(`${label} segment count is outside the supported range.`);
+  const { segments, offset } = header === 0x88
+    ? readSourceIdV5Segments(payload, view, segmentCount, label)
+    : readSequentialV5Segments(payload, view, segmentCount, label, { hasType: header !== 0xa9, hasTransparency });
+  const { parameters, polygons, drawRanks } = readV5Tables(payload, view, segments, offset, label, hasTransparency);
   return {
     format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V5,
-    payloadHeader: Array.from(payload.subarray(0, 3)).map(value => value.toString(16).padStart(2, '0')).join(''), segments, parameters, polygons, drawRanks,
+    payloadHeader, segments, parameters, polygons, drawRanks,
     sourceBytes: 0, payloadBytes: payload.byteLength,
-    warnings: [
-      ...(hasTransparency && (segments.some(segment => segment.transparency > 0) || polygons.some(polygon => polygon.transparency > 0))
-        ? ['Pivot 5 transparency bytes are preserved and composited over the existing canvas alpha.'] : []),
-      ...(segments.some(segment => segment.type === 4)
-        ? ['Type 4 cap style is approximated with round caps in this experimental import.'] : []),
-      ...(segments.some(segment => segment.type === 6)
-        ? ['Type 6 line caps are approximated with square caps from the supplied V5 reference geometry; the numeric enum is not documented.'] : []),
-      ...(segments.some(segment => segment.type === 1 || segment.type === 3)
-        ? ['V5 type 1 and type 3 circles use the tentative white-interior/solid-fill mapping; other circle fill variants are not established.'] : [])
-    ]
+    warnings: v5Warnings(header, segments, polygons)
   };
 }
 
@@ -587,6 +456,11 @@ export function validateStkArtwork(value) {
     const allowedFlags = value.wrapper === STK_WRAPPER_V4 ? [0] : [0, 1];
     if (!allowedFlags.includes(segment.flag)) fail(`imported segment ${index + 1} has an unsupported flag.`);
     if (segment.controlVisible !== undefined && typeof segment.controlVisible !== 'boolean') fail(`imported segment ${index + 1} has an invalid control visibility flag.`);
+    // Source-record bookkeeping kept from Pivot 3/4 and 0x88 files: small integers, or absent.
+    for (const key of ['index', 'sourceId', 'parentSourceId', 'reserved', 'trailing']) {
+      const field = segment[key];
+      if (field !== undefined && field !== null && (!Number.isInteger(field) || field < 0 || field > 0xffff)) fail(`imported segment ${index + 1} has an invalid ${key}.`);
+    }
     if (segment.color !== null) validateRgb(segment.color, `imported segment ${index + 1}`);
     const transparency = segment.transparency === undefined ? 0 : segment.transparency;
     if (!Number.isInteger(transparency) || transparency < 0 || transparency > 255) fail(`imported segment ${index + 1} has an invalid transparency.`);
@@ -609,6 +483,7 @@ export function validateStkArtwork(value) {
     if (value.wrapper === STK_WRAPPER_V5 && !hasV5Transparency && transparency !== 0) fail(`imported polygon ${index + 1} uses unsupported transparency for its payload layout.`);
     if (value.wrapper === STK_WRAPPER_V5 && hasV5Transparency && polygon.transparency === undefined) fail(`imported polygon ${index + 1} is missing its transparency byte.`);
     if (value.wrapper === STK_WRAPPER_V5 && !hasV5Transparency && polygon.reserved !== undefined && polygon.reserved !== 0) fail(`imported polygon ${index + 1} uses an unsupported colour/reserved byte.`);
+    if (polygon.reserved !== undefined && polygon.reserved !== null && (!Number.isInteger(polygon.reserved) || polygon.reserved < 0 || polygon.reserved > 255)) fail(`imported polygon ${index + 1} has an invalid reserved byte.`);
     vertexTotal += polygon.vertices.length;
     if (vertexTotal > STK_MAX_POLYGON_VERTICES) fail('imported polygon vertices exceed the safety limit.');
     polygon.vertices.forEach((reference, vertex) => {
@@ -629,17 +504,29 @@ export function validateStkArtwork(value) {
   if (!Array.isArray(value.drawRanks) || value.drawRanks.length !== itemCount) fail('imported draw ranks are malformed.');
   const ranks = new Set(value.drawRanks);
   if (ranks.size !== itemCount || value.drawRanks.some(rank => !Number.isInteger(rank) || rank < 0 || rank >= itemCount)) fail('imported draw ranks are not a complete permutation.');
-  if (value.warnings !== undefined && (!Array.isArray(value.warnings) || value.warnings.some(warning => typeof warning !== 'string' || warning.length > 300))) fail('imported warnings are malformed.');
+  if (value.warnings !== undefined && (!Array.isArray(value.warnings) || value.warnings.length > STK_MAX_WARNINGS || value.warnings.some(warning => typeof warning !== 'string' || warning.length > 300))) fail('imported warnings are malformed.');
   return true;
+}
+
+// Every field the parsers above can produce (controlVisible is accepted from older saved projects).
+// A copy keeps only these, in their original order, so data hidden in a project file cannot ride
+// along into every frame and Undo step. Their values are flat JSON primitives or flat arrays.
+const STK_ARTWORK_FIELDS = new Set(['format', 'schemaVersion', 'wrapper', 'payloadHeader', 'segments', 'parameters', 'polygons', 'drawRanks', 'sourceBytes', 'payloadBytes', 'warnings']);
+const STK_SEGMENT_FIELDS = new Set(['index', 'sourceId', 'parentSourceId', 'id', 'parent', 'length', 'angle', 'bend', 'width', 'type', 'flag', 'color', 'transparency', 'reserved', 'trailing', 'controlVisible']);
+const STK_POLYGON_FIELDS = new Set(['id', 'color', 'vertices', 'transparency', 'reserved']);
+const STK_PARAMETER_FIELDS = new Set(['index', 'segmentId', 'value']);
+
+function copyKnownFields(source, fields) {
+  return Object.fromEntries(Object.keys(source).filter(key => fields.has(key)).map(key => [key, Array.isArray(source[key]) ? [...source[key]] : source[key]]));
 }
 
 export function cloneStkArtwork(value) {
   if (value === null || value === undefined) return null;
-  // The metadata schema is intentionally made entirely of JSON primitives.
-  // This recursive clone keeps it safe on browsers without structuredClone.
-  if (Array.isArray(value)) return value.map(cloneStkArtwork);
-  if (typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cloneStkArtwork(item)]));
-  return value;
+  const artwork = copyKnownFields(value, STK_ARTWORK_FIELDS);
+  if (Array.isArray(value.segments)) artwork.segments = value.segments.map(segment => copyKnownFields(segment, STK_SEGMENT_FIELDS));
+  if (Array.isArray(value.polygons)) artwork.polygons = value.polygons.map(polygon => copyKnownFields(polygon, STK_POLYGON_FIELDS));
+  if (Array.isArray(value.parameters)) artwork.parameters = value.parameters.map(parameter => copyKnownFields(parameter, STK_PARAMETER_FIELDS));
+  return artwork;
 }
 
 export function orderedStkDrawItems(artwork) {

@@ -285,8 +285,16 @@ test('decodes the Pivot 5 a9 a8-order layout and paints by width regardless of f
   assert.equal(findDragTarget({ figures: [dragFigure], position: zeroMidpoint, handleRadius: 4, distanceToSegment, isPointInSpeechBubble: () => false }), null, 'zero-width A9 construction paths are not draggable');
 });
 
-test('decodes the supplied sheep cartoon Pivot 5 a9 fixture completely', { skip: !fs.existsSync('/Users/crayner/Downloads/sheep cartoon.440d9893 (1).stk') }, async () => {
-  const bytes = fs.readFileSync('/Users/crayner/Downloads/sheep cartoon.440d9893 (1).stk');
+// Real-world .stk files are not committed; tests look in the project's stk/ folder, then the original developer's Downloads.
+function realFixture(name) {
+  return [new URL(`../stk/${name}`, import.meta.url), `/Users/crayner/Downloads/${name}`].find(candidate => fs.existsSync(candidate)) || null;
+}
+const sheepFixture = realFixture('sheep cartoon.440d9893 (1).stk');
+const hoopFixture = realFixture('basketball hoop.812bfc5e.stk');
+const spiderManFixture = realFixture('Spider-Man_Eysi.c1dee0f9.stk');
+
+test('decodes the supplied sheep cartoon Pivot 5 a9 fixture completely', { skip: !sheepFixture }, async () => {
+  const bytes = fs.readFileSync(sheepFixture);
   const decoded = await decodeStk(bytes);
   assert.equal(decoded.sourceBytes, 7252);
   assert.equal(decoded.payloadBytes, 11383);
@@ -309,8 +317,8 @@ test('decodes the supplied sheep cartoon Pivot 5 a9 fixture completely', { skip:
   assert.ok(bounds.minX > -180 && bounds.maxX < 50 && bounds.minY > -140 && bounds.maxY < 90);
 });
 
-test('decodes the supplied basketball hoop Pivot 5 a9 fixture completely', { skip: !fs.existsSync('/Users/crayner/Downloads/basketball hoop.812bfc5e.stk') }, async () => {
-  const bytes = fs.readFileSync('/Users/crayner/Downloads/basketball hoop.812bfc5e.stk');
+test('decodes the supplied basketball hoop Pivot 5 a9 fixture completely', { skip: !hoopFixture }, async () => {
+  const bytes = fs.readFileSync(hoopFixture);
   const decoded = await decodeStk(bytes);
   assert.equal(decoded.sourceBytes, 288);
   assert.equal(decoded.payloadBytes, 437);
@@ -373,8 +381,8 @@ test('rejects malformed Pivot 5 0x88 records', () => {
   assert.throws(() => decodeStkBytes(valid.subarray(0, -1), STK_WRAPPER_V5), /incomplete|trailing/);
 });
 
-test('decodes the supplied Spider-Man 0x88 fixture completely', { skip: !fs.existsSync('/Users/crayner/Downloads/Spider-Man_Eysi.c1dee0f9.stk') }, async () => {
-  const bytes = fs.readFileSync('/Users/crayner/Downloads/Spider-Man_Eysi.c1dee0f9.stk');
+test('decodes the supplied Spider-Man 0x88 fixture completely', { skip: !spiderManFixture }, async () => {
+  const bytes = fs.readFileSync(spiderManFixture);
   const decoded = await decodeStk(bytes);
   assert.equal(decoded.sourceBytes, 1230);
   assert.equal(decoded.payloadBytes, 1727);
@@ -576,4 +584,92 @@ test('checks File/Blob size before reading and bounds decompression output', asy
   const bombPayload = Buffer.alloc(STK_MAX_PAYLOAD_BYTES + 1);
   const bomb = compressed(STK_WRAPPER_V4, bombPayload);
   await assert.rejects(() => decodeStk(bomb), /decompressed data exceeds/);
+});
+
+// Every real figure in stk/ (when present) must decode, draw, and survive a project save and reopen unchanged.
+const realFixtureFolder = new URL('../stk/', import.meta.url);
+const realStkFiles = fs.existsSync(realFixtureFolder) ? fs.readdirSync(realFixtureFolder).filter(name => name.toLowerCase().endsWith('.stk')).sort() : [];
+
+function recordingCanvasContext() {
+  const calls = [];
+  const state = { fillStyle: '#000000', strokeStyle: '#000000', lineCap: 'round', lineJoin: 'round', lineWidth: 1, globalAlpha: 1 };
+  const context = new Proxy(state, {
+    get(target, key) { return key in target ? target[key] : (...args) => { calls.push(String(key)); return undefined; }; },
+    set(target, key, value) { target[key] = value; return true; }
+  });
+  return { context, calls };
+}
+
+for (const name of realStkFiles) {
+  test(`real figure "${name}" decodes, draws, and survives save and reopen`, async () => {
+    const decoded = await decodeStk(fs.readFileSync(new URL(name, realFixtureFolder)));
+    validateStkArtwork(decoded);
+    const figure = createFigureFromStk(decoded, { x: 400, y: 300 });
+    assert.equal(figure.joints.length, decoded.segments.length + 1);
+
+    const { context, calls } = recordingCanvasContext();
+    drawStkFigure({ context, figure });
+    assert.ok(calls.includes('stroke') || calls.includes('fill'), 'the figure paints something');
+
+    const saved = JSON.parse(JSON.stringify({ version: 5, name: 'Fixture', width: 800, height: 500, fps: 12, frames: [[figure]], delays: [1], currentFrameIndex: 0, groups: [], settings: {} }));
+    const reopened = normaliseProject(saved).frames[0][0];
+    assert.deepEqual(reopened.stkArtwork, JSON.parse(JSON.stringify(figure.stkArtwork)), 'imported artwork is unchanged by save and reopen');
+    assert.deepEqual(reopened.joints.map(joint => [joint.id, joint.parentId]), figure.joints.map(joint => [joint.id, joint.parentId]));
+    // Reopening normalises angles, which can change the last floating-point digit; anything visible would be far larger.
+    reopened.joints.forEach((joint, index) => {
+      assert.ok(Math.abs(joint.length - figure.joints[index].length) < 1e-9, `${joint.id} length`);
+      assert.ok(Math.abs(Math.atan2(Math.sin(joint.angle - figure.joints[index].angle), Math.cos(joint.angle - figure.joints[index].angle))) < 1e-9, `${joint.id} angle`);
+    });
+  });
+}
+
+test('a Pivot animation (.piv) file is rejected cleanly as a figure', { skip: !fs.existsSync(new URL('DBZ-DBS Kid Goku.eb4b9e39.piv', realFixtureFolder)) }, async () => {
+  await assert.rejects(() => decodeStk(fs.readFileSync(new URL('DBZ-DBS Kid Goku.eb4b9e39.piv', realFixtureFolder))), /STK import rejected/);
+});
+
+async function savedProjectWithStkFigure() {
+  const decoded = await decodeStk(compressed(STK_WRAPPER_V5, a88Payload({
+    segments: [
+      { sourceId: 2, parentSourceId: 0, length: 30, angle: 0, width: 4, color: [10, 20, 30] },
+      { sourceId: 1, parentSourceId: 2, length: 20, angle: 1, width: 3, flag: 1 },
+      { sourceId: 3, parentSourceId: 1, length: 10, angle: 2, width: 2 }
+    ],
+    curves: [{ index: 1, bend: 0.5 }],
+    polygons: [{ vertices: [0, 1, 2], color: [200, 100, 50] }],
+    ranks: [3, 0, 1, 2]
+  })));
+  const figure = createFigureFromStk(decoded, { x: 100, y: 100, id: 'hardening-figure' });
+  return JSON.parse(JSON.stringify({ version: 5, name: 'Hardening', width: 800, height: 500, fps: 12, frames: [[figure]], delays: [1], currentFrameIndex: 0, groups: [], settings: {} }));
+}
+const artworkOf = project => project.frames[0][0].stkArtwork;
+
+test('reopening a project drops unknown data hidden inside imported STK artwork', async () => {
+  const clean = await savedProjectWithStkFigure();
+  const hostile = await savedProjectWithStkFigure();
+  const junk = Array.from({ length: 1000 }, (_, index) => index);
+  const artwork = artworkOf(hostile);
+  artwork.junk = junk;
+  artwork.segments[0].junk = junk;
+  artwork.polygons[0].junk = junk;
+  artwork.parameters[0].junk = junk;
+  const reopened = normaliseProject(hostile).frames[0][0].stkArtwork;
+  assert.deepEqual(JSON.parse(JSON.stringify(reopened)), artworkOf(clean));
+  assert.ok(!JSON.stringify(reopened).includes('junk'));
+});
+
+test('reopening a project rejects junk inside known but previously unchecked STK fields', async () => {
+  const cases = [
+    ['segment source id', artwork => { artwork.segments[0].sourceId = Array.from({ length: 1000 }, () => 1); }],
+    ['segment parent source id', artwork => { artwork.segments[1].parentSourceId = { nested: true }; }],
+    ['segment record index', artwork => { artwork.segments[0].index = 'x'.repeat(200); }],
+    ['segment reserved bytes', artwork => { artwork.segments[0].reserved = [0, 0, 0]; }],
+    ['segment trailing bytes', artwork => { artwork.segments[0].trailing = -1; }],
+    ['polygon reserved byte', artwork => { artwork.polygons[0].reserved = 'x'; }],
+    ['warning count', artwork => { artwork.warnings = Array.from({ length: 33 }, () => 'warning'); }]
+  ];
+  for (const [label, corrupt] of cases) {
+    const project = await savedProjectWithStkFigure();
+    corrupt(artworkOf(project));
+    assert.throws(() => normaliseProject(project), /STK import rejected/, label);
+  }
 });

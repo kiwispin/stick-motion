@@ -344,10 +344,19 @@ Turn StickMotion into a dependable, accessible, classroom-ready animation editor
 - Every fix has a regression test that was seen to fail before the fix and pass after it.
 - 23 module tests (3 more skip without the off-machine `.stk` fixtures) and 69 browser tests pass, repeated to check for flakiness; real mouse drag-reordering and two-tab hand-over were exercised in Chromium.
 
+### Completed — STK importer hardening and parser consolidation
+
+- Real-world `.stk` figures now live in a local, git-ignored `stk/` folder (they are other people's work, so they stay out of the public repo). The fixture tests look there first, then in the original developer's Downloads, and every `.stk` in the folder is checked to decode, draw, and survive a project save and reopen. Together they cover every supported layout: Pivot 3, Pivot 4, and Pivot 5 a0, a8, a9 and 0x88.
+- Reopening a project keeps only the artwork fields the importer itself produces, so data hidden in a project file cannot be duplicated into every frame and Undo step; source-record fields are validated as small integers and the warning list is capped.
+- The three Pivot 5 parsers became one: a shared reader for the curve, polygon and draw-order tables, one reader for the sequential a8/a0/a9 segment records, and one for 0x88's source-id records (`src/stk-import.js` shrank by about 130 lines).
+
+### Verified
+
+- Every real figure's decoded data, built figure, all 3,857 drawing calls, bounds, clone and reopened copy were snapshotted before the change and are byte-identical after it.
+- A differential fuzz of 5,445 corrupted and cross-layout payloads gave identical results from the old and new parsers: the same decoded output, or the same error message.
+
 ### Deferred deliberately
 
-- **Consolidating the three Pivot 5 parsers** in `src/stk-import.js`: a refactor rather than a fix, and the real-world `.stk` fixtures needed to prove it safe exist on only one machine (`/Users/crayner/Downloads/...`). Commit those fixtures to `tests/fixtures/` first.
-- **Restricting imported STK artwork to known fields**: needs an exact field list from every parser path; a missed field would silently damage real imports. Same prerequisite as above.
 - **Faster autosave on very large projects**: `JSON.stringify` of the whole project runs on each save (≈20 ms for a typical project, ≈185 ms for 300 frames × 15 figures at 4× CPU slowdown). A per-frame serialisation cache would fix it but changes the save path, so it waits until large projects are common.
 
 ### Next

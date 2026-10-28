@@ -23,7 +23,8 @@ npm run test:unit
 npm run test:e2e
 ```
 
-- **Unit tests** (`tests/*.test.mjs`) cover project storage, GIF timing, ZIP export and the `.stk` importer. Three importer tests skip unless the real-world `.stk` fixture files are present; their paths are in `tests/stk-import.test.mjs`.
+- **Unit tests** (`tests/*.test.mjs`) cover project storage, GIF timing, ZIP export and the `.stk` importer.
+- **Real Pivot figures:** put `.stk` files in a `stk/` folder at the project root to test against them. Every `.stk` there is checked to decode, draw, and survive saving and reopening, and the sheep, basketball hoop and Spider-Man files have detailed checks of their own (which skip when the files are absent). The folder is git-ignored because the figures are other people's work.
 - **Browser tests** (`tests/e2e/`) drive the real editor in Chromium. Playwright starts the local server automatically.
 
 ## Deploy
