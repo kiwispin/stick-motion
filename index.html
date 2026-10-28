@@ -972,7 +972,7 @@
       <!-- Text editor — only shown for text figures -->
       <div id="panel-text-section" class="panel-section" style="display:none">
         <div class="panel-label">Text Content</div>
-        <textarea class="panel-textarea" id="text-figure-input" rows="3" onfocus="app.beginTextEdit()" onblur="app.endTextEdit()" oninput="app.updateText(this.value)"></textarea>
+        <textarea class="panel-textarea" id="text-figure-input" rows="3" onfocus="app.beginTextEdit()" onblur="app.endTextEdit()" oninput="app.updateText(this.value)" maxlength="1000"></textarea>
       </div>
 
       <!-- Clipboard -->
@@ -1151,7 +1151,7 @@
     <div class="modal-msg" id="confirm-msg">Are you sure?</div>
     <div class="modal-btns">
       <button class="modal-btn cancel" id="confirm-cancel" onclick="app.closeModal()">Cancel</button>
-      <button class="modal-btn confirm" onclick="app.executeConfirm()">Confirm</button>
+      <button class="modal-btn confirm" id="confirm-ok" onclick="app.executeConfirm()">Confirm</button>
     </div>
   </div>
 </div>
@@ -1348,11 +1348,11 @@
 
 <script type="module">
 import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './src/models.js';
-import { GIF_WARNING_FRAME_COUNT, MAX_BACKGROUND_DATA_LENGTH, MAX_FIGURES_PER_FRAME, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, SMOOTH_EXPORT_FPS, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
+import { GIF_WARNING_FRAME_COUNT, MAX_BACKGROUND_DATA_LENGTH, MAX_FIGURES_PER_FRAME, MAX_JOINT_LENGTH, MAX_JOINTS_PER_FIGURE, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, MAX_PROJECT_GROUPS, MAX_TEXT_LENGTH, SMOOTH_EXPORT_FPS, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
 import { History } from './src/history.js';
 import { renderDocument } from './src/renderer.js';
 import { createGifSchedules, createFrameSchedule, createStoredZip, pickWebmMimeType } from './src/export-utils.js';
-import { readLegacyProject, readStoredProject, removeLegacyProject, writeStoredProject } from './src/storage.js';
+import { readLegacyProject, readStoredProject, removeLegacyProject, writeStoredProject, writeUnreadableBackup } from './src/storage.js';
 import { distanceToSegment, getCanvasPosition, getWrapperPosition, isPointInSpeechBubble } from './src/canvas-interaction.js';
 import { isMeaningfulMarquee } from './src/marquee.js';
 import { beginMarquee, endMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, showMarqueeElement, updateCursor, updateMarqueeElement } from './src/drag-controller.js';
@@ -1382,7 +1382,7 @@ const builder={
     this.figure.joints=[new Joint('root',null,0,0)];this.selectedId='root';this.updateUI();this.render();
   },
   close(){this.isOpen=false;app.closeDialog('builder-modal');},
-  addSegment(type){if(!this.selectedId)return;const id=Math.random().toString(36).substr(2,9);const j=new Joint(id,this.selectedId,40,Math.PI/2,type,20,14,true);this.figure.joints.push(j);this.selectedId=id;this.updateUI();this.render();},
+  addSegment(type){if(!this.selectedId)return;if(this.figure.joints.length>=MAX_JOINTS_PER_FIGURE){app.showToast(`A figure can have up to ${MAX_JOINTS_PER_FIGURE} pivots.`,'error');return;}const id=Math.random().toString(36).substr(2,9);const j=new Joint(id,this.selectedId,40,Math.PI/2,type,20,14,true);this.figure.joints.push(j);this.selectedId=id;this.updateUI();this.render();},
   deleteSegment(){if(!this.selectedId||this.selectedId==='root')return;const rem=[this.selectedId];const gc=(pid)=>{this.figure.joints.filter(j=>j.parentId===pid).forEach(c=>{rem.push(c.id);gc(c.id);});};gc(this.selectedId);this.figure.joints=this.figure.joints.filter(j=>!rem.includes(j.id));this.selectedId=this.figure.joints[0].id;this.updateUI();this.render();},
   updateProp(prop,val){if(!this.selectedId||this.selectedId==='root')return;const j=this.figure.joints.find(j=>j.id===this.selectedId);if(j){if(prop==='thickness'){j.thickness=parseInt(val);document.getElementById('b-thick-val').innerText=j.thickness;}else if(prop==='length'){j.length=parseInt(val);document.getElementById('b-len-val').innerText=j.length;}else if(prop==='radius'){j.radius=parseInt(val);document.getElementById('b-rad-val').innerText=j.radius;}this.render();}},
   updateColor(hex){if(!this.selectedId||this.selectedId==='root')return;const j=this.figure.joints.find(j=>j.id===this.selectedId);if(j){j.color=hex;this.render();}},
@@ -1468,7 +1468,7 @@ const app={
     this.updateCanvasLayout();this.centerStage();
     if(this.frames.length===0)this.render();
     this.updateToggleControls();
-    if(restored)this.showToast('Recovered your last draft');else this.showWelcomeIfNeeded();
+    if(restored)this.showToast('Recovered your last draft');else if(this.unreadableDraft)this.showUnreadableDraftNotice();else this.showWelcomeIfNeeded();
   },
 
   buildColorSwatches(){
@@ -1552,7 +1552,10 @@ const app={
     joints.forEach(j=>{if(j.parentId!==null&&!byId.has(j.parentId))throw new Error('A joint has an unknown parent.');});
     joints.forEach(j=>{const visited=new Set();let current=j;while(current.parentId!==null){if(visited.has(current.id))throw new Error('Joint hierarchy contains a cycle.');visited.add(current.id);current=byId.get(current.parentId);}});
   },
+  // While playback or an export runs, this.figures holds a generated pose rather than the student's stage.
+  isStageTransient(){return this.isPlaying||!!this.asyncExport||!!this.gifExport;},
   commitActiveFrame(){
+    if(this.isStageTransient())return false;
     const snapshot=this.cloneFigures();
     if(this.frames.length===0){
       this.frames=[snapshot];this.frameDelays=[1.0];this.currentFrameIndex=0;
@@ -1629,6 +1632,7 @@ const app={
     this.applyCanvasSize(d.width,d.height);
     this.fps=d.fps;document.getElementById('fps-val').innerText=d.fps;
     this.frames=d.frames;this.frameDelays=d.delays;this.currentFrameIndex=d.index;this.groups=d.groups;
+    this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);
     this.isLooping=d.settings.isLooping!==undefined?!!d.settings.isLooping:true;
     this.isSmooth=d.settings.isSmooth!==undefined?!!d.settings.isSmooth:true;
     this.showOnion=d.settings.showOnion!==undefined?!!d.settings.showOnion:true;
@@ -1666,6 +1670,7 @@ const app={
     indicator.title=isError?'Work could not be saved in this browser. Download a project copy.':label==='Recovered draft'?'Recovered from this browser. Choose New to start fresh.':label==='Saving'?'Saving your latest changes in this browser':'Your work is saved in this browser';
   },
   saveLocal(){
+    if(this.autosavePaused){if(this.commitActiveFrame())this.updateTimeline();this.updateSaveStatus('Autosave paused',true);return Promise.resolve();}
     const revision=++this.localSaveRevision;
     this.updateSaveStatus('Saving');
     let payload;
@@ -1698,15 +1703,36 @@ const app={
     return this.localSaveQueue;
   },
   async loadFromLocal(){
+    let data=null;
     try{
-      let data=await readStoredProject();
+      data=await readStoredProject();
       if(!data){
         data=readLegacyProject();
         if(data){await writeStoredProject(data);removeLegacyProject();}
       }
       if(!data)return false;
       this.applyProjectData(JSON.parse(data));this.updateSaveStatus('Recovered draft');return true;
-    }catch(e){console.error(e);return false;}
+    }catch(e){
+      console.error(e);
+      if(data)await this.preserveUnreadableDraft(data);
+      return false;
+    }
+  },
+  // A stored draft that fails to reopen must survive the fresh project's first autosave.
+  async preserveUnreadableDraft(data){
+    this.unreadableDraft=data;
+    try{await writeUnreadableBackup(data);}
+    catch(e){console.error(e);this.autosavePaused=true;}
+  },
+  showUnreadableDraftNotice(){
+    const message=this.autosavePaused
+      ?'StickMotion started a new project, but could not keep a backup of your last one, so autosave is paused to protect it. Download the backup now, and download a project copy of any new work.'
+      :'StickMotion kept a backup copy and started a new project. Download the backup and give it to your teacher so your work can be recovered.';
+    this.showModal("Your last project couldn't be reopened",message,()=>this.downloadUnreadableDraft(),{confirm:'Download backup',cancel:'Not now'});
+  },
+  downloadUnreadableDraft(){
+    if(!this.unreadableDraft)return;
+    this.downloadBlob(new Blob([this.unreadableDraft],{type:'application/json'}),'stickmotion-unreadable-backup.json');
   },
   // ── Experimental Pivot STK import ────────────────────────────
   invalidateStkImport(close=true){
@@ -1806,7 +1832,7 @@ const app={
   saveState(){this.history.capture(this);},
   undo(){const snapshot=this.history.undo(this);if(snapshot)this.restoreState(snapshot);},
   redo(){const snapshot=this.history.redo(this);if(snapshot)this.restoreState(snapshot);},
-  restoreState(s){this.frames=s.frames.map(f=>f.map(x=>x.clone()));this.frameDelays=[...s.frameDelays];this.currentFrameIndex=s.currentFrameIndex;this.figures=s.figures.map(f=>f.clone());if(s.groups)this.groups=s.groups.map(g=>g.clone());const d=this.frameDelays[this.currentFrameIndex]||1.0;document.getElementById('frame-duration').value=d;document.getElementById('duration-display').innerText=d.toFixed(1)+'×';this.render();this.updateTimeline();this.updateGroupsPanel();this.saveLocal();},
+  restoreState(s){this.frames=s.frames.map(f=>f.map(x=>x.clone()));this.frameDelays=[...s.frameDelays];this.currentFrameIndex=s.currentFrameIndex;this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);this.figures=s.figures.map(f=>f.clone());if(s.groups)this.groups=s.groups.map(g=>g.clone());const d=this.frameDelays[this.currentFrameIndex]||1.0;document.getElementById('frame-duration').value=d;document.getElementById('duration-display').innerText=d.toFixed(1)+'×';this.render();this.updateTimeline();this.updateGroupsPanel();this.saveLocal();},
 
   // ── Modals ────────────────────────────────────────────────────
   getDialogFocusable(dialog){return Array.from(dialog.querySelectorAll('button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(el=>el.offsetParent!==null);},
@@ -1828,7 +1854,7 @@ const app={
     }
     return true;
   },
-  showModal(t,m,a){document.getElementById('confirm-title').innerText=t;document.getElementById('confirm-msg').innerText=m;this.pendingAction=a;this.openDialog('confirm-modal','#confirm-cancel');},
+  showModal(t,m,a,labels={}){document.getElementById('confirm-title').innerText=t;document.getElementById('confirm-msg').innerText=m;document.getElementById('confirm-ok').innerText=labels.confirm||'Confirm';document.getElementById('confirm-cancel').innerText=labels.cancel||'Cancel';this.pendingAction=a;this.openDialog('confirm-modal','#confirm-cancel');},
   closeModal(){this.closeDialog('confirm-modal');this.pendingAction=null;},
   executeConfirm(){if(this.pendingAction)this.pendingAction();this.closeModal();},
   shouldWarnForGif(){return this.frames.length>GIF_WARNING_FRAME_COUNT;},
@@ -1990,6 +2016,7 @@ const app={
   openLibrary(){this.openDialog('library-modal','.lib-item');},
   closeLibrary(){this.closeDialog('library-modal');},
   addFromLibrary(type){
+    if(!this.hasFigureCapacity())return;
     this.saveState();
     let fig;
     switch(type){
@@ -2311,9 +2338,10 @@ const app={
     f.joints=j;return f;
   },
   openBuilder(){builder.open();},
-  addCustomFigure(fig){this.saveState();this.figures.push(fig);this.selectFigure(fig);this.render();this.saveLocal();},
+  addCustomFigure(fig){if(!this.hasFigureCapacity())return;this.saveState();this.figures.push(fig);this.selectFigure(fig);this.render();this.saveLocal();},
 
   addText(){
+    if(!this.hasFigureCapacity())return;
     this.saveState();const fig=new Figure();fig.type='text';fig.text='Text';
     fig.x=this.docWidth/2;fig.y=this.docHeight/2;fig.scale=1.0;fig.color='#000000';
     fig.joints=[new Joint('root',null,0,0),new Joint('handle','root',20,0)];
@@ -2335,11 +2363,12 @@ const app={
     const fig=this.figures.find(f=>f.selected);
     if(fig&&(fig.type==='text'||fig.type==='speech')){
       if(!this.isEditingText)this.beginTextEdit();
-      fig.text=val;this.render();this.saveLocal();
+      fig.text=String(val).slice(0,MAX_TEXT_LENGTH);this.render();this.saveLocal();
     }
   },
 
   addFigure(){
+    if(!this.hasFigureCapacity())return;
     this.saveState();const fig=this.createStickman();
     if(this.figures.length>0){fig.x+=20;fig.y+=20;}
     this.figures.push(fig);this.selectFigure(fig);this.render();this.saveLocal();
@@ -2386,6 +2415,8 @@ const app={
 
   paste(){
     if(!this.clipboard.length) return;
+    if(this.isPlaying) this.stop(); // paste onto the real frame, not a playback pose
+    if(!this.hasFigureCapacity(this.clipboard.length)) return;
     this.saveState();
     // Clone clipboard again so you can paste multiple times
     const pasted = this.clipboard.map(f => {
@@ -2448,6 +2479,7 @@ const app={
   groupSelected(){
     const ids=this.selectedFigureIds.size>0?Array.from(this.selectedFigureIds):this.figures.filter(f=>f.selected).map(f=>f.id);
     if(ids.length<2){this.showToast('Select 2 or more figures to group (Ctrl/Cmd-click).','error');return;}
+    if(this.groups.length>=MAX_PROJECT_GROUPS){this.showToast(`This project already has the ${MAX_PROJECT_GROUPS}-group limit. Ungroup some figures first.`,'error');return;}
     this.saveState();
     const gid=Math.random().toString(36).substr(2,9);
     const group=new FigureGroup(gid,ids,'Group '+(this.groups.length+1));
@@ -2525,6 +2557,11 @@ const app={
   },
   beginFrameDurationEdit(){if(!this.isEditingFrameDuration){this.saveState();this.isEditingFrameDuration=true;}},
   endFrameDurationEdit(){this.isEditingFrameDuration=false;},
+  hasFigureCapacity(count=1){
+    if(this.figures.length+count<=MAX_FIGURES_PER_FRAME)return true;
+    this.showToast(count===1?`This frame already has the ${MAX_FIGURES_PER_FRAME.toLocaleString()}-figure limit.`:`Pasting ${count} figures would go past the ${MAX_FIGURES_PER_FRAME.toLocaleString()}-figure limit for a frame.`,'error');
+    return false;
+  },
   hasFrameCapacity(){
     if(this.frames.length<MAX_PROJECT_FRAMES)return true;
     this.showToast(`This project has reached the ${MAX_PROJECT_FRAMES.toLocaleString()}-frame limit. Save it and start a new project to continue.`,'error');
@@ -2547,9 +2584,11 @@ const app={
     this.frames.splice(idx+1,0,snap);this.frameDelays.splice(idx+1,0,d);
     this.currentFrameIndex=idx+1;this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);this.loadFrame(this.currentFrameIndex);this.updateTimeline();this.saveLocal();
   },
+  warnLastFrame(){this.showToast('A project needs at least one frame. To start over, choose New.','error');},
   deleteFrameAtIndex(idx){
-    if(this.frames.length===0)return;this.saveState();
-    if(this.frames.length===1){this.newProject();return;}
+    if(this.frames.length===0)return;
+    if(this.frames.length===1){this.warnLastFrame();return;}
+    this.saveState();
     this.frames.splice(idx,1);this.frameDelays.splice(idx,1);
     if(this.currentFrameIndex===idx){if(this.currentFrameIndex>=this.frames.length)this.currentFrameIndex=this.frames.length-1;}
     else if(this.currentFrameIndex>idx)this.currentFrameIndex--;
@@ -2557,12 +2596,14 @@ const app={
   },
   deleteFrame(){
     if(this.frames.length===0)return;
-    if(this.selectedFrames.size>0){
-      const sorted=Array.from(this.selectedFrames).sort((a,b)=>b-a);this.saveState();
-      sorted.forEach(i=>{this.frames.splice(i,1);this.frameDelays.splice(i,1);});
+    const doomed=Array.from(this.selectedFrames).filter(i=>Number.isInteger(i)&&i>=0&&i<this.frames.length);
+    if(doomed.length>0){
+      if(doomed.length>=this.frames.length){this.warnLastFrame();return;}
+      this.saveState();
+      const removedBefore=doomed.filter(i=>i<this.currentFrameIndex).length;
+      doomed.sort((a,b)=>b-a).forEach(i=>{this.frames.splice(i,1);this.frameDelays.splice(i,1);});
       this.selectedFrames.clear();
-      if(this.frames.length===0){this.newProject();return;}
-      if(this.currentFrameIndex>=this.frames.length)this.currentFrameIndex=Math.max(0,this.frames.length-1);
+      this.currentFrameIndex=Math.min(this.frames.length-1,Math.max(0,this.currentFrameIndex-removedBefore));
       this.loadFrame(this.currentFrameIndex,false);this.updateTimeline();this.saveLocal();
     }else this.deleteFrameAtIndex(this.currentFrameIndex);
   },
@@ -2571,7 +2612,7 @@ const app={
     if(event&&event.shiftKey){const s=Math.min(this.currentFrameIndex,idx),e=Math.max(this.currentFrameIndex,idx);this.selectedFrames.clear();for(let i=s;i<=e;i++)this.selectedFrames.add(i);}
     else if(event&&(event.ctrlKey||event.metaKey)){if(this.selectedFrames.has(idx))this.selectedFrames.delete(idx);else this.selectedFrames.add(idx);this.selectedFrames.add(this.currentFrameIndex);}
     else{if(event||!this.selectedFrames.has(idx)){this.selectedFrames.clear();this.selectedFrames.add(idx);}}
-    if(autoSave&&this.frames[this.currentFrameIndex])this.frames[this.currentFrameIndex]=this.figures.map(f=>f.clone());
+    if(autoSave&&!this.isStageTransient()&&this.frames[this.currentFrameIndex])this.frames[this.currentFrameIndex]=this.figures.map(f=>f.clone());
     this.currentFrameIndex=idx;this.figures=this.frames[idx].map(f=>f.clone());
     const d=this.frameDelays[idx]||1.0;
     document.getElementById('frame-duration').value=d;
@@ -2881,7 +2922,7 @@ const app={
     if(handle){const dx=handle.x-fig.x,dy=handle.y-fig.y;angle=Math.atan2(dy,dx);scale=Math.max(0.1,Math.hypot(dx,dy)/40);}
     const dx=pos.x-fig.x,dy=pos.y-fig.y,cos=Math.cos(angle),sin=Math.sin(angle);
     const lx=(cos*dx+sin*dy)/scale,ly=(-sin*dx+cos*dy)/scale;
-    joint.angle=Math.atan2(ly,lx);joint.length=Math.hypot(lx,ly);
+    joint.angle=Math.atan2(ly,lx);joint.length=Math.min(MAX_JOINT_LENGTH,Math.hypot(lx,ly));
   },
 
   // ── Interaction ───────────────────────────────────────────────
@@ -2977,7 +3018,7 @@ const app={
 
   flipFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=normaliseAngle(Math.PI-j.angle);});if(f.stkArtwork){f.stkArtwork.segments.forEach(segment=>{segment.bend=-(Number(segment.bend)||0);});f.stkArtwork.parameters?.forEach(parameter=>{const segment=f.stkArtwork.segments[parameter.index];if(segment)parameter.value=segment.bend;});}this.render();this.saveLocal();},
   centerFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.x=this.docWidth/2;f.y=this.docHeight/2;this.render();this.saveLocal();},
-  scaleFigure(s){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.scale*=s;this.render();this.saveLocal();},
+  scaleFigure(s){const f=this.figures.find(f=>f.selected);if(!f)return;const next=Math.min(100,Math.max(0.05,f.scale*s));if(next===f.scale)return;this.saveState();f.scale=next;this.render();this.saveLocal();}, // 0.05–100 matches the project loader
   rotateSelectedFigure(d){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=normaliseAngle(j.angle+d);});this.render();this.saveLocal();},
   setFigureColor(hex){
     const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.color=hex;
@@ -3168,7 +3209,13 @@ const app={
       thumb.draggable=true;
       thumb.ondragstart=e=>{this._dragFromIdx=idx;e.dataTransfer.effectAllowed='move';};
       thumb.ondragover=e=>{e.preventDefault();e.dataTransfer.dropEffect='move';};
-      thumb.ondrop=e=>{e.preventDefault();this._dropFrame(this._dragFromIdx,idx);};
+      thumb.ondragend=()=>{this._dragFromIdx=null;};
+      thumb.ondrop=e=>{
+        e.preventDefault();
+        // Only reorder for a thumbnail drag in progress; ignore files and other outside drops.
+        const from=this._dragFromIdx;this._dragFromIdx=null;
+        if(Number.isInteger(from)&&from>=0&&from<this.frames.length)this._dropFrame(from,idx);
+      };
 
       // Delay badge
       if(delay>1){const db=document.createElement('div');db.className='frame-delay show';db.innerText=delay.toFixed(1)+'×';thumb.appendChild(db);}

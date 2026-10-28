@@ -2,6 +2,7 @@ const DATABASE_NAME = 'stickmotion';
 const DATABASE_VERSION = 1;
 const STORE_NAME = 'projects';
 const CURRENT_PROJECT_KEY = 'current';
+const UNREADABLE_BACKUP_KEY = 'unreadable-backup';
 const LEGACY_PROJECT_KEY = 'stickmotion_data';
 
 let databasePromise = null;
@@ -65,6 +66,11 @@ export function readStoredProject() {
 
 export function writeStoredProject(payload) {
   return runRequest('readwrite', store => store.put(payload, CURRENT_PROJECT_KEY));
+}
+
+// Keeps a draft that failed to reopen, so the next autosave cannot destroy it.
+export function writeUnreadableBackup(payload) {
+  return runRequest('readwrite', store => store.put(payload, UNREADABLE_BACKUP_KEY));
 }
 
 export function readLegacyProject() {

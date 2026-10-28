@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
+import path from 'node:path';
 
 async function openEditor(page) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -41,6 +42,71 @@ test('names and recovers the latest local project after reload', async ({ page }
   await expect(page.locator('#project-name')).toHaveValue('Rocket rehearsal');
   await expect(page.locator('#storage-status')).toHaveText('Recovered draft');
   await expect(page.locator('#storage-indicator')).toHaveAttribute('title', /Choose New to start fresh/);
+});
+
+async function seedUnreadableDraft(page) {
+  return page.evaluate(async () => {
+    app.newProject(); app.setProjectName('Keep me'); app.saveLocal(); await app.localSaveQueue;
+    const project = JSON.parse(JSON.stringify(app.serializeProject()));
+    project.frames[0][0].scale = 0.001; // outside the range the loader accepts
+    const payload = JSON.stringify(project);
+    await window.reviewStore('put', 'current', payload);
+    return payload;
+  });
+}
+
+async function installStoreHelper(page) {
+  await page.addInitScript(() => {
+    window.reviewStore = (op, key, value) => new Promise((resolve, reject) => {
+      const open = indexedDB.open('stickmotion', 1);
+      open.onupgradeneeded = () => open.result.createObjectStore('projects');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const tx = open.result.transaction('projects', op === 'get' ? 'readonly' : 'readwrite');
+        const request = op === 'get' ? tx.objectStore('projects').get(key) : tx.objectStore('projects').put(value, key);
+        tx.oncomplete = () => { open.result.close(); resolve(request.result); };
+        tx.onerror = () => reject(tx.error);
+      };
+    });
+  });
+}
+
+test('an autosave that cannot be reopened is kept as a backup instead of being overwritten', async ({ page }) => {
+  await installStoreHelper(page);
+  await openEditor(page);
+  const original = await seedUnreadableDraft(page);
+
+  await openEditor(page);
+  await expect(page.locator('#confirm-modal')).toBeVisible();
+  await expect(page.locator('#confirm-title')).toHaveText("Your last project couldn't be reopened");
+  await expect.poll(() => page.evaluate(() => window.reviewStore('get', 'unreadable-backup'))).toBe(original);
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download backup' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe('stickmotion-unreadable-backup.json');
+  const saved = await stat(await download.path());
+  expect(saved.size).toBe(Buffer.byteLength(original));
+});
+
+test('autosave pauses rather than overwrite an unreadable draft it could not back up', async ({ page }) => {
+  // Read from disk rather than route.fetch(), so the test does not depend on the local server under load.
+  const storagePath = path.join(path.dirname(test.info().config.configFile), 'src', 'storage.js');
+  await page.route('**/src/storage.js', async route => {
+    let source = await readFile(storagePath, 'utf8');
+    source = source.replace('export function writeUnreadableBackup(', 'function originalWriteUnreadableBackup(');
+    source += '\nexport function writeUnreadableBackup() { return Promise.reject(new Error("Reviewer simulated backup failure")); }\n';
+    await route.fulfill({ status: 200, contentType: 'text/javascript', body: source });
+  });
+  await installStoreHelper(page);
+  await openEditor(page);
+  const original = await seedUnreadableDraft(page);
+
+  await openEditor(page);
+  await expect(page.locator('#confirm-modal')).toBeVisible();
+  await expect(page.locator('#storage-status')).toHaveText('Autosave paused');
+  await page.evaluate(async () => { app.figures[0].x += 50; app.saveLocal(); await app.localSaveQueue; });
+  expect(await page.evaluate(() => window.reviewStore('get', 'current'))).toBe(original);
 });
 
 test('reports Saving until the latest queued autosave settles', async ({ page }) => {
@@ -800,6 +866,62 @@ test('GIF and WebM exports use FPS and frame duration timing', async ({ page }) 
   expect(result.videoSmooth.actions).toEqual(['requestData', 'stop']);
 });
 
+async function setUpTwoPosePlayback(page) {
+  return page.evaluate(async () => {
+    app.newProject(); app.isSmooth = true; app.isLooping = true; app.updateFps(2);
+    app.figures[0].x = 100; app.saveLocal();
+    app.addFrame(); app.figures[0].x = 500; app.saveLocal();
+    app.loadFrame(0); await app.localSaveQueue;
+    return app.frames.map(frame => frame[0].x);
+  });
+}
+const storedPoses = page => page.evaluate(async () => { await app.localSaveQueue; return app.frames.map(frame => frame[0].x); });
+
+test('stopping playback with the mouse never stores an in-between pose', async ({ page }) => {
+  await openEditor(page);
+  expect(await setUpTwoPosePlayback(page)).toEqual([100, 500]);
+  await page.click('#btn-play');
+  await page.waitForTimeout(250); // FPS 2: halfway between the two poses
+  await page.click('#btn-stop');
+  expect(await storedPoses(page)).toEqual([100, 500]);
+  expect(await page.evaluate(() => app.figures[0].x)).toBe(100);
+});
+
+test('choosing a frame or pasting during playback never stores an in-between pose', async ({ page }) => {
+  await openEditor(page);
+  expect(await setUpTwoPosePlayback(page)).toEqual([100, 500]);
+  await page.click('#btn-play');
+  await page.waitForTimeout(250);
+  await page.locator('.frame-thumb[data-frame-index="1"]').click();
+  await page.evaluate(() => app.stop());
+  expect(await storedPoses(page)).toEqual([100, 500]);
+
+  await page.evaluate(() => { app.loadFrame(0); app.selectFigure(app.figures[1] || app.figures[0]); app.copySelected(); });
+  await page.click('#btn-play');
+  await page.waitForTimeout(250);
+  await page.keyboard.press('Control+v');
+  const result = await page.evaluate(async () => { await app.localSaveQueue; return { playing: app.isPlaying, firstFigureX: app.frames.map(frame => frame[0].x) }; });
+  expect(result).toEqual({ playing: false, firstFigureX: [100, 500] });
+});
+
+test('autosave never stores a pose that a running export is rendering', async ({ page }) => {
+  await openEditor(page);
+  const stored = await page.evaluate(async () => {
+    app.newProject(); app.figures[0].x = 100; app.saveLocal(); await app.localSaveQueue;
+    const stage = app.figures;
+    const results = {};
+    for (const flag of ['asyncExport', 'gifExport']) {
+      app[flag] = { cancelled: false };
+      app.figures = stage.map(figure => { const copy = figure.clone(); copy.x = 999; return copy; });
+      app.saveLocal(); await app.localSaveQueue;
+      results[flag] = app.frames[0][0].x;
+      app[flag] = null; app.figures = stage;
+    }
+    return results;
+  });
+  expect(stored).toEqual({ asyncExport: 100, gifExport: 100 });
+});
+
 test('onion skin only draws an actual previous frame', async ({ page }) => {
   await openEditor(page);
   const result = await page.evaluate(() => {
@@ -852,6 +974,127 @@ test('frame creation is undoable through the student keyboard shortcut', async (
   await expect.poll(() => page.evaluate(() => app.frames.length)).toBe(2);
   await page.keyboard.press('Control+z');
   await expect.poll(() => page.evaluate(() => app.frames.length)).toBe(1);
+});
+
+test('dropping something other than a frame onto the timeline changes nothing', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await openEditor(page);
+  const result = await page.evaluate(() => {
+    app.newProject();
+    for (const x of [100, 200, 300]) { if (x > 100) app.addFrame(); app.figures[0].x = x; app.saveLocal(); }
+    const thumb = index => document.querySelector(`.frame-thumb[data-frame-index="${index}"]`);
+    const drag = (type, index) => thumb(index).dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: new DataTransfer() }));
+    drag('drop', 1); // e.g. an image dragged in from the desktop
+    const afterForeignDrop = app.frames.map(frame => frame?.[0]?.x);
+    drag('dragstart', 0); drag('drop', 2); // a real reorder
+    const afterReorder = app.frames.map(frame => frame?.[0]?.x);
+    drag('drop', 1); // a later foreign drop must not reuse the old drag
+    return { afterForeignDrop, afterReorder, afterSecondForeignDrop: app.frames.map(frame => frame?.[0]?.x) };
+  });
+  expect(result).toEqual({ afterForeignDrop: [100, 200, 300], afterReorder: [200, 300, 100], afterSecondForeignDrop: [200, 300, 100] });
+  expect(errors).toEqual([]);
+});
+
+test('frame selection follows Undo and project opening, so Delete removes the frame on screen', async ({ page }) => {
+  await openEditor(page);
+  const result = await page.evaluate(() => {
+    const threeFrames = () => { app.newProject(); for (const x of [100, 200, 300]) { if (x > 100) app.addFrame(); app.figures[0].x = x; app.saveLocal(); } };
+    threeFrames();
+    app.loadFrame(1); app.duplicateCurrentFrame(); app.undo();
+    const viewingAfterUndo = app.figures[0].x;
+    app.deleteFrame();
+    const afterUndo = app.frames.map(frame => frame[0].x);
+
+    threeFrames(); app.loadFrame(0);
+    const project = JSON.parse(JSON.stringify(app.serializeProject()));
+    app.selectedFrames = new Set([1, 2]);
+    app.applyProjectData(project);
+    app.deleteFrame();
+    return { viewingAfterUndo, afterUndo, afterOpen: app.frames.map(frame => frame[0].x) };
+  });
+  expect(result).toEqual({ viewingAfterUndo: 200, afterUndo: [100, 300], afterOpen: [200, 300] });
+});
+
+test('deleting every frame is refused instead of wiping the project', async ({ page }) => {
+  await openEditor(page);
+  const result = await page.evaluate(() => {
+    app.newProject(); app.setProjectName('My scene'); app.addFigure(); app.addFigure(); app.saveLocal();
+    app.deleteFrameAtIndex(0);
+    const afterSingle = { frames: app.frames.length, figures: app.figures.length, name: app.projectName };
+    app.figures[0].x = 100; app.saveLocal(); app.addFrame(); app.figures[0].x = 200; app.saveLocal();
+    app.selectedFrames = new Set([0, 1]);
+    app.deleteFrame();
+    return { afterSingle, afterAll: { frames: app.frames.length, firstFigureX: app.frames.map(frame => frame[0].x), name: app.projectName } };
+  });
+  expect(result).toEqual({
+    afterSingle: { frames: 1, figures: 3, name: 'My scene' },
+    afterAll: { frames: 2, firstFigureX: [100, 200], name: 'My scene' }
+  });
+  await expect(page.locator('#sm-toast')).toContainText('at least one frame');
+});
+
+test('deleting selected frames keeps showing the frame the student was on', async ({ page }) => {
+  await openEditor(page);
+  const result = await page.evaluate(() => {
+    app.newProject();
+    for (const x of [100, 200, 300, 400, 500]) { if (x > 100) app.addFrame(); app.figures[0].x = x; app.saveLocal(); }
+    app.loadFrame(2);
+    app.selectedFrames = new Set([0]); // frame 1 selected for deletion while viewing frame 3
+    app.deleteFrame();
+    return { remaining: app.frames.map(frame => frame[0].x), viewing: app.figures[0].x, index: app.currentFrameIndex };
+  });
+  expect(result).toEqual({ remaining: [200, 300, 400, 500], viewing: 300, index: 1 });
+});
+
+test('editor controls stay within the limits a saved project can be reopened with', async ({ page }) => {
+  await openEditor(page);
+  await expect(page.locator('#text-figure-input')).toHaveAttribute('maxlength', '1000');
+  const result = await page.evaluate(async () => {
+    app.newProject(); app.setProjectName('Within limits'); app.selectFigure(app.figures[0]);
+    for (let i = 0; i < 60; i++) app.scaleFigure(0.9);
+    const minScale = app.figures[0].scale;
+    for (let i = 0; i < 120; i++) app.scaleFigure(1.1);
+    const maxScale = app.figures[0].scale;
+    app.figures[0].scale = 1;
+
+    app.addFromLibrary('speech');
+    const speech = app.figures.find(figure => figure.type === 'speech');
+    app.updateText('x'.repeat(1500));
+    speech.updatePositions();
+    app.updateFreeJointFromPos(speech, speech.joints.find(joint => joint.id === 'tail'), { x: speech.x + 500000, y: speech.y });
+    const tailLength = speech.joints.find(joint => joint.id === 'tail').length;
+
+    app.selectedFigureIds = new Set(app.figures.slice(0, 2).map(figure => figure.id));
+    for (let i = 0; i < 260; i++) { app.selectedFigureIds = new Set(app.figures.slice(0, 2).map(figure => figure.id)); app.groupSelected(); }
+    const groups = app.groups.length;
+
+    while (app.figures.length < 260) { const before = app.figures.length; app.addFigure(); if (app.figures.length === before) break; }
+    const afterAdd = app.figures.length;
+    for (const add of [() => app.addText(), () => app.addFromLibrary('ball'), () => app.addCustomFigure(app.createStickman())]) add();
+    const afterOtherAdds = app.figures.length;
+    app.selectedFigureIds = new Set(app.figures.slice(0, 3).map(figure => figure.id)); app.copySelected(); app.paste();
+    const afterPaste = app.figures.length;
+
+    builder.open();
+    for (let i = 0; i < 120; i++) builder.addSegment('line');
+    const builderJoints = builder.figure.joints.length;
+    builder.close();
+
+    app.saveLocal(); await app.localSaveQueue;
+    return { minScale, maxScale, textLength: speech.text.length, tailLength, groups, afterAdd, afterOtherAdds, afterPaste, builderJoints };
+  });
+  expect(result.minScale).toBeGreaterThanOrEqual(0.05);
+  expect(result.maxScale).toBeLessThanOrEqual(100);
+  expect(result.textLength).toBe(1000);
+  expect(result.tailLength).toBeLessThanOrEqual(10000);
+  expect(result.groups).toBeLessThanOrEqual(250);
+  expect([result.afterAdd, result.afterOtherAdds, result.afterPaste]).toEqual([250, 250, 250]);
+  expect(result.builderJoints).toBe(100);
+
+  await openEditor(page);
+  await expect(page.locator('#project-name')).toHaveValue('Within limits');
+  expect(await page.evaluate(() => app.figures.length)).toBe(250);
 });
 
 test('editor never creates a project larger than its importer supports', async ({ page }) => {

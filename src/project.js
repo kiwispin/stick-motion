@@ -10,6 +10,7 @@ export const MAX_JOINTS_PER_FIGURE = 100;
 export { MAX_IMPORTED_JOINTS_PER_FIGURE };
 export const MAX_PROJECT_GROUPS = 250;
 export const MAX_TEXT_LENGTH = 1000;
+export const MAX_JOINT_LENGTH = 10000;
 export const MAX_BACKGROUND_DATA_LENGTH = 8 * 1024 * 1024;
 
 export function cloneFigures(figures) {
@@ -109,7 +110,7 @@ export function rehydrateFigures(data) {
       const parentId = jointData.parentId === null || jointData.parentId === undefined ? null : safeId(jointData.parentId, 'parent');
       const type = jointData.type === undefined ? SEGMENT_LINE : jointData.type;
       if (type !== SEGMENT_LINE && type !== SEGMENT_CIRCLE) throw new Error('Invalid joint type.');
-      return new Joint(id, parentId, safeNumber(jointData.length, 0, 0, 10000, 'joint length'), normaliseAngle(jointData.angle), type, safeNumber(jointData.radius, 20, 0, 5000, 'joint radius'), safeNumber(jointData.thickness, 14, 1, 500, 'joint thickness'), jointData.filled !== false, safeColor(jointData.color, null, 'joint color'), jointData.handleVisible !== false);
+      return new Joint(id, parentId, safeNumber(jointData.length, 0, 0, MAX_JOINT_LENGTH, 'joint length'), normaliseAngle(jointData.angle), type, safeNumber(jointData.radius, 20, 0, 5000, 'joint radius'), safeNumber(jointData.thickness, 14, 1, 500, 'joint thickness'), jointData.filled !== false, safeColor(jointData.color, null, 'joint color'), jointData.handleVisible !== false);
     });
     validateJointTree(figure.joints);
     figure.stkArtwork = hasStkArtwork ? cloneStkArtwork(figureData.stkArtwork) : null;
