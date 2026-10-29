@@ -1048,6 +1048,26 @@ test('onion skin only draws an actual previous frame', async ({ page }) => {
   expect(result).toEqual({ firstFrameGhosts: 0, laterFrameGhosts: 1 });
 });
 
+test('grouping leaves earlier Undo snapshots untouched, so Undo restores the previous groups', async ({ page }) => {
+  await openEditor(page);
+  const result = await page.evaluate(() => {
+    app.newProject(); app.addFigure(); app.saveLocal();
+    app.addFrame(); app.saveLocal();
+    const storedGroups = () => app.frames.map(frame => frame.map(figure => figure.groupId));
+    const before = storedGroups();
+    app.selectedFigureIds = new Set(app.figures.map(figure => figure.id)); app.groupSelected();
+    const grouped = storedGroups();
+    app.undo();
+    const undone = storedGroups();
+    app.redo();
+    return { before, grouped, undone, redone: storedGroups() };
+  });
+  expect(result.before).toEqual([[null, null], [null, null]]);
+  expect(result.grouped.flat().every(Boolean)).toBe(true);
+  expect(result.undone).toEqual(result.before);
+  expect(result.redone).toEqual(result.grouped);
+});
+
 test('regrouping figures leaves no empty or stale groups behind', async ({ page }) => {
   await openEditor(page);
   const result = await page.evaluate(() => {

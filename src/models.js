@@ -1,12 +1,6 @@
 export const SEGMENT_LINE = 'line';
 export const SEGMENT_CIRCLE = 'circle';
 
-function cloneValue(value) {
-  if (Array.isArray(value)) return value.map(cloneValue);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cloneValue(item)]));
-  return value;
-}
-
 export class Joint {
   constructor(id, parentId, length, angle, type = SEGMENT_LINE, radius = 20, thickness = 14, filled = true, color = null, handleVisible = true) {
     this.id = id;
@@ -59,7 +53,8 @@ export class Figure {
     figure.type = this.type;
     figure.text = this.text;
     figure.groupId = this.groupId;
-    figure.stkArtwork = cloneValue(this.stkArtwork);
+    // Imported artwork is frozen and never changes, so clones share it rather than copying thousands of parts.
+    figure.stkArtwork = this.stkArtwork;
     figure.joints = this.joints.map(joint => joint.clone());
     return figure;
   }
@@ -85,11 +80,16 @@ export class Figure {
         }
       }
     };
-    const process = joint => {
+    // Walk parents before children with an explicit stack: imported figures can nest thousands of joints deep,
+    // which would overflow the call stack if this recursed.  The order matches a depth-first recursion.
+    const stack = [...(childrenByParent.get(null) || [])].reverse();
+    let visits = 0;
+    while (stack.length && visits++ <= this.joints.length) {
+      const joint = stack.pop();
       calculate(joint);
-      (childrenByParent.get(joint.id) || []).forEach(process);
-    };
-    (childrenByParent.get(null) || []).forEach(process);
+      const children = childrenByParent.get(joint.id);
+      if (children) for (let index = children.length - 1; index >= 0; index -= 1) stack.push(children[index]);
+    }
   }
 }
 

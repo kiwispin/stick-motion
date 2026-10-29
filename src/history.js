@@ -1,8 +1,10 @@
 import { cloneFigures } from './project.js';
 
+// Stored frames are never edited in place (an edit replaces the frame array), so a snapshot can share them;
+// only the stage, which is edited directly, is copied.  This keeps Undo cheap for long or detailed animations.
 export function createSnapshot(state) {
   return {
-    frames: state.frames.map(frame => cloneFigures(frame)),
+    frames: [...state.frames],
     frameDelays: [...state.frameDelays],
     currentFrameIndex: state.currentFrameIndex,
     figures: cloneFigures(state.figures),

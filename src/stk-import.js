@@ -14,10 +14,13 @@ export const STK_WRAPPER_V4 = 0x79;
 export const STK_WRAPPER_V5 = 0x7a;
 export const STK_MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const STK_MAX_PAYLOAD_BYTES = 16 * 1024 * 1024;
-// Figures above about 1,000 parts slow posing and make each saved frame large (about 400 KB per 1,000 parts),
-// so the cap keeps every project a student saves within the 25 MB the editor can reopen.
-export const STK_MAX_SEGMENTS = 1024;
-const STK_DETAILED_SEGMENTS = 512;
+// Projects store each imported artwork once and only a [length, angle] pose per joint per frame, so even the
+// largest library figures (about 9,000 parts) save roughly 400 KB per frame.
+export const STK_MAX_SEGMENTS = 10000;
+const STK_DETAILED_SEGMENTS = 2048;
+// Artwork that has been validated, copied and frozen (see settleStkArtwork); it can never change again.
+const settledArtwork = new WeakSet();
+const jointTemplates = new WeakMap();
 export const STK_MAX_POLYGONS = 512;
 export const STK_MAX_POLYGON_VERTICES = 16384;
 export const STK_MAX_DRAW_ITEMS = STK_MAX_SEGMENTS + STK_MAX_POLYGONS;
@@ -483,6 +486,7 @@ function parseV5(payload) {
 }
 
 export function validateStkArtwork(value) {
+  if (settledArtwork.has(value)) return true;
   if (!value || typeof value !== 'object' || Array.isArray(value) || value.format !== 'pivot-stk' || value.schemaVersion !== 1) fail('the imported artwork metadata is malformed.');
   if (value.wrapper !== STK_WRAPPER_V2 && value.wrapper !== STK_WRAPPER_V3 && value.wrapper !== STK_WRAPPER_V4 && value.wrapper !== STK_WRAPPER_V5) fail('the imported artwork wrapper is unsupported.');
   if (!Number.isInteger(value.sourceBytes) || value.sourceBytes < 0 || value.sourceBytes > STK_MAX_FILE_BYTES || !Number.isInteger(value.payloadBytes) || value.payloadBytes < 1 || value.payloadBytes > STK_MAX_PAYLOAD_BYTES) fail('the imported source-size metadata is invalid.');
@@ -589,6 +593,47 @@ export function cloneStkArtwork(value) {
   return artwork;
 }
 
+// Imported artwork never changes after import, so one validated, frozen copy is shared by every frame, Undo
+// step and playback pose of a figure.  Freezing makes an accidental edit throw instead of silently changing
+// every frame, and lets validation be skipped for artwork already checked.
+export function settleStkArtwork(value) {
+  if (settledArtwork.has(value)) return value;
+  validateStkArtwork(value);
+  const artwork = deepFreeze(cloneStkArtwork(value));
+  settledArtwork.add(artwork);
+  return artwork;
+}
+
+function deepFreeze(value) {
+  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    Object.values(value).forEach(deepFreeze);
+  }
+  return value;
+}
+
+// The fixed part of an imported figure's joints: the root plus one joint per segment, with the segment's
+// thickness, colour and pose-handle visibility.  Posing changes only each joint's length and angle.
+export function stkJointTemplate(artwork) {
+  if (jointTemplates.has(artwork)) return jointTemplates.get(artwork);
+  const template = [{ id: 'stk-root', parentId: null, thickness: 1, color: null, handleVisible: true }];
+  for (const segment of artwork.segments) {
+    template.push({
+      id: `stk-${segment.id}`,
+      parentId: segment.parent === 0 ? 'stk-root' : `stk-${segment.parent}`,
+      thickness: Math.max(1, segment.width || 1),
+      color: segment.color ? `#${segment.color.map(channel => channel.toString(16).padStart(2, '0')).join('')}` : null,
+      handleVisible: segment.controlVisible === undefined ? segment.flag === 0 : segment.controlVisible
+    });
+  }
+  if (settledArtwork.has(artwork)) jointTemplates.set(artwork, template);
+  return template;
+}
+
+export function stkJoint(template, length, angle) {
+  return new Joint(template.id, template.parentId, length, angle, SEGMENT_LINE, 20, template.thickness, true, template.color, template.handleVisible);
+}
+
 export function orderedStkDrawItems(artwork) {
   validateStkArtwork(artwork);
   const itemCount = artwork.drawRanks.length;
@@ -598,7 +643,7 @@ export function orderedStkDrawItems(artwork) {
 export function decodeStkBytes(payload, wrapper, sourceBytes = 0) {
   const parsed = wrapper === STK_WRAPPER_V2 || wrapper === STK_WRAPPER_V3 ? parseV2V3(payload, wrapper) : wrapper === STK_WRAPPER_V4 ? parseV4(payload) : wrapper === STK_WRAPPER_V5 ? parseV5(payload) : fail(`unsupported STK wrapper 0x${wrapper?.toString(16) || '00'}`);
   parsed.sourceBytes = sourceBytes;
-  if (parsed.segments.length > STK_DETAILED_SEGMENTS) parsed.warnings.push(`This figure has ${parsed.segments.length.toLocaleString()} parts, so each frame that uses it saves a lot of data. Keep animations with it short.`);
+  if (parsed.segments.length > STK_DETAILED_SEGMENTS) parsed.warnings.push(`This figure has ${parsed.segments.length.toLocaleString()} parts, so posing and playing it are slower on older computers.`);
   validateStkArtwork(parsed);
   return parsed;
 }
@@ -645,14 +690,15 @@ export function pointOnStkSegment(segment, start, t, chordLength = null, chordAn
 }
 
 export function createFigureFromStk(decoded, { x = 400, y = 300, id = null } = {}) {
-  validateStkArtwork(decoded);
+  const artwork = settleStkArtwork(decoded);
+  const template = stkJointTemplate(artwork);
   const figure = new Figure();
   figure.id = id || `stk-${Math.random().toString(36).slice(2, 11)}`;
   figure.x = x; figure.y = y; figure.scale = 1; figure.color = '#000000';
-  figure.stkArtwork = cloneStkArtwork(decoded);
+  figure.stkArtwork = artwork;
   const sourcePoints = [{ x: 0, y: 0 }];
-  figure.joints = [new Joint('stk-root', null, 0, 0, SEGMENT_LINE, 20, 1, true, null, true)];
-  for (const segment of decoded.segments) {
+  figure.joints = [stkJoint(template[0], 0, 0)];
+  artwork.segments.forEach((segment, index) => {
     const start = sourcePoints[segment.parent];
     const end = endpointFor(segment, start);
     sourcePoints.push(end);
@@ -660,12 +706,8 @@ export function createFigureFromStk(decoded, { x = 400, y = 300, id = null } = {
     const chordDy = end.y - start.y;
     const chordLength = Math.hypot(chordDx, chordDy);
     const chordAngle = chordLength > EPSILON ? Math.atan2(chordDy, chordDx) : segment.angle;
-    const parentId = segment.parent === 0 ? 'stk-root' : `stk-${segment.parent}`;
-    const thickness = Math.max(1, segment.width || 1);
-    const color = segment.color ? `#${segment.color.map(channel => channel.toString(16).padStart(2, '0')).join('')}` : null;
-    const handleVisible = segment.controlVisible === undefined ? segment.flag === 0 : segment.controlVisible;
-    figure.joints.push(new Joint(`stk-${segment.id}`, parentId, chordLength, chordAngle, SEGMENT_LINE, 20, thickness, true, color, handleVisible));
-  }
+    figure.joints.push(stkJoint(template[index + 1], chordLength, chordAngle));
+  });
   return figure;
 }
 

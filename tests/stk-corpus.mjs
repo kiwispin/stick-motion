@@ -3,7 +3,7 @@
 //
 //   node tests/stk-corpus.mjs                    coverage report, plus changes since the baseline
 //   node tests/stk-corpus.mjs --save-baseline    record the current results as the baseline
-//   node tests/stk-corpus.mjs --list=changed     also list every changed figure (or newly|regressed|rejected)
+//   node tests/stk-corpus.mjs --list=changed     also list every changed figure (or redrawn|newly|regressed|rejected)
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
@@ -97,7 +97,9 @@ if (args.has('--save-baseline')) {
     else if (wasOk && isOk && (before.decoded !== now.decoded || before.drawing !== now.drawing)) groups.changed.push(id);
     else if (!isOk && before.error !== now.error) groups.rejected.push(id);
   }
-  console.log(`Since baseline: ${groups.newly.length} newly importing, ${groups.regressed.length} REGRESSED, ${groups.changed.length} imported figures changed output, ${groups.rejected.length} rejections changed reason`);
+  const redrawn = groups.changed.filter(id => baseline[id].drawing !== results[id].drawing);
+  console.log(`Since baseline: ${groups.newly.length} newly importing, ${groups.regressed.length} REGRESSED, ${groups.changed.length} imported figures changed output (${redrawn.length} of them draw differently), ${groups.rejected.length} rejections changed reason`);
+  groups.redrawn = redrawn;
   if (groups.regressed.length) console.log('  REGRESSED:', groups.regressed.map(id => `${id} ${results[id].name}: ${results[id].error || results[id].outcome}`).join('\n    '));
   if (listArg && groups[listArg]) console.log(`  ${listArg}:`, groups[listArg].map(id => `${id} ${results[id].name} [${results[id].format}]`).join(', '));
   if (groups.regressed.length || crashes.length) process.exitCode = 1;

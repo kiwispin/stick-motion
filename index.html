@@ -1789,7 +1789,7 @@ const app={
   saveState(){this.history.capture(this);},
   undo(){const snapshot=this.history.undo(this);if(snapshot)this.restoreState(snapshot);},
   redo(){const snapshot=this.history.redo(this);if(snapshot)this.restoreState(snapshot);},
-  restoreState(s){this.frames=s.frames.map(f=>f.map(x=>x.clone()));this.frameDelays=[...s.frameDelays];this.currentFrameIndex=s.currentFrameIndex;this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);this.figures=s.figures.map(f=>f.clone());if(s.groups)this.groups=s.groups.map(g=>g.clone());const d=this.frameDelays[this.currentFrameIndex]||1.0;document.getElementById('frame-duration').value=d;document.getElementById('duration-display').innerText=d.toFixed(1)+'×';this.render();this.updateTimeline();this.updateGroupsPanel();this.saveLocal();},
+  restoreState(s){this.frames=[...s.frames];this.frameDelays=[...s.frameDelays];this.currentFrameIndex=s.currentFrameIndex;this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);this.figures=s.figures.map(f=>f.clone());if(s.groups)this.groups=s.groups.map(g=>g.clone());const d=this.frameDelays[this.currentFrameIndex]||1.0;document.getElementById('frame-duration').value=d;document.getElementById('duration-display').innerText=d.toFixed(1)+'×';this.render();this.updateTimeline();this.updateGroupsPanel();this.saveLocal();},
 
   // ── Modals ────────────────────────────────────────────────────
   getDialogFocusable(dialog){return Array.from(dialog.querySelectorAll('button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter(el=>el.offsetParent!==null);},
@@ -2444,7 +2444,7 @@ const app={
     const dissolved=new Set(this.groups.filter(g=>g.figureIds.length<2).map(g=>g.id));
     if(dissolved.size){
       const leave=f=>{if(dissolved.has(f.groupId))f.groupId=null;};
-      this.figures.forEach(leave);this.frames.forEach(frame=>frame.forEach(leave));
+      this.figures.forEach(leave);this.setStoredGroupIds(f=>dissolved.has(f.groupId)?null:f.groupId);
       this.groups=this.groups.filter(g=>!dissolved.has(g.id));
     }
     const gid=Math.random().toString(36).substr(2,9);
@@ -2453,9 +2453,16 @@ const app={
     this.groups.push(group);
     ids.forEach(fid=>{
       const fig=this.figures.find(f=>f.id===fid);if(fig)fig.groupId=gid;
-      this.frames.forEach(frame=>{const ff=frame.find(f=>f.id===fid);if(ff)ff.groupId=gid;});
     });
-    this.selectedFigureIds=new Set(ids);this.syncSelectionUI();this.render();this.updateGroupsPanel();this.saveLocal();this.showToast(`Grouped ${ids.length} figures`);
+    this.setStoredGroupIds(f=>moving.has(f.id)?gid:f.groupId);this.selectedFigureIds=new Set(ids);this.syncSelectionUI();this.render();this.updateGroupsPanel();this.saveLocal();this.showToast(`Grouped ${ids.length} figures`);
+  },
+  // Stored frames are shared with Undo snapshots, so a group change replaces the affected frames rather than editing them.
+  setStoredGroupIds(groupIdFor){
+    this.frames=this.frames.map(frame=>{
+      let changed=false;
+      const next=frame.map(f=>{const groupId=groupIdFor(f);if(groupId===f.groupId)return f;changed=true;const copy=f.clone();copy.groupId=groupId;return copy;});
+      return changed?next:frame;
+    });
   },
   ungroupSelected(groupId=null){
     let gid=groupId;
@@ -2463,7 +2470,7 @@ const app={
     this.saveState();
     const memberCount=this.figures.filter(f=>f.groupId===gid).length;
     this.figures.forEach(f=>{if(f.groupId===gid)f.groupId=null;});
-    this.frames.forEach(frame=>{frame.forEach(f=>{if(f.groupId===gid)f.groupId=null;});});
+    this.setStoredGroupIds(f=>f.groupId===gid?null:f.groupId);
     this.groups=this.groups.filter(g=>g.id!==gid);
     this.syncSelectionUI();this.render();this.updateGroupsPanel();this.saveLocal();this.showToast(`Ungrouped ${memberCount} figures`);
   },
@@ -2620,7 +2627,7 @@ const app={
           // Flipping an imported figure changes signed bends.  Interpolation
           // must carry that metadata along too, otherwise t=1 would retain
           // frame A's arc direction while native endpoints already match B.
-          if(t>=1){nF.stkArtwork=figB.clone().stkArtwork;}
+          if(t>=1){nF.stkArtwork=figB.stkArtwork;}
           else if(t>0&&nF.stkArtwork.segments.length===figB.stkArtwork.segments.length){
             nF.stkArtwork.segments.forEach((segment,index)=>{
               const other=figB.stkArtwork.segments[index];
@@ -2941,7 +2948,13 @@ const app={
     }
     this.dragTarget=null;this.saveLocal();
   },
-  rotateHierarchy(fig,pid,delta){fig.joints.forEach(j=>{if(j.parentId===pid){j.angle=normaliseAngle(j.angle+delta);this.rotateHierarchy(fig,j.id,delta);}});},
+  // Rotates every descendant of a joint once.  A loop over a children index, not recursion: imported figures can
+  // nest thousands of joints deep and have thousands of joints, so recursing through all joints at each level was slow and could overflow.
+  rotateHierarchy(fig,pid,delta){
+    const children=new Map();fig.joints.forEach(j=>{if(!children.has(j.parentId))children.set(j.parentId,[]);children.get(j.parentId).push(j);});
+    const stack=[...(children.get(pid)||[])],seen=new Set();
+    while(stack.length){const j=stack.pop();if(seen.has(j))continue;seen.add(j);j.angle=normaliseAngle(j.angle+delta);const below=children.get(j.id);if(below)stack.push(...below);}
+  },
 
   // ── Selection ─────────────────────────────────────────────────
   syncSelectionUI(){

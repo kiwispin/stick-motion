@@ -250,7 +250,12 @@ export function getStkArtworkBounds(figure, includeHandles = false) {
   if (includeHandles) for (const joint of figure.joints) if (joint.handleVisible !== false) add({ x: joint.x, y: joint.y }, handleRadiusSafe(figure.scale));
   if (!xs.length) return { minX: figure.x - 1, maxX: figure.x + 1, minY: figure.y - 1, maxY: figure.y + 1 };
   const grow = (figureOutline(figure.stkArtwork)?.thickness || 0) * figure.scale;
-  return { minX: Math.min(...xs) - grow, maxX: Math.max(...xs) + grow, minY: Math.min(...ys) - grow, maxY: Math.max(...ys) + grow };
+  // A loop rather than Math.min(...xs): detailed figures sample hundreds of thousands of points, more
+  // arguments than a single call can take.
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const x of xs) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
+  for (const y of ys) { minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+  return { minX: minX - grow, maxX: maxX + grow, minY: minY - grow, maxY: maxY + grow };
 }
 
 function handleRadiusSafe(scale) { return Math.max(1, 5 / Math.max(0.01, scale)); }

@@ -74,7 +74,7 @@ test('project module rejects cyclic joint imports and serializes app state', () 
 
   const state = { ...normaliseProject(validProject()), docWidth: 800, docHeight: 500, fps: 12, frameDelays: [1], currentFrameIndex: 0, isLooping: true, isSmooth: true, showOnion: true, showPivots: true, backgroundData: null };
   const serialized = serializeProject(state);
-  expect(serialized.version).toBe(5);
+  expect(serialized.version).toBe(6);
   expect(serialized.frames[0][0].id).toBe('figure1');
   expect(serialized.name).toBe('Untitled animation');
 });

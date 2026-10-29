@@ -1,9 +1,9 @@
 # Pivot STK library coverage — change log
 
-Checkpoint: 2026-10-28. The importer was tested against every `.stk` figure in the public
-[Pivot STK library](https://pivotanimator.net/stk-library/) and extended until **1,052 of its
-1,125 figures (94%) import**, up from 379 (34%). Figures that import are also drawn the way their
-library thumbnails show them.
+Checkpoints: 2026-10-28 and 2026-10-29. The importer was tested against every `.stk` figure in the
+public [Pivot STK library](https://pivotanimator.net/stk-library/) and extended until **1,073 of its
+1,125 figures (95%) import**, up from 379 (34%), including figures of up to 9,000 parts. Figures
+that import are also drawn the way their library thumbnails show them.
 
 ## Test set and harness
 
@@ -23,8 +23,8 @@ library thumbnails show them.
 | 2 | 0 / 448 | **448 / 448** |
 | 3 | 19 / 20 | 19 / 20 |
 | 4 | 1 / 41 | **41 / 41** |
-| 5 | 359 / 616 | **544 / 616** |
-| **All** | **379 / 1,125** | **1,052 / 1,125** |
+| 5 | 359 / 616 | **565 / 616** |
+| **All** | **379 / 1,125** | **1,073 / 1,125** |
 
 ## Format findings
 
@@ -84,13 +84,47 @@ Each set bit removes one field from every segment record, and the reader restore
 
 ## Other changes
 
-- **Part cap raised from 512 to 1,024.** Very detailed figures save about 400 KB per frame per 1,000
-  parts, so a higher cap would let a student save a project too large (over 25 MB) to reopen. Figures
-  over 512 parts show a notice in the import preview.
+- **Part cap raised from 512 to 10,000** (see *Very detailed figures* below). Figures over 2,048
+  parts show a notice in the import preview.
 - **Joint positions in linear time.** `Figure.updatePositions` now indexes children once instead of
   scanning every joint for each joint. A 1,017-part figure went from hundreds of milliseconds to
   17 ms, with a 4× CPU slowdown. The output is identical for every figure.
 - **Preview label.** The import preview names Pivot 2 files correctly.
+
+## Very detailed figures (2026-10-29)
+
+The library's largest figures have 5,000 to 9,000 parts (the gigantosaurus is 5,507; Godzilla 8,981).
+Drawing and posing them was already fast enough; what made them unusable was **copying**: the app
+deep-copied a figure's artwork into every frame, every Undo step and every playback pose, and saved it
+again in every frame.
+
+- **Shared, frozen artwork.** Imported artwork is validated, copied and frozen once
+  (`settleStkArtwork`), then shared by every clone. Any accidental edit throws instead of silently
+  changing every frame, and already-validated artwork skips re-validation when drawn.
+- **Project format version 6.** Each artwork is saved once, in `stkArtworks`; frames keep only an
+  `stkPose` of `[length, angle]` per joint. A figure whose joints differ from what its artwork implies
+  keeps its full joint list, so nothing is lost. Version 5 files still open, and identical embedded
+  artworks are shared once loaded. Joint `x`/`y` positions, which are always recalculated, are no
+  longer saved.
+- **Cheaper Undo.** Stored frames are never edited in place (grouping now replaces the frames it
+  changes), so Undo snapshots share them instead of deep-copying every frame.
+- **No deep recursion.** Joint positions, limb rotation and artwork bounds no longer recurse or spread
+  huge argument lists, either of which overflowed the call stack on figures nested thousands of joints
+  deep.
+
+A 21-frame animation of the 5,507-part gigantosaurus, measured with a 4× CPU slowdown:
+
+| | Before | After |
+| --- | ---: | ---: |
+| Add a frame | 1.0–1.8 s, growing | about 0.5 s |
+| Undo snapshot (on every click) | 0.3–0.7 s | 1–3 ms |
+| Autosave (after every drag) | 0.3–0.8 s | 0.08–0.23 s |
+| Project file | 51 MB (too big to reopen) | 5.6 MB |
+| Browser memory | 756 MB | 117 MB |
+
+All 21 newly importing large figures were checked against their thumbnails, and the user's own
+`dino.stk` (identical to the library's gigantosaurus) was imported through the real picker, saved and
+reloaded. No previously importing figure draws differently.
 
 ## Verification
 
@@ -105,13 +139,12 @@ Each set bit removes one field from every segment record, and the reader restore
 - **In the app.** Six figures, one from each new family, were imported through the editor's real
   Import STK picker. Each saved, survived a reload, and caused no page errors.
 
-## Still unsupported (73 figures)
+## Still unsupported (52 figures)
 
 | Count | Reason | What it would take |
 | ---: | --- | --- |
-| 27 | Construction segments longer than 10,000 units | Raise the importer's length limit *and* the project loader's joint-length limit together, or saved projects become unopenable |
-| 25 | More than 1,024 parts | Store imported artwork once per project rather than per frame, then raise the cap |
+| 30 | Construction segments longer than 10,000 units | Raise the importer's length limit *and* the project loader's joint-length limit together, or saved projects become unopenable |
 | 13 | Segment type 2 (embedded images) or other unknown types | A new feature: image segments |
 | 6 | A draw-order table with one duplicate and one missing value | Decide how Pivot orders the clash; left rejected rather than guessed |
+| 2 | A curve bend beyond the 1.95π safety bound | Check whether such bends are real |
 | 1 | Pivot 3 file with trailing data | Inspect the extra bytes |
-| 1 | A curve bend beyond the 1.95π safety bound | Check whether such bends are real |
