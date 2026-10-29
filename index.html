@@ -1356,7 +1356,7 @@ import { readLegacyProject, readStoredProject, removeLegacyProject, writeStoredP
 import { distanceToSegment, getCanvasPosition, getWrapperPosition, isPointInSpeechBubble } from './src/canvas-interaction.js';
 import { isMeaningfulMarquee } from './src/marquee.js';
 import { beginMarquee, endMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, showMarqueeElement, updateCursor, updateMarqueeElement } from './src/drag-controller.js';
-import { decodeStk, createFigureFromStk, stkDrawnJointIds } from './src/stk-import.js';
+import { decodeStk, createFigureFromStk, mirrorStkArtwork, stkDrawnJointIds } from './src/stk-import.js';
 import { drawStkFigure, getStkArtworkBounds } from './src/stk-renderer.js';
 
 // Color palette
@@ -2628,12 +2628,15 @@ const app={
           // must carry that metadata along too, otherwise t=1 would retain
           // frame A's arc direction while native endpoints already match B.
           if(t>=1){nF.stkArtwork=figB.stkArtwork;}
-          else if(t>0&&nF.stkArtwork.segments.length===figB.stkArtwork.segments.length){
-            nF.stkArtwork.segments.forEach((segment,index)=>{
+          // Imported artwork is frozen and shared, so in-between curves go on a copy for this frame only,
+          // and only when the two frames carry different artwork (a figure flipped between them).
+          else if(t>0&&figA.stkArtwork!==figB.stkArtwork&&nF.stkArtwork.segments.length===figB.stkArtwork.segments.length){
+            const source=nF.stkArtwork;
+            const segments=source.segments.map((segment,index)=>{
               const other=figB.stkArtwork.segments[index];
-              if(segment.id===other.id)segment.bend=(Number(segment.bend)||0)+((Number(other.bend)||0)-(Number(segment.bend)||0))*t;
+              return segment.id===other.id?{...segment,bend:(Number(segment.bend)||0)+((Number(other.bend)||0)-(Number(segment.bend)||0))*t}:segment;
             });
-            nF.stkArtwork.parameters?.forEach(parameter=>{const segment=nF.stkArtwork.segments[parameter.index];if(segment)parameter.value=segment.bend;});
+            nF.stkArtwork={...source,segments,...(source.parameters?{parameters:source.parameters.map(parameter=>segments[parameter.index]?{...parameter,value:segments[parameter.index].bend}:parameter)}:{})};
           }
         }
         const mapA={},mapB={},nextPos={};
@@ -3000,7 +3003,7 @@ const app={
     this.updateGroupPanel();
   },
 
-  flipFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=normaliseAngle(Math.PI-j.angle);});if(f.stkArtwork){f.stkArtwork.segments.forEach(segment=>{segment.bend=-(Number(segment.bend)||0);});f.stkArtwork.parameters?.forEach(parameter=>{const segment=f.stkArtwork.segments[parameter.index];if(segment)parameter.value=segment.bend;});}this.render();this.saveLocal();},
+  flipFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=normaliseAngle(Math.PI-j.angle);});if(f.stkArtwork)f.stkArtwork=mirrorStkArtwork(f.stkArtwork);this.render();this.saveLocal();},
   centerFigure(){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.x=this.docWidth/2;f.y=this.docHeight/2;this.render();this.saveLocal();},
   scaleFigure(s){const f=this.figures.find(f=>f.selected);if(!f)return;const next=Math.min(100,Math.max(0.05,f.scale*s));if(next===f.scale)return;this.saveState();f.scale=next;this.render();this.saveLocal();}, // 0.05–100 matches the project loader
   rotateSelectedFigure(d){const f=this.figures.find(f=>f.selected);if(!f)return;this.saveState();f.joints.forEach(j=>{if(j.parentId!==null)j.angle=normaliseAngle(j.angle+d);});this.render();this.saveLocal();},

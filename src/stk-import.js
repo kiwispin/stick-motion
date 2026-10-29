@@ -22,6 +22,7 @@ const STK_DETAILED_SEGMENTS = 2048;
 const settledArtwork = new WeakSet();
 const jointTemplates = new WeakMap();
 const drawnJointIds = new WeakMap();
+const mirroredArtworks = new WeakMap();
 export const STK_MAX_POLYGONS = 512;
 export const STK_MAX_POLYGON_VERTICES = 16384;
 export const STK_MAX_DRAW_ITEMS = STK_MAX_SEGMENTS + STK_MAX_POLYGONS;
@@ -640,6 +641,17 @@ export function stkJointTemplate(artwork) {
   }
   if (settledArtwork.has(artwork)) jointTemplates.set(artwork, template);
   return template;
+}
+
+// Flipping a figure mirrors its curves.  Artwork is frozen and shared, so the mirrored curves go on a
+// settled copy; the pair is remembered, so flipping back returns the original and saves add nothing new.
+export function mirrorStkArtwork(artwork) {
+  if (mirroredArtworks.has(artwork)) return mirroredArtworks.get(artwork);
+  const segments = artwork.segments.map(segment => ({ ...segment, bend: -(Number(segment.bend) || 0) }));
+  const parameters = artwork.parameters?.map(parameter => segments[parameter.index] ? { ...parameter, value: segments[parameter.index].bend } : parameter);
+  const mirrored = settleStkArtwork({ ...artwork, segments, ...(parameters ? { parameters } : {}) });
+  if (settledArtwork.has(artwork)) { mirroredArtworks.set(artwork, mirrored); mirroredArtworks.set(mirrored, artwork); }
+  return mirrored;
 }
 
 // The joints something is drawn at: both ends of every visible segment and every visible polygon corner.

@@ -83,6 +83,59 @@ test('a very detailed imported figure can be posed, animated, undone, saved and 
   expect(errors).toEqual([]);
 });
 
+// A Pivot 5 (a8) figure of two segments, the first curved.
+function curvedFixture() {
+  const payload = Buffer.alloc(3 + 2 * 23 + 2 + 10 + 2 + 2 * 2);
+  payload[0] = 0xa8; payload.writeUInt16LE(2, 1);
+  [[0, 80, 0], [1, 60, Math.PI / 2]].forEach(([parent, length, angle], index) => {
+    const offset = 3 + index * 23;
+    payload.writeUInt16LE(parent, offset); payload.writeFloatLE(length, offset + 2);
+    payload.writeDoubleLE(angle, offset + 6); payload.writeFloatLE(6, offset + 14);
+  });
+  const tables = 3 + 2 * 23;
+  payload.writeUInt16LE(1, tables); payload.writeUInt16LE(0, tables + 2); payload.writeDoubleLE(1.2, tables + 4);
+  payload.writeUInt16LE(0, tables + 12);
+  payload.writeUInt16LE(0, tables + 14); payload.writeUInt16LE(1, tables + 16);
+  return Buffer.concat([Buffer.from([0x7a]), zlib.deflateSync(payload)]);
+}
+
+test('an imported figure plays smoothly and flips, including across a flip between frames', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  await openCleanEditor(page);
+  await page.locator('#stk-input').setInputFiles({ name: 'curved.stk', mimeType: 'application/octet-stream', buffer: curvedFixture() });
+  await expect(page.locator('#stk-import-insert')).toBeEnabled();
+  await page.locator('#stk-import-insert').click();
+  const flips = await page.evaluate(() => {
+    const figure = () => app.figures.find(f => f.stkArtwork);
+    const select = () => { app.figures.forEach(f => { f.selected = f === figure(); }); app.selectedFigureIds = new Set([figure().id]); };
+    const original = figure().stkArtwork;
+    app.addFrame(); select(); app.flipFigure();
+    const flipped = figure().stkArtwork;
+    app.addFrame(); select(); app.flipFigure();
+    const back = figure().stkArtwork;
+    figure().x += 40; app.render();
+    return { bends: [original.segments[0].bend, flipped.segments[0].bend], backIsOriginal: back === original, flippedFrozen: Object.isFrozen(flipped) };
+  });
+  expect(flips).toEqual({ bends: [1.2, -1.2], backIsOriginal: true, flippedFrozen: true });
+  // Smooth playback blends curves across the flip without touching the stored artwork.
+  expect(await page.evaluate(() => app.isSmooth)).toBe(true);
+  await page.evaluate(() => { app.loadFrame(0, false); app.play(); });
+  await expect.poll(() => page.evaluate(() => app.currentFrameIndex), { timeout: 5000 }).toBeGreaterThan(0);
+  const midway = await page.evaluate(() => {
+    app.stop();
+    const [first, second] = app.frames;
+    app.renderInterpolated(first, second, 0.5);
+    return { bend: app.figures.find(f => f.stkArtwork).stkArtwork.segments[0].bend, stored: first.find(f => f.stkArtwork).stkArtwork.segments[0].bend };
+  });
+  expect(midway).toEqual({ bend: 0, stored: 1.2 });
+  await page.evaluate(async () => { app.loadFrame(0, false); await app.saveLocal(); });
+  await page.reload();
+  await page.waitForFunction(() => window.app?.frames?.length > 0);
+  expect(await page.evaluate(() => app.frames.map(frame => frame.find(f => f.stkArtwork).stkArtwork.segments[0].bend))).toEqual([1.2, -1.2, 1.2]);
+  expect(errors).toEqual([]);
+});
+
 test('STK import warnings are shown as plain text, never as markup', async ({ page }) => {
   const importerPath = path.join(path.dirname(test.info().config.configFile), 'src', 'stk-import.js');
   await page.route('**/src/stk-import.js', async route => {

@@ -365,6 +365,7 @@ Turn StickMotion into a dependable, accessible, classroom-ready animation editor
 
 - Imported figures of up to 10,000 parts now work (coverage 1,073 of 1,125). Imported artwork is frozen and shared rather than copied into every frame, Undo step and playback pose; project format version 6 saves it once with a compact pose per frame (version 5 files still open); Undo snapshots share stored frames; and the deep-recursion and huge-spread stack overflows on deeply nested figures are gone.
 - For a 21-frame, 5,507-part animation at 4x CPU slowdown: the project file fell from 51 MB to 5.6 MB, memory from 756 MB to 117 MB, and the pause on each click from up to 0.7 s to 1-3 ms.
+- Fixed 2026-10-30: two places still wrote curve values into the now-frozen artwork. As a result, smooth playback froze, and GIF and video export failed, for any project with an imported figure and two or more frames; Flip also failed on imported figures. In-between curves now go on a copy for that frame only, and Flip swaps in a mirrored copy (flipping back returns the original). A browser test plays, flips and reopens an imported figure.
 
 ### Completed — Slider arms, tied draw order and near-full bends
 
