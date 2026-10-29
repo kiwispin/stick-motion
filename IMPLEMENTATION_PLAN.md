@@ -366,6 +366,12 @@ Turn StickMotion into a dependable, accessible, classroom-ready animation editor
 - Imported figures of up to 10,000 parts now work (coverage 1,073 of 1,125). Imported artwork is frozen and shared rather than copied into every frame, Undo step and playback pose; project format version 6 saves it once with a compact pose per frame (version 5 files still open); Undo snapshots share stored frames; and the deep-recursion and huge-spread stack overflows on deeply nested figures are gone.
 - For a 21-frame, 5,507-part animation at 4x CPU slowdown: the project file fell from 51 MB to 5.6 MB, memory from 756 MB to 117 MB, and the pause on each click from up to 0.7 s to 1-3 ms.
 
+### Completed — Slider arms, tied draw order and near-full bends
+
+- 38 more library figures import (coverage 1,111 of 1,125, 98.8%): invisible "slider" arms up to 10,000,000 units long (Pivot's trick for gun slides and similar straight-line parts), draw-order tables that give two parts the same place (drawn in file order), and curve bends up to 1.99π. Imported figures' saved joints accept the longer arms; hand-made joints keep their 10,000 limit.
+- A grouped imported figure's outline counts only joints something is drawn at, so an invisible arm cannot stretch it off the stage.
+- The 14 figures still unsupported all embed pictures (segment type 2), a separate feature.
+
 ### Deferred deliberately
 
 - **Faster autosave on very large projects**: `JSON.stringify` of the whole project runs on each save (≈20 ms for a typical project, ≈185 ms for 300 frames × 15 figures at 4× CPU slowdown). A per-frame serialisation cache would fix it but changes the save path, so it waits until large projects are common.

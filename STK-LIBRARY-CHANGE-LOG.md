@@ -1,9 +1,10 @@
 # Pivot STK library coverage — change log
 
 Checkpoints: 2026-10-28 and 2026-10-29. The importer was tested against every `.stk` figure in the
-public [Pivot STK library](https://pivotanimator.net/stk-library/) and extended until **1,073 of its
-1,125 figures (95%) import**, up from 379 (34%), including figures of up to 9,000 parts. Figures
-that import are also drawn the way their library thumbnails show them.
+public [Pivot STK library](https://pivotanimator.net/stk-library/) and extended until **1,111 of its
+1,125 figures (98.8%) import**, up from 379 (34%), including figures of up to 9,000 parts. Figures
+that import are also drawn the way their library thumbnails show them. The 14 still unsupported all
+embed pictures.
 
 ## Test set and harness
 
@@ -23,8 +24,8 @@ that import are also drawn the way their library thumbnails show them.
 | 2 | 0 / 448 | **448 / 448** |
 | 3 | 19 / 20 | 19 / 20 |
 | 4 | 1 / 41 | **41 / 41** |
-| 5 | 359 / 616 | **565 / 616** |
-| **All** | **379 / 1,125** | **1,073 / 1,125** |
+| 5 | 359 / 616 | **603 / 616** |
+| **All** | **379 / 1,125** | **1,111 / 1,125** |
 
 ## Format findings
 
@@ -139,12 +140,34 @@ reloaded. No previously importing figure draws differently.
 - **In the app.** Six figures, one from each new family, were imported through the editor's real
   Import STK picker. Each saved, survived a reload, and caused no page errors.
 
-## Still unsupported (52 figures)
+## Sliders, tied draw order and near-full bends (2026-10-29)
 
-| Count | Reason | What it would take |
+38 of the 52 remaining figures were held back only by limits set too tight. Each was drawn next to
+its library thumbnail and matched.
+
+| Count | What the files contain | Change |
 | ---: | --- | --- |
-| 30 | Construction segments longer than 10,000 units | Raise the importer's length limit *and* the project loader's joint-length limit together, or saved projects become unopenable |
-| 13 | Segment type 2 (embedded images) or other unknown types | A new feature: image segments |
-| 6 | A draw-order table with one duplicate and one missing value | Decide how Pivot orders the clash; left rejected rather than guessed |
-| 2 | A curve bend beyond the 1.95π safety bound | Check whether such bends are real |
-| 1 | Pivot 3 file with trailing data | Inspect the extra bytes |
+| 30 | **Slider arms.** An invisible (zero-width) arm runs 50,000 to 1,002,266 units out and its child arm comes straight back, so turning the returning arm moves the parts hung on it in a nearly straight line: gun slides and triggers, a pencil lead, a bell clapper. Everything visible stays normal-sized. | Segment length limit raised from 10,000 to 10,000,000 units. Imported figures' saved joints accept the same lengths (with a margin); hand-made joints keep their 10,000 limit. |
+| 6 | **Tied draw order.** One rank appears twice and another is unused, apparently a Pivot quirk. | Tied parts draw in file order, and the ranks are renumbered. Neither tie order differs visibly in any of the six. The import preview notes the tie. |
+| 2 | **Near-full bends** of 1.962π and 1.987π. | The bend limit is raised from 1.95π to 1.99π, where an arc's radius is about 32 times its chord. |
+
+- **Group outline.** A grouped imported figure's outline now counts only joints something is drawn at,
+  so a slider arm cannot stretch it off the stage. It costs no more than before.
+- **Checks.** No previously importing figure changed. Corrupted inputs (19,342 Pivot 2–4 and 25,256
+  Pivot 5) either imported and drew with finite numbers or were cleanly rejected. In the editor, the
+  AK 47's slide and the bell's clapper move in straight lines when posed, and each figure, grouped,
+  saved and reopened.
+
+## Still unsupported (14 figures)
+
+All 14 embed pictures, mostly game sprites ("Horse_Sprites", "Truck_sprites", "baby (sprites)").
+
+- **Pivot 5 (13 figures).** A segment of type 2 carries a 4-byte image number, and the file holds PNG
+  pictures.
+- **Pivot 3 (1 figure, Hummer Sprite).** It does the same with a raw bitmap after the segment
+  records.
+- **What it would take.** Supporting them is a new feature, not a limit change:
+  - Read the image table.
+  - Establish how Pivot places and scales a picture on its segment.
+  - Decode pictures before drawing.
+  - Save pictures in projects and include them in GIF export.

@@ -1,5 +1,5 @@
 import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './models.js';
-import { MAX_IMPORTED_JOINTS_PER_FIGURE, settleStkArtwork, stkJoint, stkJointTemplate } from './stk-import.js';
+import { MAX_IMPORTED_JOINT_LENGTH, MAX_IMPORTED_JOINTS_PER_FIGURE, settleStkArtwork, stkJoint, stkJointTemplate } from './stk-import.js';
 
 export const MAX_PROJECT_FILE_BYTES = 25 * 1024 * 1024;
 export const MAX_PROJECT_FRAMES = 2000;
@@ -99,6 +99,7 @@ export function rehydrateFigures(data, artworks = { byRef: new Map(), inline: ne
     if (figureData.stkPose !== undefined) throw new Error(`Figure ${index + 1} has a pose but no STK artwork.`);
     const hasStkArtwork = Boolean(artwork);
     const jointLimit = hasStkArtwork ? MAX_IMPORTED_JOINTS_PER_FIGURE : MAX_JOINTS_PER_FIGURE;
+    const lengthLimit = hasStkArtwork ? MAX_IMPORTED_JOINT_LENGTH : MAX_JOINT_LENGTH;
     if (!Array.isArray(figureData.joints) || figureData.joints.length === 0 || figureData.joints.length > jointLimit) throw new Error(`Figure ${index + 1} has an invalid number of joints.`);
     if (hasStkArtwork) {
       const sourceSegments = artwork.segments;
@@ -117,7 +118,7 @@ export function rehydrateFigures(data, artworks = { byRef: new Map(), inline: ne
       const parentId = jointData.parentId === null || jointData.parentId === undefined ? null : safeId(jointData.parentId, 'parent');
       const type = jointData.type === undefined ? SEGMENT_LINE : jointData.type;
       if (type !== SEGMENT_LINE && type !== SEGMENT_CIRCLE) throw new Error('Invalid joint type.');
-      return new Joint(id, parentId, safeNumber(jointData.length, 0, 0, MAX_JOINT_LENGTH, 'joint length'), normaliseAngle(jointData.angle), type, safeNumber(jointData.radius, 20, 0, 5000, 'joint radius'), safeNumber(jointData.thickness, 14, 1, 500, 'joint thickness'), jointData.filled !== false, safeColor(jointData.color, null, 'joint color'), jointData.handleVisible !== false);
+      return new Joint(id, parentId, safeNumber(jointData.length, 0, 0, lengthLimit, 'joint length'), normaliseAngle(jointData.angle), type, safeNumber(jointData.radius, 20, 0, 5000, 'joint radius'), safeNumber(jointData.thickness, 14, 1, 500, 'joint thickness'), jointData.filled !== false, safeColor(jointData.color, null, 'joint color'), jointData.handleVisible !== false);
     });
     validateJointTree(figure.joints);
     return figure;
@@ -157,7 +158,7 @@ function poseJoints(artwork, pose, index) {
   return template.map((joint, jointIndex) => {
     const entry = pose[jointIndex];
     if (!Array.isArray(entry) || entry.length !== 2 || entry.some(value => typeof value !== 'number')) throw new Error(`Figure ${index + 1} has an invalid STK pose.`);
-    return stkJoint(joint, safeNumber(entry[0], 0, 0, MAX_JOINT_LENGTH, 'joint length'), normaliseAngle(entry[1]));
+    return stkJoint(joint, safeNumber(entry[0], 0, 0, MAX_IMPORTED_JOINT_LENGTH, 'joint length'), normaliseAngle(entry[1]));
   });
 }
 

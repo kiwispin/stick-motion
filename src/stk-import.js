@@ -21,16 +21,21 @@ const STK_DETAILED_SEGMENTS = 2048;
 // Artwork that has been validated, copied and frozen (see settleStkArtwork); it can never change again.
 const settledArtwork = new WeakSet();
 const jointTemplates = new WeakMap();
+const drawnJointIds = new WeakMap();
 export const STK_MAX_POLYGONS = 512;
 export const STK_MAX_POLYGON_VERTICES = 16384;
 export const STK_MAX_DRAW_ITEMS = STK_MAX_SEGMENTS + STK_MAX_POLYGONS;
 export const MAX_IMPORTED_JOINTS_PER_FIGURE = STK_MAX_SEGMENTS + 1;
-// Keep the radius reconstruction bounded away from the 2π singularity.  The
-// supplied Owl's largest bend is ~3.173 rad, comfortably inside this bound.
-export const STK_MAX_ABS_BEND = 1.95 * Math.PI;
-export const STK_MAX_SEGMENT_LENGTH = 10000;
+// Keep the radius reconstruction bounded away from the 2π singularity: at 1.99π the arc's radius is
+// about 32 times its chord.  The library's largest bend is 1.987π.
+export const STK_MAX_ABS_BEND = 1.99 * Math.PI;
+// Pivot's "slider" trick hangs a part off an invisible arm up to about 1,000,000 units long, whose child
+// arm comes straight back, so the part moves in a nearly straight line when posed.
+export const STK_MAX_SEGMENT_LENGTH = 10000000;
+// A saved joint's length is its chord, never longer than its segment; the margin absorbs rounding.
+export const MAX_IMPORTED_JOINT_LENGTH = 2 * STK_MAX_SEGMENT_LENGTH;
 export const STK_MAX_SEGMENT_WIDTH = 500;
-const STK_MAX_WARNINGS = 32; // the importer itself produces at most four
+const STK_MAX_WARNINGS = 32; // the importer itself produces at most ten
 const EPSILON = 1e-8;
 
 // Circle types, measured against library thumbnails: type 1 is a white-interior circle outlined in the
@@ -426,14 +431,18 @@ function readV5Tables(payload, view, segments, start, label, header, nodeIdBySou
   const trailerBytes = header & V5_FIGURE_TRAILER ? V5_FIGURE_TRAILER_BYTES : 0;
   const remaining = payload.byteLength - offset;
   if (remaining !== (hasDrawRanks ? itemCount * 2 : 0) + trailerBytes) fail(`${label} payload has incomplete or unsupported trailing draw-order data.`);
-  const drawRanks = [];
-  const rankSet = new Set();
+  // Items draw in rank order.  A few library files give two items the same rank (and so skip another);
+  // tied items draw in record order, and the ranks are renumbered into a complete permutation.
+  const sourceRanks = [];
   for (let index = 0; index < itemCount; index += 1) {
     const rank = hasDrawRanks ? view.getUint16(offset, true) : index;
     if (hasDrawRanks) offset += 2;
-    if (rank >= itemCount || rankSet.has(rank)) fail(`${label} draw ranks are not a complete permutation.`);
-    rankSet.add(rank); drawRanks.push(rank);
+    if (rank >= itemCount) fail(`${label} draw ranks are not a complete permutation.`);
+    sourceRanks.push(rank);
   }
+  const drawRanks = new Array(itemCount);
+  sourceRanks.map((_, item) => item).sort((a, b) => sourceRanks[a] - sourceRanks[b] || a - b).forEach((item, rank) => { drawRanks[item] = rank; });
+  const tiedRanks = itemCount - new Set(sourceRanks).size;
   let figureTrailer = null;
   if (trailerBytes) {
     const value = view.getFloat32(offset, true);
@@ -442,7 +451,7 @@ function readV5Tables(payload, view, segments, start, label, header, nodeIdBySou
     offset += trailerBytes;
   }
   if (offset !== payload.byteLength) fail(`${label} payload has unsupported trailing data.`);
-  return { parameters, polygons, drawRanks, figureTrailer };
+  return { parameters, polygons, drawRanks, figureTrailer, tiedRanks };
 }
 
 function v5Warnings(header, segments, polygons, figureTrailer) {
@@ -475,13 +484,16 @@ function parseV5(payload) {
   const segmentCount = view.getUint16(1, true);
   if (segmentCount < 1 || segmentCount > STK_MAX_SEGMENTS) fail(`${label} segment count is outside the supported range.`);
   const { segments, offset, nodeIdBySourceId } = readV5Segments(payload, view, segmentCount, label, header);
-  const { parameters, polygons, drawRanks, figureTrailer } = readV5Tables(payload, view, segments, offset, label, header, nodeIdBySourceId);
+  const { parameters, polygons, drawRanks, figureTrailer, tiedRanks } = readV5Tables(payload, view, segments, offset, label, header, nodeIdBySourceId);
   return {
     format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V5,
     payloadHeader, segments, parameters, polygons, drawRanks,
     ...(figureTrailer ? { figureTrailer } : {}),
     sourceBytes: 0, payloadBytes: payload.byteLength,
-    warnings: v5Warnings(header, segments, polygons, figureTrailer)
+    warnings: [
+      ...v5Warnings(header, segments, polygons, figureTrailer),
+      ...(tiedRanks ? ['The Pivot 5 draw order gives some parts the same place; tied parts are drawn in file order.'] : [])
+    ]
   };
 }
 
@@ -628,6 +640,22 @@ export function stkJointTemplate(artwork) {
   }
   if (settledArtwork.has(artwork)) jointTemplates.set(artwork, template);
   return template;
+}
+
+// The joints something is drawn at: both ends of every visible segment and every visible polygon corner.
+// Invisible construction arms, such as Pivot's slider arms a million units long, are left out.
+export function stkDrawnJointIds(artwork) {
+  if (drawnJointIds.has(artwork)) return drawnJointIds.get(artwork);
+  const jointId = node => node === 0 ? 'stk-root' : `stk-${node}`;
+  const ids = new Set();
+  for (const segment of artwork.segments) {
+    if (Number(segment.transparency) >= 255 && !segment.gradient) continue;
+    if (segment.width <= 0 && !isStkFilledCircleSegment(artwork, segment)) continue;
+    ids.add(jointId(segment.parent)); ids.add(jointId(segment.id));
+  }
+  for (const polygon of artwork.polygons) if (Number(polygon.transparency) < 255) polygon.vertices.forEach(vertex => ids.add(jointId(vertex)));
+  if (settledArtwork.has(artwork)) drawnJointIds.set(artwork, ids);
+  return ids;
 }
 
 export function stkJoint(template, length, angle) {

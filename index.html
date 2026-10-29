@@ -1356,7 +1356,7 @@ import { readLegacyProject, readStoredProject, removeLegacyProject, writeStoredP
 import { distanceToSegment, getCanvasPosition, getWrapperPosition, isPointInSpeechBubble } from './src/canvas-interaction.js';
 import { isMeaningfulMarquee } from './src/marquee.js';
 import { beginMarquee, endMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, showMarqueeElement, updateCursor, updateMarqueeElement } from './src/drag-controller.js';
-import { decodeStk, createFigureFromStk } from './src/stk-import.js';
+import { decodeStk, createFigureFromStk, stkDrawnJointIds } from './src/stk-import.js';
 import { drawStkFigure, getStkArtworkBounds } from './src/stk-renderer.js';
 
 // Color palette
@@ -3037,7 +3037,8 @@ const app={
     this.groups.forEach(g=>{
       const members=this.figures.filter(f=>f.groupId===g.id);if(!members.length)return;
       let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
-      members.forEach(f=>{f.joints.forEach(j=>{const r=(j.type===SEGMENT_CIRCLE?(j.radius||20)*f.scale:0)+(j.thickness||14)*f.scale/2;minX=Math.min(minX,j.x-r);minY=Math.min(minY,j.y-r);maxX=Math.max(maxX,j.x+r);maxY=Math.max(maxY,j.y+r);});});
+      // Imported figures count only joints something is drawn at, so an invisible construction arm cannot stretch the outline.
+      members.forEach(f=>{const drawn=f.stkArtwork?stkDrawnJointIds(f.stkArtwork):null;(drawn?.size?f.joints.filter(j=>drawn.has(j.id)):f.joints).forEach(j=>{const r=(j.type===SEGMENT_CIRCLE?(j.radius||20)*f.scale:0)+(j.thickness||14)*f.scale/2;minX=Math.min(minX,j.x-r);minY=Math.min(minY,j.y-r);maxX=Math.max(maxX,j.x+r);maxY=Math.max(maxY,j.y+r);});});
       const pad=14,bx=minX-pad,by=minY-pad,bw=maxX-minX+pad*2,bh=maxY-minY+pad*2;
       const isSel=members.some(f=>f.selected||this.selectedFigureIds.has(f.id));
       const color=isSel?'#3b82f6':'#10b981';

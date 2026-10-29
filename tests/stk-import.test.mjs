@@ -3,11 +3,11 @@ import fs from 'node:fs';
 import test from 'node:test';
 import zlib from 'node:zlib';
 import {
-  STK_MAX_FILE_BYTES, STK_MAX_PAYLOAD_BYTES, STK_MAX_SEGMENTS, STK_WRAPPER_V2, STK_WRAPPER_V3, STK_WRAPPER_V4, STK_WRAPPER_V5, createFigureFromStk, decodeStk, decodeStkBytes,
-  isStkCircleSegment, isStkFilledCircleSegment, pointOnStkSegment, validateStkArtwork
+  STK_MAX_FILE_BYTES, STK_MAX_PAYLOAD_BYTES, STK_MAX_SEGMENT_LENGTH, STK_MAX_SEGMENTS, STK_WRAPPER_V2, STK_WRAPPER_V3, STK_WRAPPER_V4, STK_WRAPPER_V5, createFigureFromStk, decodeStk, decodeStkBytes,
+  isStkCircleSegment, isStkFilledCircleSegment, pointOnStkSegment, stkDrawnJointIds, validateStkArtwork
 } from '../src/stk-import.js';
 import { findDragTarget } from '../src/drag-controller.js';
-import { normaliseProject } from '../src/project.js';
+import { MAX_JOINT_LENGTH, normaliseProject, serializeProject } from '../src/project.js';
 import { drawStkFigure, getStkArtworkBounds } from '../src/stk-renderer.js';
 
 function compressed(wrapper, payload) {
@@ -896,4 +896,49 @@ test('reads record-order drawing, the figure outline trailer and polygon transpa
   const a8 = decodeStkBytes(bitPayload({ header: 0xa8, segments: twoLines, polygons: [{ color: [1, 2, 3], vertices: [0, 1, 2], transparency: 200 }] }), STK_WRAPPER_V5);
   assert.deepEqual([a8.polygons[0].transparency, a8.polygons[0].reserved], [200, 0]);
   validateStkArtwork(a8);
+});
+
+test('imports Pivot slider arms, saves and reopens them, and keeps hand-made joints to the normal limit', async () => {
+  // An invisible arm runs 500,000 units out and its child comes straight back, so the visible part
+  // hangs near the root and moves in a nearly straight line when the returning arm is turned.
+  const slider = v5Payload({ segments: [
+    { parent: 0, length: 500000, angle: 0, width: 0, flag: 1 },
+    { parent: 1, length: 500000, angle: Math.PI + 0.0001, width: 0 },
+    { parent: 2, length: 20, angle: Math.PI / 2, width: 4 }
+  ] });
+  const figure = createFigureFromStk(await decodeStk(compressed(STK_WRAPPER_V5, slider)), { x: 0, y: 0 });
+  figure.updatePositions();
+  const bounds = getStkArtworkBounds(figure);
+  assert.ok(bounds.maxX - bounds.minX < 10 && bounds.maxY - bounds.minY < 30, 'the invisible arms do not count towards the figure size');
+  assert.deepEqual([...stkDrawnJointIds(figure.stkArtwork)], ['stk-2', 'stk-3'], 'nor towards a group outline');
+  const part = () => figure.joints.find(joint => joint.id === 'stk-3');
+  const before = { x: part().x, y: part().y };
+  figure.joints.find(joint => joint.id === 'stk-2').angle += 0.00001;
+  figure.updatePositions();
+  assert.ok(Math.abs(part().x - before.x) < 0.01 && Math.abs(Math.abs(part().y - before.y) - 5) < 0.01, 'the part slides 5 units in a straight line');
+
+  const state = { frames: [[figure]], frameDelays: [1], groups: [], docWidth: 800, docHeight: 500, fps: 12, currentFrameIndex: 0 };
+  const reopened = normaliseProject(JSON.parse(JSON.stringify(serializeProject(state)))).frames[0][0];
+  assert.equal(reopened.joints.find(joint => joint.id === 'stk-1').length, 500000);
+  assert.equal(normaliseProject({ frames: [[lineFigureData(figure)]] }).frames[0][0].joints.length, 4, 'version 5 files with full joint lists reopen too');
+
+  const tooLong = v5Payload({ segments: [{ parent: 0, length: STK_MAX_SEGMENT_LENGTH * 1.5, angle: 0, width: 0 }] });
+  await assert.rejects(() => decodeStk(compressed(STK_WRAPPER_V5, tooLong)), /length is invalid/);
+  const handMade = { id: 'drawn', x: 0, y: 0, joints: [{ id: 'root', parentId: null, length: 0, angle: 0 }, { id: 'arm', parentId: 'root', length: MAX_JOINT_LENGTH + 1, angle: 0 }] };
+  assert.throws(() => normaliseProject({ frames: [[handMade]] }), /joint length/);
+});
+
+test('draws tied Pivot 5 draw ranks in record order and accepts bends up to 1.99π', async () => {
+  const three = [0, 1, 2].map(index => ({ parent: index, length: 10, angle: 0, width: 2 }));
+  // Items 0 and 1 share rank 1 and rank 2 is unused, as in a few library files.
+  const tied = await decodeStk(compressed(STK_WRAPPER_V5, v5Payload({ segments: three, ranks: [1, 1, 0] })));
+  assert.deepEqual(tied.drawRanks, [1, 2, 0]);
+  assert.ok(tied.warnings.some(warning => /same place/.test(warning)));
+  validateStkArtwork(tied);
+  await assert.rejects(() => decodeStk(compressed(STK_WRAPPER_V5, v5Payload({ segments: three, ranks: [0, 1, 3] }))), /not a complete permutation/);
+
+  const bent = bend => compressed(STK_WRAPPER_V5, v5Payload({ segments: [{ parent: 0, length: 25, angle: 0, width: 2 }], curves: [{ index: 0, bend }] }));
+  const nearlyFull = await decodeStk(bent(-1.98 * Math.PI));
+  assert.ok(Number.isFinite(getStkArtworkBounds(createFigureFromStk(nearlyFull)).maxX));
+  await assert.rejects(() => decodeStk(bent(1.995 * Math.PI)), /bend is invalid/);
 });
