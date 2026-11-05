@@ -58,8 +58,8 @@ input[type=range]::-webkit-slider-thumb {
 }
 
 /* Buttons that start something rather than remove it are blue; red stays for replacing or deleting. */
-#welcome-start, #help-modal .modal-btn.confirm { background: var(--accent); }
-#welcome-start:hover, #help-modal .modal-btn.confirm:hover { background: var(--accent2); }
+#welcome-start, #whats-new-close, #help-modal .modal-btn.confirm { background: var(--accent); }
+#welcome-start:hover, #whats-new-close:hover, #help-modal .modal-btn.confirm:hover { background: var(--accent2); }
 .frame-playhead { background: var(--accent); }
 /* A deeper red keeps white words readable on confirm buttons (4.8:1; the built-in red was 3.8:1). */
 .modal-btn.confirm { background: #DC2626; }
