@@ -761,6 +761,14 @@
     .pb-sep { margin: 0 4px; }
   }
 
+  /* Narrow windows: New, Save, Open and Import STK fold to their icons (their words stay for screen readers
+     and show as tips), so the top bar fits down to the compact layout. */
+  @media (min-width: 781px) and (max-width: 1000px) {
+    #topbar .top-btn { font-size: 0; gap: 0; padding: 6px 8px; }
+    .wordmark { margin-right: 12px; }
+    .project-name-input { width: 116px; }
+  }
+
   /* Narrow windows: the playback switches fold to their icons (their words stay for screen readers),
      so nothing in the bar is cut off. Below 781px the bar scrolls instead. */
   @media (min-width: 781px) and (max-width: 1240px) {
@@ -836,15 +844,15 @@
 
   <div class="top-divider"></div>
 
-  <button class="top-btn" onclick="app.confirmNewProject()">
+  <button class="top-btn" onclick="app.confirmNewProject()" title="New project">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     New
   </button>
-  <button class="top-btn" onclick="app.saveProject()">
+  <button class="top-btn" onclick="app.saveProject()" title="Save a project file">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
     Save
   </button>
-  <button class="top-btn" onclick="document.getElementById('load-input').click()">
+  <button class="top-btn" onclick="document.getElementById('load-input').click()" title="Open a project file">
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
     Open
   </button>

@@ -328,3 +328,18 @@ test('Delete on a clicked frame removes that frame; Backspace there does nothing
   await page.keyboard.press('Delete');
   expect(await page.evaluate(() => ({ frames: app.frames.length, figures: app.figures.length }))).toEqual({ frames: 2, figures: 0 });
 });
+
+test('the top bar fits without cutting anything off, down to the compact layout', async ({ page }) => {
+  await openEditor(page);
+  for (const width of [1366, 1100, 1000, 900, 820, 781]) {
+    await page.setViewportSize({ width, height: 800 });
+    const overflow = await page.evaluate(() => {
+      const bar = document.getElementById('topbar'), right = bar.getBoundingClientRect().right;
+      return Math.max(...[...bar.children].filter(child => child.offsetParent).map(child => child.getBoundingClientRect().right)) - right;
+    });
+    expect(overflow, `${width}px wide`).toBeLessThanOrEqual(0);
+  }
+  // Folded buttons keep their names.
+  await page.setViewportSize({ width: 820, height: 800 });
+  await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeVisible();
+});
