@@ -1501,7 +1501,7 @@
 
 <script type="module">
 import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './src/models.js';
-import { GIF_WARNING_FRAME_COUNT, MAX_BACKGROUND_DATA_LENGTH, MAX_FIGURES_PER_FRAME, MAX_JOINT_LENGTH, MAX_JOINTS_PER_FIGURE, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, MAX_PROJECT_GROUPS, MAX_TEXT_LENGTH, SMOOTH_EXPORT_FPS, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject } from './src/project.js';
+import { GIF_WARNING_FRAME_COUNT, MAX_BACKGROUND_DATA_LENGTH, MAX_FIGURES_PER_FRAME, MAX_JOINT_LENGTH, MAX_JOINTS_PER_FIGURE, MAX_PROJECT_FILE_BYTES, MAX_PROJECT_FRAMES, MAX_PROJECT_GROUPS, MAX_TEXT_LENGTH, SMOOTH_EXPORT_FPS, clampDimension, cloneFigures, normaliseAngle, normaliseProject, serializeProject, serializeProjectJson } from './src/project.js';
 import { History } from './src/history.js';
 import { renderDocument } from './src/renderer.js';
 import { createGifSchedules, createFrameSchedule, createStoredZip, pickWebmMimeType } from './src/export-utils.js';
@@ -1861,8 +1861,8 @@ const app={
     let payload;
     try{
       const createdInitialFrame=this.commitActiveFrame();
-      const project=serializeProject(this);
-      payload=JSON.stringify(project);
+      // The same text as JSON.stringify(serializeProject(this)), built from each frame's JSON as last saved.
+      payload=serializeProjectJson(this);
       if(createdInitialFrame)this.updateTimeline();
       this.pendingLocalSave=payload;
       this.localSaveErrorRevision=0;
@@ -2990,7 +2990,7 @@ const app={
   projectFilename(){return this.projectName.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'stickmotion-project';},
   saveProject(){
     this.commitActiveFrame();this.fileSaved=true;
-    const b=new Blob([JSON.stringify(this.serializeProject())],{type:'application/json'});
+    const b=new Blob([serializeProjectJson(this)],{type:'application/json'});
     const filename=this.projectFilename()+'.json';
     const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;a.click();
     setTimeout(()=>URL.revokeObjectURL(u),1000);this.showToast(`Saved ${filename}`);

@@ -224,6 +224,11 @@ export function serializeProject(state) {
   const artworkRefs = new Map();
   const stkArtworks = {};
   const frames = state.frames.map(frame => frame.map(figure => serializeFigure(figure, artworkRefs, stkArtworks)));
+  return projectData(state, frames, artworkRefs.size ? stkArtworks : null);
+}
+
+// The saved project around its frames and artwork table, in the saved key order.
+function projectData(state, frames, stkArtworks) {
   return {
     version: 6,
     name: state.projectName || state.name || 'Untitled animation',
@@ -231,7 +236,7 @@ export function serializeProject(state) {
     height: state.docHeight,
     fps: state.fps,
     frames,
-    ...(artworkRefs.size ? { stkArtworks } : {}),
+    ...(stkArtworks ? { stkArtworks } : {}),
     delays: state.frameDelays,
     currentFrameIndex: state.currentFrameIndex,
     groups: state.groups,
@@ -248,4 +253,102 @@ export function serializeProject(state) {
       fileSaved: state.fileSaved === true
     }
   };
+}
+
+// ── Fast saving ──────────────────────────────────────────────────────────────────────────────────────────
+// Autosave runs after nearly every edit, and stringifying a large project whole stalls the editor (about
+// 100 ms for 300 frames of 15 stickmen at a 4x CPU slowdown).  serializeProjectJson(state) returns exactly
+// JSON.stringify(serializeProject(state)), byte for byte, but reuses each frame's JSON from earlier saves,
+// so a save costs time in proportion to what changed.
+//
+// This is safe because a stored frame is never edited in place: an edit puts a new frame array in its place
+// (commitActiveFrame, setStoredGroupIds, dragging a motion-path dot, pasting frames), and Undo snapshots
+// already share frame arrays on the same promise.  Drawing a stored frame recomputes its joints' x/y, but
+// those are not saved.  Imported artwork is frozen, so its JSON is cached too.
+//
+// A frame's JSON depends on the rest of the project only through its artwork references ("stk1", "stk2", ...),
+// numbered in first-use order across all frames.  So each frame is cached as the text around its references
+// plus the artwork each one names, and the numbers are filled in as the project is put together.
+const frameJsonCache = new WeakMap(); // frame array -> { parts, artworks }: its JSON is parts[0], ref 1, parts[1], ...
+const artworkJsonCache = new WeakMap(); // frozen artwork -> its JSON
+let backgroundJsonCache = { data: null, json: 'null' }; // the background image (a data URI of up to 8 MB) and its JSON
+
+// The listed members of an object as JSON, in order and without the braces: '"a":1,"b":2'.  Members that
+// JSON leaves out (undefined values) are left out here too.
+function membersJson(object, keys) {
+  return JSON.stringify(Object.fromEntries(keys.map(key => [key, object[key]]))).slice(1, -1);
+}
+
+function frameJson(frame) {
+  const cached = frameJsonCache.get(frame);
+  if (cached) return cached;
+  const parts = [], artworks = [], refs = new Map(), table = {};
+  let text = ['[']; // the part being gathered, joined into one flat string when it is complete
+  frame.forEach((figure, index) => {
+    if (index) text.push(',');
+    const data = serializeFigure(figure, refs, table);
+    if (!figure.stkArtwork) { text.push(JSON.stringify(data)); return; }
+    // Split the figure at its artwork reference, whose number is only known when the project is put together.
+    const keys = Object.keys(data), at = keys.indexOf('stkArtworkRef');
+    const before = membersJson(data, keys.slice(0, at)), after = membersJson(data, keys.slice(at + 1));
+    text.push('{', before, before ? ',' : '', '"stkArtworkRef":');
+    parts.push(text.join(''));
+    artworks.push(figure.stkArtwork);
+    text = [after ? ',' : '', after, '}'];
+  });
+  text.push(']');
+  parts.push(text.join(''));
+  const entry = { parts, artworks };
+  frameJsonCache.set(frame, entry);
+  return entry;
+}
+
+function artworkJson(artwork) {
+  if (artworkJsonCache.has(artwork)) return artworkJsonCache.get(artwork);
+  const json = JSON.stringify(artwork);
+  // Settled artwork is deep-frozen, so it can never differ from this JSON.  Anything else is not kept.
+  if (artwork && typeof artwork === 'object' && Object.isFrozen(artwork)) artworkJsonCache.set(artwork, json);
+  return json;
+}
+
+function backgroundJson(data) {
+  if (backgroundJsonCache.data !== data) backgroundJsonCache = { data, json: JSON.stringify(data) };
+  return backgroundJsonCache.json;
+}
+
+export function serializeProjectJson(state) {
+  const refs = new Map(); // artwork -> its number, given in first-use order just as serializeProject gives them
+  const frameTexts = state.frames.map(frame => {
+    const { parts, artworks } = frameJson(frame);
+    const text = [parts[0]];
+    artworks.forEach((artwork, index) => {
+      if (!refs.has(artwork)) refs.set(artwork, refs.size + 1);
+      text.push(`"stk${refs.get(artwork)}"`, parts[index + 1]);
+    });
+    return text;
+  });
+  // The text is gathered as pieces and joined once, so the browser copies the (possibly many-megabyte)
+  // result a single time and hands IndexedDB one flat string.
+  const pieces = ['{'];
+  const data = projectData(state, null, refs.size ? {} : null);
+  for (const key of Object.keys(data)) {
+    const start = pieces.length;
+    if (pieces.length > 1) pieces.push(',');
+    if (key === 'frames') {
+      pieces.push('"frames":[');
+      frameTexts.forEach((text, index) => pieces.push(index ? ',' : '', ...text));
+      pieces.push(']');
+    } else if (key === 'stkArtworks') {
+      pieces.push('"stkArtworks":{');
+      [...refs.keys()].forEach((artwork, index) => pieces.push(index ? ',' : '', `"stk${index + 1}":`, artworkJson(artwork)));
+      pieces.push('}');
+    } else if (key === 'backgroundData' && typeof data.backgroundData === 'string') {
+      pieces.push('"backgroundData":', backgroundJson(data.backgroundData));
+    } else {
+      const member = membersJson(data, [key]);
+      if (member) pieces.push(member); else pieces.length = start; // a member JSON leaves out, like an undefined value
+    }
+  }
+  pieces.push('}');
+  return pieces.join('');
 }

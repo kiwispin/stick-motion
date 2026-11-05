@@ -419,9 +419,16 @@ Ideas from the SketchMotion redesign, brought across where they suit a stick-fig
 - Each joint now swings round its parent the shorter way while its length changes evenly, so limbs keep their length. The first and last in-between poses are exactly the two frames.
 - Playback and GIF/video export share the fix. The old recursive parent lookup is gone too, which helps very detailed figures.
 
+### Fixed — Autosave stays quick on very large projects (2026-11-05)
+
+- Every save used to turn the whole project into text again. One small change cost about 95 ms on a 300-frame × 15-stickman project and 250 ms on 21 frames of a 5,507-part imported dinosaur (Chromium at 4× CPU slowdown, medians).
+- Each frame's saved text is now kept and reused until that frame changes, and so is each imported artwork's and the background image's. The same change now costs about 14 ms on both. The first save after opening costs what it did before.
+- The saved text is exactly what it was, byte for byte, for autosave and downloaded project files alike. Tests compare the two after hundreds of edits (`tests/fast-save.test.mjs`, `tests/e2e/fast-save.spec.js`).
+- This relies on stored frames never being changed in place: every edit puts a new frame array in its place, as Undo already requires. Code that changes a stored frame or figure in place would leave its saved text stale.
+
 ### Deferred deliberately
 
-- **Faster autosave on very large projects**: `JSON.stringify` of the whole project runs on each save (≈20 ms for a typical project, ≈185 ms for 300 frames × 15 figures at 4× CPU slowdown). A per-frame serialisation cache would fix it but changes the save path, so it waits until large projects are common.
+- **Writing very large autosaves**: the browser still copies the whole project text into IndexedDB on each save (≈30 ms for a 10 MB project, ≈60 ms for the dinosaur project, at 4× slowdown). Saving frames as separate records would avoid it but changes the storage format.
 
 ### Next
 
