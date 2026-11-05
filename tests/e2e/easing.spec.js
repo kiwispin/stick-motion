@@ -120,13 +120,17 @@ test('easing stays with its frame through duplicate, move, copy, paste, delete, 
   expect(reopened).toEqual({ saved: ['out', 'in', 'even', 'out'], eases: ['out', 'in', 'even', 'out'] });
 });
 
-test('a new project starts with the path off, as in SketchMotion', async ({ page }) => {
+test('a new or reopened project starts with the path off, as in SketchMotion', async ({ page }) => {
   await openEditor(page);
   await page.evaluate(() => app.newProject());
   await expect(page.getByRole('button', { name: 'Path' })).toHaveAttribute('aria-pressed', 'false');
   await page.getByRole('button', { name: 'Path' }).click();
   expect(await page.evaluate(() => app.showPath)).toBe(true);
-  expect(await page.evaluate(() => app.serializeProject().settings.showPath)).toBe(true); // a student's choice is kept with the project
+  // Projects saved while the path started on (nearly all of them) open without it too.
+  const reopened = await page.evaluate(() => { const saved = JSON.parse(JSON.stringify(app.serializeProject())); app.applyProjectData(saved); return { saved: saved.settings.showPath, now: app.showPath }; });
+  expect(reopened).toEqual({ saved: true, now: false });
+  await expect(page.getByRole('button', { name: 'Path' })).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('button', { name: 'Path' }).click();
   await page.evaluate(() => app.newProject());
   expect(await page.evaluate(() => app.showPath)).toBe(false);
 });

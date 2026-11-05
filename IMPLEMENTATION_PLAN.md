@@ -447,7 +447,7 @@ Ideas from the SketchMotion redesign, brought across where they suit a stick-fig
   - With Smooth on, the frame panel reads as the move to the next frame: "Move to next frame", "2× faster" / "1.5× slower", Faster–Slower. Without Smooth, or on the last frame with Loop off, it is "Hold this frame" as before.
   - Each frame's move can be Steady, Speed up, Slow down or Both (`frameEases`, `easeProgress` in `src/motion-curve.js`, quadratic like gravity). Thumbnails show an eased move's curve while Smooth is on.
   - Easing follows its frame through Undo, duplicate, move, copy and paste, and delete. Projects save an `eases` list only when a move eases, so other files are unchanged and older versions just ignore it.
-- **Path starts off.** As in SketchMotion, the motion path is optional: new projects start with Path off, and a project keeps the student's choice.
+- **Path starts off.** As in SketchMotion, the motion path is optional: every new or opened project starts with Path off (nearly every saved project and draft had it on), and students turn it on when they want it.
 
 ### Deferred deliberately
 

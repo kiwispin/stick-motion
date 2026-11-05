@@ -103,7 +103,8 @@ test('autosave writes exactly the plain project JSON through many edits, and a r
   });
   expect(reloaded.fast).toBe(reloaded.plain);
   // Opening a project tidies each joint angle with atan2(sin, cos), which can move it by a rounding step
-  // (0.2 opens as 0.19999999999999998), as it always has; everything else comes back exactly.
+  // (0.2 opens as 0.19999999999999998), as it always has; and Path starts off whenever a project opens.
+  // Everything else comes back exactly.
   const differences = [];
   const compare = (a, b, path) => {
     if (typeof a === 'number' && typeof b === 'number') { if (Math.abs(a - b) > 1e-12 * Math.max(1, Math.abs(a))) differences.push(path); return; }
@@ -113,7 +114,8 @@ test('autosave writes exactly the plain project JSON through many edits, and a r
     keys.forEach(key => compare(a[key], b[key], `${path}.${key}`));
   };
   compare(JSON.parse(reloaded.fast), saved, 'project');
-  expect(differences).toEqual([]);
+  expect(differences.filter(path => path !== 'project.settings.showPath')).toEqual([]);
+  expect(JSON.parse(reloaded.fast).settings.showPath).toBe(false);
   expect(errors).toEqual([]);
 });
 

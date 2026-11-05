@@ -1851,7 +1851,7 @@ const app={
     this.isSmooth=d.settings.isSmooth!==undefined?!!d.settings.isSmooth:true;
     this.showOnion=d.settings.showOnion!==undefined?!!d.settings.showOnion:true;
     this.showPivots=d.settings.showPivots!==undefined?!!d.settings.showPivots:true;
-    this.showPath=d.settings.showPath===true;
+    this.showPath=false; // the path is a view aid a student turns on when wanted, so every opened project starts without it
     this.motionCurve=d.settings.motionCurve==='curved'?'curved':'straight';
     const onionCount=(value,fallback)=>Number.isInteger(value)&&value>=0&&value<=3?value:fallback;
     this.onionBefore=onionCount(d.settings.onionBefore,1);this.onionAfter=onionCount(d.settings.onionAfter,0);
