@@ -174,6 +174,18 @@ test('copied frames paste after the current frame as one Undo step, keeping each
   expect(await page.evaluate(() => app.frames.length)).toBe(4);
 });
 
+test('frames pasted into another project drop groups that project does not have', async ({ page }) => {
+  await openEditor(page);
+  const groupIds = await page.evaluate(() => {
+    app.newProject(); app.addFigure();
+    app.selectedFigureIds = new Set(app.figures.map(figure => figure.id)); app.groupSelected();
+    app.copyFrames();
+    app.newProject(); app.pasteFrames();
+    return app.frames[1].map(figure => figure.groupId);
+  });
+  expect(groupIds).toEqual([null, null]);
+});
+
 test('the playback bar never overlaps or cuts off a button, from phone to wide screens', async ({ page }) => {
   await openEditor(page);
   for (const width of [1920, 1440, 1366, 1280, 1100, 1024, 900, 800, 700]) {

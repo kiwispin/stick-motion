@@ -1916,8 +1916,8 @@ const app={
 
   // ── Undo/Redo ─────────────────────────────────────────────────
   saveState(){this.history.capture(this);this.fileSaved=false;},
-  undo(){const snapshot=this.history.undo(this);if(snapshot)this.restoreState(snapshot);},
-  redo(){const snapshot=this.history.redo(this);if(snapshot)this.restoreState(snapshot);},
+  undo(){const snapshot=this.history.undo(this);if(snapshot){this.restoreState(snapshot);this.fileSaved=false;}},
+  redo(){const snapshot=this.history.redo(this);if(snapshot){this.restoreState(snapshot);this.fileSaved=false;}},
   restoreState(s){this.frames=[...s.frames];this.frameDelays=[...s.frameDelays];this.currentFrameIndex=s.currentFrameIndex;this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);this.figures=s.figures.map(f=>f.clone());if(s.groups)this.groups=s.groups.map(g=>g.clone());const d=this.frameDelays[this.currentFrameIndex]||1.0;document.getElementById('frame-duration').value=d;document.getElementById('duration-display').innerText=this.holdLabel(d);this.render();this.updateTimeline();this.updateGroupsPanel();this.saveLocal();},
 
   // ── Modals ────────────────────────────────────────────────────
@@ -2723,7 +2723,9 @@ const app={
     if(this.frames.length+clip.frames.length>MAX_PROJECT_FRAMES){this.showToast(`Pasting would pass the ${MAX_PROJECT_FRAMES.toLocaleString()}-frame limit.`,'error');return;}
     this.commitActiveFrame();this.saveState();
     const at=this.currentFrameIndex+1;
-    this.frames.splice(at,0,...clip.frames.map(frame=>frame.map(f=>f.clone())));
+    // Frames copied from another project may name groups this one doesn't have.
+    const groupIds=new Set(this.groups.map(group=>group.id));
+    this.frames.splice(at,0,...clip.frames.map(frame=>frame.map(f=>{const copy=f.clone();if(copy.groupId&&!groupIds.has(copy.groupId))copy.groupId=null;return copy;})));
     this.frameDelays.splice(at,0,...clip.delays);
     this.selectedFrames.clear();clip.frames.forEach((_,k)=>this.selectedFrames.add(at+k));
     this.updateTimeline();this.loadFrame(at,false);this.scrollToFrame(at);this.saveLocal();

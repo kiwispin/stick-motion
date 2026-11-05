@@ -373,6 +373,41 @@ Turn StickMotion into a dependable, accessible, classroom-ready animation editor
 - A grouped imported figure's outline counts only joints something is drawn at, so an invisible arm cannot stretch it off the stage.
 - The 14 figures still unsupported all embed pictures (segment type 2), a separate feature.
 
+### Completed — Closer to SketchMotion (2026-11-05)
+
+Ideas from the SketchMotion redesign, brought across where they suit a stick-figure animator. Controls stay where students know them.
+
+- **Timeline scrub bar.** Drag along the bar above the thumbnails to flip through frames. A numbered playhead sits over the current frame, and holding near either end scrolls long animations. With the bar focused, the arrow keys, Home and End step through frames. It uses spare space, so the stage keeps its size.
+- **Safer New and Open.** The app remembers whether the animation is saved in a project file:
+  - Saving or opening a file, or starting a blank animation, counts as saved. Any change after that, including Undo, does not.
+  - When the work isn't saved, New offers **Save file first**, and Open offers **Save mine, then open**.
+  - New previously replaced the only copy in the browser, with Undo cleared, after a single check.
+- **Onion skin both ways.**
+  - A menu beside Onion sets how many earlier frames (0–3, fading) and later frames (0–3, in blue) show.
+  - The default is unchanged: one earlier frame.
+- **Motion path.**
+  - **Path** shows the selected figure's root in every other frame as dots on a line: close together means slow, far apart means fast.
+  - Earlier frames are orange and later ones blue. Clicking a dot goes to that frame.
+- **Copy and paste whole frames,** for repeating cycles. Figures keep their identity, so Smooth still tweens. Buttons only: Ctrl+C/V still copy figures.
+- **Hold this frame.**
+  - Was "Frame Duration / Speed multiplier", where a higher number meant slower.
+  - It now reads "2× longer" or "0.5× shorter", with − and + steps beside the slider.
+- **Small extras:**
+  - Undo keeps 100 steps instead of 50.
+  - Home and End go to the first and last frame, and ? opens Help.
+  - The playback bar never overlaps itself: below 1240 px its switches fold to icons, and below 1000 px it scrolls. Before, buttons were cut off on narrower windows.
+- **Look (`src/look.css`, removable in one line):**
+  - Warm night colours, with a deeper blue for filled buttons so white words stay readable, and a lamp glow behind the paper.
+  - One soft-blue "on" style for tools and switches, readable panel headings, and visible slider tracks.
+  - Tool names under the icons on screens at least 700 px tall.
+  - A family logo, and blue (not red) for buttons that don't delete anything.
+- **Not brought across:**
+  - The sample animation: the starter templates were withdrawn for quality, and a test guards that.
+  - The File menu: the header has room for New, Save, Open and Import STK, and classes know them.
+  - The Motion tool: Smooth tweening covers it.
+  - Hide panels and the phone and tablet layouts: StickMotion has its own tablet drawer.
+  - Drawing tools, and the Inter font, which would need bundling for offline use.
+
 ### Deferred deliberately
 
 - **Faster autosave on very large projects**: `JSON.stringify` of the whole project runs on each save (≈20 ms for a typical project, ≈185 ms for 300 frames × 15 figures at 4× CPU slowdown). A per-frame serialisation cache would fix it but changes the save path, so it waits until large projects are common.

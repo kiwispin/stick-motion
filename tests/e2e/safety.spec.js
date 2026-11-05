@@ -66,6 +66,15 @@ test('the browser remembers across a reload that the animation is saved as a fil
   await expect(page.locator('#confirm-title')).toHaveText('Save your animation first?');
 });
 
+test('Undo after saving a file counts as a change', async ({ page }) => {
+  await openEditor(page);
+  await editedProject(page, 'Undo me');
+  await Promise.all([page.waitForEvent('download'), page.evaluate(() => app.saveProject())]);
+  await page.evaluate(() => app.undo());
+  await newButton(page).click();
+  await expect(page.locator('#confirm-title')).toHaveText('Save your animation first?');
+});
+
 test('Open offers to save the current animation first, then opens the chosen one', async ({ page }) => {
   await openEditor(page);
   await editedProject(page, 'Current work');

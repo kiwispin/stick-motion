@@ -44,9 +44,10 @@ Pushing to `main` publishes to the live site within a minute or two. Deploy outs
 | `src/stk-import.js`, `src/stk-renderer.js` | Importing and drawing Pivot `.stk` figures |
 | `src/drag-controller.js`, `src/canvas-interaction.js`, `src/marquee.js` | Pointer hit-testing and dragging |
 | `src/export-utils.js` | GIF and video timing, PNG ZIP packaging |
+| `src/look.css` | The look shared with SketchMotion (colours, "on" style, tool names); remove its one `<link>` in `index.html` to return to the previous look |
 | `vendor/` | gif.js, bundled so exports work offline |
 
-Projects autosave in the browser that created them. Students can move work between devices with **Save** (downloads a `.json` project file) and **Open**.
+Projects autosave in the browser that created them. Students can move work between devices with **Save** (downloads a `.json` project file) and **Open**. The app remembers whether the work, as it is, is saved in a project file, and New and Open offer to save one first when it isn't.
 
 ## Notes for contributors
 
