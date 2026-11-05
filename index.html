@@ -506,11 +506,24 @@
   #timeline-track {
     flex: 1; overflow-x: auto; overflow-y: hidden;
     display: flex; align-items: center;
-    padding: 7px 16px; gap: 8px;
-    scrollbar-width: thin;
+    padding: 26px 16px 7px; gap: 8px;
+    scrollbar-width: thin; position: relative;
   }
   #timeline-track::-webkit-scrollbar { height: 3px; }
   #timeline-track::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  /* Scrub bar above the thumbnails: drag along it to flip through frames. It scrolls with them. */
+  #frame-scrub { position: absolute; top: 2px; left: 0; height: 22px; cursor: ew-resize; touch-action: none; }
+  #frame-scrub::before { content: ""; position: absolute; left: 16px; right: 16px; top: 10px; height: 2px; border-radius: 1px; background: var(--border2); }
+  #frame-scrub:hover::before, #frame-scrub.scrubbing::before { background: var(--text3); }
+  #frame-scrub:focus-visible { outline: 2px solid #93c5fd; outline-offset: -2px; border-radius: 6px; }
+  .frame-scrub-tick { position: absolute; top: 7px; width: 2px; height: 8px; margin-left: -1px; border-radius: 1px; background: var(--text3); opacity: .5; pointer-events: none; }
+  .frame-playhead {
+    position: absolute; top: 2px; min-width: 24px; height: 18px; padding: 0 5px;
+    transform: translateX(-50%); border-radius: 9px; background: var(--accent2); color: #fff;
+    font: 700 11px/18px var(--mono); text-align: center; pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,.3);
+  }
+  #frame-scrub.scrubbing .frame-playhead { transform: translateX(-50%) scale(1.12); }
 
   .frame-thumb {
     flex-shrink: 0; width: 92px; height: 68px;
@@ -736,7 +749,7 @@
     #playback-bar::-webkit-scrollbar { display: none; }
     #frame-counter-wrap, #pb-center, #pb-right { flex-shrink: 0; }
     #pb-center, #pb-right { justify-self: auto; }
-    #timeline-track { padding: 8px 12px; }
+    #timeline-track { padding: 26px 12px 8px; }
     #zoom-pill { right: 12px; bottom: 12px; }
   }
 
@@ -1139,6 +1152,9 @@
     <button id="add-frame-tl" aria-label="Add frame" onclick="app.addFrame()" title="Add frame (Space)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
+    <div id="frame-scrub" role="slider" tabindex="0" aria-label="Scrub through frames" aria-valuemin="1" aria-valuemax="1" aria-valuenow="1" aria-valuetext="Frame 1 of 1" title="Drag to flip through frames">
+      <div class="frame-playhead">1</div>
+    </div>
   </div>
 </div>
 
@@ -1240,13 +1256,15 @@
     <div class="shortcut-list" aria-label="Keyboard shortcuts">
       <div class="shortcut-row"><span>Add a frame / stop playback</span><kbd>Space</kbd></div>
       <div class="shortcut-row"><span>Previous / next frame</span><kbd>, &nbsp; .</kbd></div>
+      <div class="shortcut-row"><span>First / last frame</span><kbd>Home / End</kbd></div>
       <div class="shortcut-row"><span>Undo / redo</span><kbd>Ctrl/Cmd + Z / Y</kbd></div>
       <div class="shortcut-row"><span>Group / ungroup</span><kbd>Ctrl/Cmd + G / Shift + G</kbd></div>
       <div class="shortcut-row"><span>Copy, cut, paste</span><kbd>Ctrl/Cmd + C / X / V</kbd></div>
       <div class="shortcut-row"><span>Delete selected figure(s)</span><kbd>Delete</kbd></div>
       <div class="shortcut-row"><span>Clear the current selection</span><kbd>Esc</kbd></div>
+      <div class="shortcut-row"><span>This help</span><kbd>?</kbd></div>
     </div>
-    <div class="modal-msg" style="margin-bottom:16px">Use the zoom controls to fit the stage. Pan with the middle mouse button or two fingers on touch devices.</div>
+    <div class="modal-msg" style="margin-bottom:16px">Drag along the bar above the frames to flip through them. Use the zoom controls to fit the stage. Pan with the middle mouse button or two fingers on touch devices.</div>
     <div class="modal-btns"><button class="modal-btn cancel" id="help-close" onclick="app.closeHelp()">Close</button><button class="modal-btn confirm" onclick="app.reopenWelcome()">Show quick start</button></div>
   </div>
 </div>
@@ -1413,7 +1431,7 @@ const app={
   selectedFigureIds:new Set(),
   selectedFrames:new Set(),
   handleRadius:4,
-  pendingAction:null,history:new History(),dialogFocusStack:[],
+  pendingAction:null,history:new History(100),dialogFocusStack:[],
   backgroundLoadToken:0,
   localSaveRunning:false,pendingLocalSave:null,localSaveRevision:0,localSaveErrorRevision:0,localSaveQueue:Promise.resolve(),
   clipboard:[], // ← array of cloned Figure objects
@@ -1442,6 +1460,9 @@ const app={
     window.addEventListener('touchend',e=>this.handleEnd(e));
     window.addEventListener('resize',()=>this.updateCanvasLayout());
     document.getElementById('timeline-track').addEventListener('wheel',e=>{if(e.deltaY!==0){e.preventDefault();e.currentTarget.scrollLeft+=e.deltaY;}},{passive:false});
+    const scrub=document.getElementById('frame-scrub');
+    scrub.addEventListener('pointerdown',e=>this.startFrameScrub(e));
+    scrub.addEventListener('keydown',e=>this.handleFrameScrubKey(e));
     window.addEventListener('keydown',e=>{
       if(this.handleDialogKeydown(e))return;
       if(e.key==='Escape'&&this.closeExportMenu()){e.preventDefault();return;}
@@ -1450,6 +1471,9 @@ const app={
       if(e.code==='Space'){e.preventDefault();if(this.isPlaying)this.stop();else this.addFrame();}
       if(e.key===','||e.key==='<')this.prevFrame();
       if(e.key==='.'||e.key==='>')this.nextFrame();
+      if(e.key==='Home'&&!this.isPlaying){e.preventDefault();this.goToFirstFrame();}
+      if(e.key==='End'&&!this.isPlaying){e.preventDefault();this.goToLastFrame();}
+      if(e.key==='?'){e.preventDefault();this.openHelp();}
       if((e.ctrlKey||e.metaKey)&&e.key==='z'){e.preventDefault();if(e.shiftKey)this.redo();else this.undo();}
       if((e.ctrlKey||e.metaKey)&&e.key==='y'){e.preventDefault();this.redo();}
       if((e.ctrlKey||e.metaKey)&&e.key==='g'){e.preventDefault();if(e.shiftKey)this.ungroupSelected();else this.groupSelected();}
@@ -2522,6 +2546,7 @@ const app={
   prevFrame(){if(this.frames.length>0&&this.currentFrameIndex>0){this.loadFrame(this.currentFrameIndex-1);this.scrollToFrame(this.currentFrameIndex);}},
   nextFrame(){if(this.frames.length>0&&this.currentFrameIndex<this.frames.length-1){this.loadFrame(this.currentFrameIndex+1);this.scrollToFrame(this.currentFrameIndex);}},
   goToFirstFrame(){if(this.frames.length>0){this.loadFrame(0);this.scrollToFrame(0);}},
+  goToLastFrame(){if(this.frames.length>0){const last=this.frames.length-1;this.loadFrame(last);this.scrollToFrame(last);}},
   setFrameDuration(val){
     const d=parseFloat(val);document.getElementById('duration-display').innerText=d.toFixed(1)+'×';
     if(this.frameDelays[this.currentFrameIndex]!==undefined){
@@ -3259,8 +3284,65 @@ const app={
     const count=this.frames.length;
     document.getElementById('frame-counter').innerText=count>0?`Frame ${this.currentFrameIndex+1} of ${count}`:'Frame 1';
     document.querySelectorAll('.frame-thumb').forEach((t,i)=>{t.classList.toggle('active',i===this.currentFrameIndex);t.classList.toggle('selected',this.selectedFrames.has(i));});
+    this.syncFrameScrub();
   },
-  scrollToFrame(i){const thumbs=document.querySelectorAll('.frame-thumb');if(thumbs[i])thumbs[i].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});}
+  scrollToFrame(i){const thumbs=document.querySelectorAll('.frame-thumb');if(thumbs[i])thumbs[i].scrollIntoView({behavior:'smooth',block:'nearest',inline:'center'});},
+
+  // ── Scrub bar ─────────────────────────────────────────────────
+  // One tick over the middle of each thumbnail; the playhead sits over the current frame's.
+  layoutFrameScrub(){
+    const track=document.getElementById('timeline-track'),scrub=document.getElementById('frame-scrub');if(!track||!scrub)return;
+    scrub.querySelectorAll('.frame-scrub-tick').forEach(tick=>tick.remove());
+    track.querySelectorAll('.frame-thumb').forEach(thumb=>{const tick=document.createElement('div');tick.className='frame-scrub-tick';tick.style.left=`${thumb.offsetLeft+thumb.offsetWidth/2}px`;scrub.appendChild(tick);});
+    scrub.style.width=`${track.scrollWidth}px`;
+  },
+  syncFrameScrub(){
+    const track=document.getElementById('timeline-track'),scrub=document.getElementById('frame-scrub');if(!track||!scrub)return;
+    const thumbs=track.querySelectorAll('.frame-thumb'),thumb=thumbs[this.currentFrameIndex];
+    // Thumbnails come and go, and the strip changes width with the window.
+    if(scrub.querySelectorAll('.frame-scrub-tick').length!==thumbs.length||scrub.style.width!==`${track.scrollWidth}px`)this.layoutFrameScrub();
+    const playhead=scrub.querySelector('.frame-playhead');
+    if(thumb)playhead.style.left=`${thumb.offsetLeft+thumb.offsetWidth/2}px`;
+    playhead.textContent=String(this.currentFrameIndex+1);
+    const count=Math.max(1,this.frames.length);
+    scrub.setAttribute('aria-valuemax',String(count));scrub.setAttribute('aria-valuenow',String(this.currentFrameIndex+1));
+    scrub.setAttribute('aria-valuetext',`Frame ${this.currentFrameIndex+1} of ${count}`);
+  },
+  startFrameScrub(e){
+    if(e.button!==0||this.frames.length===0)return;
+    e.preventDefault();
+    const scrub=e.currentTarget,track=document.getElementById('timeline-track');
+    if(this.isPlaying)this.stop();
+    scrub.focus({preventScroll:true});scrub.setPointerCapture?.(e.pointerId);scrub.classList.add('scrubbing');
+    const state={x:e.clientX,timer:null};
+    this.scrubToX(e.clientX);
+    const move=ev=>{state.x=ev.clientX;this.scrubToX(ev.clientX);};
+    const end=()=>{clearInterval(state.timer);scrub.classList.remove('scrubbing');scrub.removeEventListener('pointermove',move);scrub.removeEventListener('pointerup',end);scrub.removeEventListener('pointercancel',end);};
+    scrub.addEventListener('pointermove',move);scrub.addEventListener('pointerup',end);scrub.addEventListener('pointercancel',end);
+    // Holding near either end keeps scrolling the strip, for long animations.
+    state.timer=setInterval(()=>{
+      const bounds=track.getBoundingClientRect();
+      const step=state.x<bounds.left+40?-24:state.x>bounds.right-40?24:0;
+      if(step){track.scrollLeft+=step;this.scrubToX(state.x);}
+    },30);
+  },
+  // Go to the frame whose thumbnail is nearest the pointer.
+  scrubToX(clientX){
+    const track=document.getElementById('timeline-track');const bounds=track.getBoundingClientRect();
+    const x=Math.max(bounds.left,Math.min(bounds.right,clientX))-bounds.left+track.scrollLeft;
+    let nearest=this.currentFrameIndex,distance=Infinity;
+    track.querySelectorAll('.frame-thumb').forEach((thumb,index)=>{const gap=Math.abs(thumb.offsetLeft+thumb.offsetWidth/2-x);if(gap<distance){distance=gap;nearest=index;}});
+    if(nearest!==this.currentFrameIndex)this.loadFrame(nearest);
+  },
+  handleFrameScrubKey(e){
+    const last=this.frames.length-1;
+    const target=e.key==='ArrowLeft'||e.key==='ArrowDown'?this.currentFrameIndex-1:e.key==='ArrowRight'||e.key==='ArrowUp'?this.currentFrameIndex+1:e.key==='Home'?0:e.key==='End'?last:null;
+    if(target===null)return;
+    e.preventDefault();e.stopPropagation();
+    if(this.isPlaying)this.stop();
+    const index=Math.max(0,Math.min(last,target));
+    if(index!==this.currentFrameIndex){this.loadFrame(index);this.scrollToFrame(index);}
+  }
 };
 
 window.app=app;
