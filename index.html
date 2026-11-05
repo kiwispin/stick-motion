@@ -1510,7 +1510,7 @@ import { distanceToSegment, getCanvasPosition, getWrapperPosition, isPointInSpee
 import { isMeaningfulMarquee } from './src/marquee.js';
 import { beginMarquee, endMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, showMarqueeElement, updateCursor, updateMarqueeElement } from './src/drag-controller.js';
 import { decodeStk, createFigureFromStk, mirrorStkArtwork, stkDrawnJointIds } from './src/stk-import.js';
-import { drawStkFigure, getStkArtworkBounds } from './src/stk-renderer.js';
+import { drawStkFigure, getStkArtworkBounds, loadStkPictures, onStkPicturesReady } from './src/stk-renderer.js';
 import { curvePoint } from './src/motion-curve.js';
 
 // Color palette
@@ -1586,6 +1586,7 @@ const app={
   async init(){
     this.updateThemeButtons();
     builder.init();
+    onStkPicturesReady(()=>this.refreshAfterStkPictures());
     this.buildColorSwatches();
     this.applyCanvasSize(this.docWidth,this.docHeight);
     const restored=await this.loadFromLocal();if(!restored)this.addFigure();
@@ -2005,6 +2006,15 @@ const app={
     context.save();context.translate((width-(bounds.minX+bounds.maxX)*scale)/2,(height-(bounds.minY+bounds.maxY)*scale)/2);context.scale(scale,scale);
     drawStkFigure({context,figure,showHandles:false,drawSelection:false});context.restore();
   },
+  // Pictures in imported figures are decoded in the background and left out until ready; then everything showing them is drawn again.
+  refreshAfterStkPictures(){
+    if(this.pendingStkImport?.figure)this.renderStkImportPreview(this.pendingStkImport.figure);
+    // An export swaps in its own frames while it runs, so the stage and timeline are redrawn once it is over.
+    if(this.gifExport||this.asyncExport){setTimeout(()=>this.refreshAfterStkPictures(),250);return;}
+    this.render();this.thumbnailCache=new WeakMap();if(!this.isPlaying)this.updateTimeline();
+  },
+  // Exports wait for every picture in the project, so no frame is drawn without them; with no pictures there is nothing to wait for (null).
+  waitForStkPictures(){const artworks=new Set();[this.figures,...this.frames].forEach(frame=>frame.forEach(figure=>{if(figure.stkArtwork?.images)artworks.add(figure.stkArtwork);}));return artworks.size?loadStkPictures([...artworks]):null;},
   cancelStkImport(){this.invalidateStkImport(true);},
   confirmStkImport(){
     const pending=this.pendingStkImport;if(!pending?.figure||!pending.decoded)return;
@@ -3028,8 +3038,9 @@ const app={
       canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('The canvas could not be encoded.')),type);
     });
   },
-  exportFrame(){
+  async exportFrame(){
     const wasPlaying=this.isPlaying;if(wasPlaying)this.stop();
+    const pictures=this.waitForStkPictures();if(pictures)await pictures;
     const exportCanvas=this.renderFrameToCtx(false,false);
     const suffix='-frame-'+String(this.currentFrameIndex+1).padStart(3,'0');
     const name=this.projectFilename()+suffix+'.png';
@@ -3102,6 +3113,7 @@ const app={
     this.updateGifExportProgress(0,'Preparing frames…');
     document.getElementById('gif-export-cancel').focus();
     try{
+      const pictures=this.waitForStkPictures();if(pictures){await pictures;if(session.cancelled)return;}
       if(typeof GIF!=='function')throw new Error('The local GIF encoder is unavailable.');
       const gif=new GIF({workers:2,quality:10,width:this.docWidth,height:this.docHeight,workerScript:'vendor/gif.worker.js'});
       session.gif=gif;
@@ -3134,6 +3146,7 @@ const app={
     const session=this.beginAsyncExport('Video','Generating WebM video');if(!session)return;
     let stream=null;
     try{
+      const pictures=this.waitForStkPictures();if(pictures){await pictures;if(session.cancelled)return;}
       const mimeType=pickWebmMimeType();
       const exportCanvas=document.createElement('canvas');exportCanvas.width=this.docWidth;exportCanvas.height=this.docHeight;
       if(!mimeType||typeof exportCanvas.captureStream!=='function')throw new Error('WebM export is not supported by this browser.');
@@ -3183,6 +3196,7 @@ const app={
   async exportPngFramesZip(){
     const session=this.beginAsyncExport('PNG frames','Creating PNG frames ZIP');if(!session)return;
     try{
+      const pictures=this.waitForStkPictures();if(pictures){await pictures;if(session.cancelled)return;}
       const schedules=this.frames.map((_,index)=>createFrameSchedule({fps:this.fps,multiplier:this.frameDelays[index]||1,smooth:this.isSmooth,samplesPerFrame:this.isSmooth?SMOOTH_EXPORT_FPS/this.fps:1}));
       const totalSteps=schedules.reduce((total,schedule)=>total+schedule.length,0);
       const files=[],digits=Math.max(3,String(totalSteps).length),base=this.projectFilename();let outputIndex=0;

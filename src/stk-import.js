@@ -20,6 +20,9 @@ export const STK_MAX_SEGMENTS = 10000;
 const STK_DETAILED_SEGMENTS = 2048;
 // Artwork that has been validated, copied and frozen (see settleStkArtwork); it can never change again.
 const settledArtwork = new WeakSet();
+// Picture tables of settled artwork.  Copies made for flipping and smooth playback share the table, so its
+// PNG data is checked and decoded once.
+const settledImages = new WeakSet();
 const jointTemplates = new WeakMap();
 const drawnJointIds = new WeakMap();
 const mirroredArtworks = new WeakMap();
@@ -36,6 +39,15 @@ export const STK_MAX_SEGMENT_LENGTH = 10000000;
 // A saved joint's length is its chord, never longer than its segment; the margin absorbs rounding.
 export const MAX_IMPORTED_JOINT_LENGTH = 2 * STK_MAX_SEGMENT_LENGTH;
 export const STK_MAX_SEGMENT_WIDTH = 500;
+// Pictures (Pivot 5 type-2 segments) carry their own PNG images.  These limits are checked from the PNG
+// headers before anything is decoded, so a small file cannot unpack into a huge image.  The library's
+// largest picture figure has 14 images, 565 KB of PNG data and 1.75 million pixels; its largest image
+// is 606 by 1192.
+export const STK_MAX_IMAGES = 256;
+export const STK_MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+export const STK_MAX_IMAGE_SIDE = 4096;
+export const STK_MAX_IMAGE_PIXELS = 2048 * 2048;
+export const STK_MAX_TOTAL_IMAGE_PIXELS = 16 * 1024 * 1024;
 const STK_MAX_WARNINGS = 32; // the importer itself produces at most ten
 const EPSILON = 1e-8;
 
@@ -52,6 +64,12 @@ export function isStkCircleSegment(artwork, segment) {
 export function isStkFilledCircleSegment(artwork, segment) {
   return Boolean(segment && ((artwork?.wrapper === STK_WRAPPER_V4 && segment.type === 3) ||
     (artwork?.wrapper === STK_WRAPPER_V5 && segment.type === 3)));
+}
+
+// A Pivot 5 type-2 segment draws one of the figure's stored images instead of a line.  Its width, colour,
+// transparency and gradient have no visible effect in Pivot (measured against library previews).
+export function isStkPictureSegment(artwork, segment) {
+  return Boolean(segment && artwork?.wrapper === STK_WRAPPER_V5 && segment.type === STK_PICTURE_TYPE);
 }
 
 function fail(message) {
@@ -123,6 +141,50 @@ function readRgb(payload, offset, label) {
 function validateRgb(color, label) {
   if (!Array.isArray(color) || color.length !== 3 || color.some(value => !Number.isInteger(value) || value < 0 || value > 255)) fail(`${label} has an invalid colour.`);
   return [...color];
+}
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+// Checks that bytes [start, end) are exactly one PNG file: the signature, an IHDR chunk first, at least one
+// IDAT chunk, and chunks that run without gaps to an IEND ending exactly at `end`.  Returns the size its
+// header declares, checked against the safety limits; the pixels themselves are not decoded here.
+function checkPng(bytes, start, end, label) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (end - start < 8 + 25 + 12 || end > bytes.byteLength) fail(`${label} is not a complete PNG image.`);
+  if (PNG_SIGNATURE.some((value, index) => bytes[start + index] !== value)) fail(`${label} is not a PNG image.`);
+  const chunkType = offset => String.fromCharCode(bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7]);
+  let offset = start + 8;
+  if (view.getUint32(offset) !== 13 || chunkType(offset) !== 'IHDR') fail(`${label} has no PNG header.`);
+  const width = view.getUint32(offset + 8);
+  const height = view.getUint32(offset + 12);
+  if (width < 1 || height < 1 || width > STK_MAX_IMAGE_SIDE || height > STK_MAX_IMAGE_SIDE || width * height > STK_MAX_IMAGE_PIXELS) fail(`${label} is ${width} by ${height} pixels, outside the supported size.`);
+  let imageData = false;
+  while (true) {
+    if (offset + 12 > end) fail(`${label} ends before its PNG end marker.`);
+    const length = view.getUint32(offset);
+    const type = chunkType(offset);
+    if (!/^[A-Za-z]{4}$/.test(type) || length > end - offset - 12) fail(`${label} has a malformed PNG chunk.`);
+    offset += 12 + length;
+    if (type === 'IDAT') imageData = true;
+    if (type === 'IEND') break;
+  }
+  if (offset !== end) fail(`${label} does not end where the file says it does.`);
+  if (!imageData) fail(`${label} has no PNG image data.`);
+  return { width, height };
+}
+
+function bytesToBase64(bytes) {
+  let binary = '';
+  for (let index = 0; index < bytes.byteLength; index += 0x8000) binary += String.fromCharCode.apply(null, bytes.subarray(index, index + 0x8000));
+  return btoa(binary);
+}
+
+// The PNG file of a picture, from the base64 text it is kept (and saved in projects) as.
+export function stkImageBytes(image) {
+  const binary = atob(image.data);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
 }
 
 // Pivot 2, 3 and 4 share one 24-byte segment record:
@@ -273,6 +335,11 @@ function parseV4(payload) {
 //   [parent uint16][source id uint16 (0x20 clear)][length float32][angle float64][width float32]
 //   [type byte (0x01 clear)][flag byte (0x02 clear)][RGB (0x04 clear)][transparency (0x08 clear)]
 //   [gradient marker byte (0x80 clear): 0, or 1 followed by the gradient end RGB + transparency]
+//   [picture fields, type 2 only: image index uint16, a zero byte, mirror flag byte]
+// A figure with any type-2 (picture) segment stores an image table between its curves and polygons:
+//   [image count uint16], then per image [x1 y1 x2 y2 int32][end offset uint64][a complete PNG file]
+// (x1, y1) is the image pixel placed on the segment's start and (x2, y2) the one on its end; the end
+// offset is where the PNG ends, counted from the start of the payload.
 // The common headers are a8 (type, flag, RGB), a0 (a8 + transparency), a9 (a8 without type) and
 // 88 (a8 + source ids).  Without bit 0x20, source ids need not be sequential and parents reference
 // them, so both are remapped to record order; curve references are always 0-based record indices, but
@@ -283,6 +350,9 @@ function parseV4(payload) {
 // once erased whole figures such as the basketball hoop, and an earlier "reordered" a9 reading
 // misaligned every style by one segment.)
 const V5_SEGMENT_TYPES = [0, 1, 3, 4, 6];
+const STK_PICTURE_TYPE = 2;
+const V5_PICTURE_FIELD_BYTES = 4;
+const V5_IMAGE_HEADER_BYTES = 24;
 const V5_NO_TYPE = 0x01;
 const V5_NO_FLAG = 0x02;
 const V5_NO_COLOUR = 0x04;
@@ -311,14 +381,15 @@ function readV5Segments(payload, view, segmentCount, label, header) {
   const hasGradients = !(header & V5_NO_GRADIENTS);
   const recordBytes = 18 + (hasSourceIds ? 2 : 0) + (hasType ? 1 : 0) + (hasFlag ? 1 : 0) +
     (hasColour ? 3 : 0) + (hasTransparency ? 1 : 0) + (hasGradients ? 1 : 0);
-  // Without gradients every record has the same size, so the whole section is checked up front.
+  // Without gradients every record but a picture's has the same size, so the section is checked up front;
+  // gradients and pictures lengthen their records, so each record is checked as well.
   if (!hasGradients) ensureBytes(payload, 3, segmentCount * recordBytes, `${label} segment records`);
   const sourceSegments = [];
   const sourceIds = new Set();
   const sourceIdToRecord = new Map();
   let offset = 3;
   for (let index = 0; index < segmentCount; index += 1) {
-    if (hasGradients) ensureBytes(payload, offset, recordBytes, `${label} segment records`);
+    ensureBytes(payload, offset, recordBytes, `${label} segment records`);
     const parent = view.getUint16(offset, true); offset += 2;
     const sourceId = hasSourceIds ? view.getUint16(offset, true) : index + 1;
     if (hasSourceIds) offset += 2;
@@ -338,7 +409,7 @@ function readV5Segments(payload, view, segmentCount, label, header) {
     finiteNumber(length, `${label} segment ${sourceId} length`, 0, STK_MAX_SEGMENT_LENGTH);
     finiteNumber(angle, `${label} segment ${sourceId} angle`, -1000000, 1000000);
     finiteNumber(width, `${label} segment ${sourceId} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    if (hasType && !V5_SEGMENT_TYPES.includes(type)) fail(`${label} segment ${sourceId} uses unsupported type ${type}.`);
+    if (hasType && !V5_SEGMENT_TYPES.includes(type) && type !== STK_PICTURE_TYPE) fail(`${label} segment ${sourceId} uses unsupported type ${type}.`);
     if (flag !== 0 && flag !== 1) fail(`${label} segment ${sourceId} uses unsupported flag ${flag}.`);
     if (gradientMarker !== 0 && gradientMarker !== 1) fail(`${label} segment ${sourceId} uses an unsupported gradient marker ${gradientMarker}.`);
     let gradient = null;
@@ -347,9 +418,17 @@ function readV5Segments(payload, view, segmentCount, label, header) {
       gradient = [payload[offset], payload[offset + 1], payload[offset + 2], payload[offset + 3]];
       offset += 4;
     }
+    let picture = null;
+    if (type === STK_PICTURE_TYPE) {
+      ensureBytes(payload, offset, V5_PICTURE_FIELD_BYTES, `${label} segment ${sourceId} picture`);
+      const imageMirror = payload[offset + 3];
+      if (payload[offset + 2] !== 0 || (imageMirror !== 0 && imageMirror !== 1)) fail(`${label} segment ${sourceId} has unsupported picture settings.`);
+      picture = { image: view.getUint16(offset, true), imageMirror };
+      offset += V5_PICTURE_FIELD_BYTES;
+    }
     sourceIds.add(sourceId);
     sourceIdToRecord.set(sourceId, index);
-    const style = { width, type, flag, color, transparency, ...(gradient ? { gradient } : {}) };
+    const style = { width, type, flag, color, transparency, ...(gradient ? { gradient } : {}), ...(picture || {}) };
     sourceSegments.push(hasSourceIds
       ? { index, sourceId, parentSourceId: parent, length, angle, bend: 0, ...style }
       : { id: index + 1, parent, length, angle, bend: 0, ...style });
@@ -387,11 +466,16 @@ function readV5Tables(payload, view, segments, start, label, header, nodeIdBySou
     if (segmentIndex >= segmentCount) fail(`${label} curve ${index + 1} references an unknown segment.`);
     if (seenCurves.has(segmentIndex)) fail(`${label} curve records contain a duplicate segment ${segmentIndex + 1}.`);
     finiteNumber(bend, `${label} curve ${index + 1} bend`, -STK_MAX_ABS_BEND, STK_MAX_ABS_BEND);
+    // No library picture is curved, so how Pivot would bend one is unknown.
+    if (segments[segmentIndex].type === STK_PICTURE_TYPE && bend !== 0) fail(`${label} curve ${index + 1} bends a picture, which is not supported.`);
     seenCurves.add(segmentIndex);
     segments[segmentIndex].bend = bend;
     parameters.push({ index: segmentIndex, segmentId: segmentIndex + 1, value: bend });
     offset += 10;
   }
+
+  let images = null;
+  if (segments.some(segment => segment.type === STK_PICTURE_TYPE)) ({ images, offset } = readV5Images(payload, view, segments, offset, label));
 
   ensureBytes(payload, offset, 2, `${label} polygon count`);
   const polygonCount = view.getUint16(offset, true); offset += 2;
@@ -452,7 +536,41 @@ function readV5Tables(payload, view, segments, start, label, header, nodeIdBySou
     offset += trailerBytes;
   }
   if (offset !== payload.byteLength) fail(`${label} payload has unsupported trailing data.`);
-  return { parameters, polygons, drawRanks, figureTrailer, tiedRanks };
+  return { parameters, polygons, drawRanks, figureTrailer, tiedRanks, images };
+}
+
+// The image table of a figure with pictures.  Every PNG is checked whole, and its size against the limits,
+// before anything is copied out; the images are decoded later, by the renderer.
+function readV5Images(payload, view, segments, start, label) {
+  let offset = start;
+  ensureBytes(payload, offset, 2, `${label} image count`);
+  const count = view.getUint16(offset, true); offset += 2;
+  if (count < 1 || count > STK_MAX_IMAGES) fail(`${label} image count is outside the supported range.`);
+  const images = [];
+  let totalBytes = 0;
+  let totalPixels = 0;
+  for (let index = 0; index < count; index += 1) {
+    const imageLabel = `${label} picture image ${index + 1}`;
+    ensureBytes(payload, offset, V5_IMAGE_HEADER_BYTES, `${imageLabel} header`);
+    const [x1, y1, x2, y2] = [0, 4, 8, 12].map(field => view.getInt32(offset + field, true));
+    if (x1 === x2 && y1 === y2) fail(`${imageLabel} places both ends of its segment on the same pixel.`);
+    // A 64-bit offset; the high half is zero in any payload under the 16 MB limit.
+    const end = view.getUint32(offset + 16, true);
+    if (view.getUint32(offset + 20, true) !== 0) fail(`${imageLabel} has an invalid end offset.`);
+    offset += V5_IMAGE_HEADER_BYTES;
+    if (end <= offset || end > payload.byteLength) fail(`${imageLabel} has an invalid end offset.`);
+    totalBytes += end - offset;
+    if (totalBytes > STK_MAX_IMAGE_BYTES) fail(`${label} images exceed the ${STK_MAX_IMAGE_BYTES.toLocaleString()} byte safety limit.`);
+    const { width, height } = checkPng(payload, offset, end, imageLabel);
+    totalPixels += width * height;
+    if (totalPixels > STK_MAX_TOTAL_IMAGE_PIXELS) fail(`${label} images exceed the ${STK_MAX_TOTAL_IMAGE_PIXELS.toLocaleString()} pixel safety limit.`);
+    images.push({ x1, y1, x2, y2, width, height, data: bytesToBase64(payload.subarray(offset, end)) });
+    offset = end;
+  }
+  segments.forEach((segment, index) => {
+    if (segment.type === STK_PICTURE_TYPE && segment.image >= count) fail(`${label} segment ${index + 1} refers to a missing picture image.`);
+  });
+  return { images, offset };
 }
 
 function v5Warnings(header, segments, polygons, figureTrailer) {
@@ -485,15 +603,17 @@ function parseV5(payload) {
   const segmentCount = view.getUint16(1, true);
   if (segmentCount < 1 || segmentCount > STK_MAX_SEGMENTS) fail(`${label} segment count is outside the supported range.`);
   const { segments, offset, nodeIdBySourceId } = readV5Segments(payload, view, segmentCount, label, header);
-  const { parameters, polygons, drawRanks, figureTrailer, tiedRanks } = readV5Tables(payload, view, segments, offset, label, header, nodeIdBySourceId);
+  const { parameters, polygons, drawRanks, figureTrailer, tiedRanks, images } = readV5Tables(payload, view, segments, offset, label, header, nodeIdBySourceId);
   return {
     format: 'pivot-stk', schemaVersion: 1, wrapper: STK_WRAPPER_V5,
     payloadHeader, segments, parameters, polygons, drawRanks,
     ...(figureTrailer ? { figureTrailer } : {}),
+    ...(images ? { images } : {}),
     sourceBytes: 0, payloadBytes: payload.byteLength,
     warnings: [
       ...v5Warnings(header, segments, polygons, figureTrailer),
-      ...(tiedRanks ? ['The Pivot 5 draw order gives some parts the same place; tied parts are drawn in file order.'] : [])
+      ...(tiedRanks ? ['The Pivot 5 draw order gives some parts the same place; tied parts are drawn in file order.'] : []),
+      ...(images ? ['Pictures are drawn from the images stored in the file, placed on their segments as measured against library previews.'] : [])
     ]
   };
 }
@@ -520,8 +640,13 @@ export function validateStkArtwork(value) {
     finiteNumber(Number(segment.angle), `imported segment ${index + 1} angle`, -1000000, 1000000);
     finiteNumber(Number(segment.bend), `imported segment ${index + 1} bend`, -STK_MAX_ABS_BEND, STK_MAX_ABS_BEND);
     finiteNumber(Number(segment.width), `imported segment ${index + 1} width`, 0, STK_MAX_SEGMENT_WIDTH);
-    const allowedTypes = value.wrapper === STK_WRAPPER_V2 || value.wrapper === STK_WRAPPER_V3 ? [0, 1] : value.wrapper === STK_WRAPPER_V4 ? [0, 1, 3, 4] : v5Header & V5_NO_TYPE ? [0] : V5_SEGMENT_TYPES;
+    const allowedTypes = value.wrapper === STK_WRAPPER_V2 || value.wrapper === STK_WRAPPER_V3 ? [0, 1] : value.wrapper === STK_WRAPPER_V4 ? [0, 1, 3, 4] : v5Header & V5_NO_TYPE ? [0] : [...V5_SEGMENT_TYPES, STK_PICTURE_TYPE];
     if (!allowedTypes.includes(segment.type)) fail(`imported segment ${index + 1} has an unsupported type.`);
+    if (segment.type === STK_PICTURE_TYPE) {
+      if (!Array.isArray(value.images) || !Number.isInteger(segment.image) || segment.image < 0 || segment.image >= value.images.length) fail(`imported segment ${index + 1} refers to a missing picture image.`);
+      if (segment.imageMirror !== 0 && segment.imageMirror !== 1) fail(`imported segment ${index + 1} has an invalid picture mirror flag.`);
+      if (Number(segment.bend) !== 0) fail(`imported segment ${index + 1} is a curved picture, which is not supported.`);
+    } else if (segment.image !== undefined || segment.imageMirror !== undefined) fail(`imported segment ${index + 1} has picture settings but is not a picture.`);
     const allowedFlags = v5Header & V5_NO_FLAG ? [0] : [0, 1];
     if (!allowedFlags.includes(segment.flag)) fail(`imported segment ${index + 1} has an unsupported flag.`);
     if (segment.controlVisible !== undefined && typeof segment.controlVisible !== 'boolean') fail(`imported segment ${index + 1} has an invalid control visibility flag.`);
@@ -582,16 +707,50 @@ export function validateStkArtwork(value) {
   const ranks = new Set(value.drawRanks);
   if (ranks.size !== itemCount || value.drawRanks.some(rank => !Number.isInteger(rank) || rank < 0 || rank >= itemCount)) fail('imported draw ranks are not a complete permutation.');
   if (value.warnings !== undefined && (!Array.isArray(value.warnings) || value.warnings.length > STK_MAX_WARNINGS || value.warnings.some(warning => typeof warning !== 'string' || warning.length > 300))) fail('imported warnings are malformed.');
+  if (value.images !== undefined) {
+    if (value.wrapper !== STK_WRAPPER_V5 || !segments.some(segment => segment.type === STK_PICTURE_TYPE)) fail('imported picture images do not belong to any picture segment.');
+    if (!settledImages.has(value.images)) validateStkImages(value.images);
+  }
   return true;
+}
+
+const BASE64_TEXT = /^[A-Za-z0-9+/]*={0,2}$/;
+
+// A reopened project's pictures get the same checks as a freshly imported file's: each must be one whole
+// PNG within the size limits, matching the size recorded for it.
+function validateStkImages(images) {
+  if (!Array.isArray(images) || images.length < 1 || images.length > STK_MAX_IMAGES) fail('imported picture images are malformed.');
+  let totalLength = 0;
+  images.forEach((image, index) => {
+    const label = `imported picture image ${index + 1}`;
+    if (!image || typeof image !== 'object' || Array.isArray(image)) fail(`${label} is malformed.`);
+    const anchors = [image.x1, image.y1, image.x2, image.y2];
+    if (anchors.some(value => !Number.isInteger(value) || value < -0x80000000 || value > 0x7fffffff)) fail(`${label} has invalid anchor points.`);
+    if (image.x1 === image.x2 && image.y1 === image.y2) fail(`${label} places both ends of its segment on the same pixel.`);
+    if (typeof image.data !== 'string' || image.data.length % 4 !== 0 || !BASE64_TEXT.test(image.data)) fail(`${label} has malformed image data.`);
+    totalLength += image.data.length;
+    if (totalLength > Math.ceil(STK_MAX_IMAGE_BYTES / 3) * 4) fail(`imported picture images exceed the ${STK_MAX_IMAGE_BYTES.toLocaleString()} byte safety limit.`);
+  });
+  let totalPixels = 0;
+  images.forEach((image, index) => {
+    const label = `imported picture image ${index + 1}`;
+    let bytes;
+    try { bytes = stkImageBytes(image); } catch { fail(`${label} has malformed image data.`); }
+    const { width, height } = checkPng(bytes, 0, bytes.byteLength, label);
+    if (image.width !== width || image.height !== height) fail(`${label} does not match its recorded size.`);
+    totalPixels += width * height;
+    if (totalPixels > STK_MAX_TOTAL_IMAGE_PIXELS) fail(`imported picture images exceed the ${STK_MAX_TOTAL_IMAGE_PIXELS.toLocaleString()} pixel safety limit.`);
+  });
 }
 
 // Every field the parsers above can produce (controlVisible is accepted from older saved projects).
 // A copy keeps only these, in their original order, so data hidden in a project file cannot ride
 // along into every frame and Undo step. Their values are flat JSON primitives or flat arrays.
-const STK_ARTWORK_FIELDS = new Set(['format', 'schemaVersion', 'wrapper', 'payloadHeader', 'segments', 'parameters', 'polygons', 'drawRanks', 'figureTrailer', 'sourceBytes', 'payloadBytes', 'warnings']);
-const STK_SEGMENT_FIELDS = new Set(['index', 'sourceId', 'parentSourceId', 'id', 'parent', 'length', 'angle', 'bend', 'width', 'type', 'flag', 'color', 'transparency', 'gradient', 'reserved', 'trailing', 'controlVisible']);
+const STK_ARTWORK_FIELDS = new Set(['format', 'schemaVersion', 'wrapper', 'payloadHeader', 'segments', 'parameters', 'polygons', 'drawRanks', 'figureTrailer', 'images', 'sourceBytes', 'payloadBytes', 'warnings']);
+const STK_SEGMENT_FIELDS = new Set(['index', 'sourceId', 'parentSourceId', 'id', 'parent', 'length', 'angle', 'bend', 'width', 'type', 'flag', 'color', 'transparency', 'gradient', 'image', 'imageMirror', 'reserved', 'trailing', 'controlVisible']);
 const STK_POLYGON_FIELDS = new Set(['id', 'color', 'vertices', 'transparency', 'reserved']);
 const STK_PARAMETER_FIELDS = new Set(['index', 'segmentId', 'value']);
+const STK_IMAGE_FIELDS = new Set(['x1', 'y1', 'x2', 'y2', 'width', 'height', 'data']);
 
 function copyKnownFields(source, fields) {
   return Object.fromEntries(Object.keys(source).filter(key => fields.has(key)).map(key => [key, Array.isArray(source[key]) ? [...source[key]] : source[key]]));
@@ -603,6 +762,9 @@ export function cloneStkArtwork(value) {
   if (Array.isArray(value.segments)) artwork.segments = value.segments.map(segment => copyKnownFields(segment, STK_SEGMENT_FIELDS));
   if (Array.isArray(value.polygons)) artwork.polygons = value.polygons.map(polygon => copyKnownFields(polygon, STK_POLYGON_FIELDS));
   if (Array.isArray(value.parameters)) artwork.parameters = value.parameters.map(parameter => copyKnownFields(parameter, STK_PARAMETER_FIELDS));
+  // A settled picture table is frozen, so copies share it (and the renderer's decoded images) instead of
+  // duplicating its PNG data.
+  if (Array.isArray(value.images)) artwork.images = settledImages.has(value.images) ? value.images : value.images.map(image => copyKnownFields(image, STK_IMAGE_FIELDS));
   return artwork;
 }
 
@@ -614,6 +776,7 @@ export function settleStkArtwork(value) {
   validateStkArtwork(value);
   const artwork = deepFreeze(cloneStkArtwork(value));
   settledArtwork.add(artwork);
+  if (artwork.images) settledImages.add(artwork.images);
   return artwork;
 }
 
@@ -645,9 +808,12 @@ export function stkJointTemplate(artwork) {
 
 // Flipping a figure mirrors its curves.  Artwork is frozen and shared, so the mirrored curves go on a
 // settled copy; the pair is remembered, so flipping back returns the original and saves add nothing new.
+// Pictures flip too: the flipped segment alone would only turn a picture, so its mirror flag is toggled to
+// reflect it across the segment as well, which together amounts to flipping it with the figure.
 export function mirrorStkArtwork(artwork) {
   if (mirroredArtworks.has(artwork)) return mirroredArtworks.get(artwork);
-  const segments = artwork.segments.map(segment => ({ ...segment, bend: -(Number(segment.bend) || 0) }));
+  const segments = artwork.segments.map(segment => ({ ...segment, bend: -(Number(segment.bend) || 0),
+    ...(isStkPictureSegment(artwork, segment) ? { imageMirror: segment.imageMirror ? 0 : 1 } : {}) }));
   const parameters = artwork.parameters?.map(parameter => segments[parameter.index] ? { ...parameter, value: segments[parameter.index].bend } : parameter);
   const mirrored = settleStkArtwork({ ...artwork, segments, ...(parameters ? { parameters } : {}) });
   if (settledArtwork.has(artwork)) { mirroredArtworks.set(artwork, mirrored); mirroredArtworks.set(mirrored, artwork); }
@@ -661,6 +827,8 @@ export function stkDrawnJointIds(artwork) {
   const jointId = node => node === 0 ? 'stk-root' : `stk-${node}`;
   const ids = new Set();
   for (const segment of artwork.segments) {
+    // A picture is drawn whatever its width and transparency.
+    if (isStkPictureSegment(artwork, segment)) { ids.add(jointId(segment.parent)); ids.add(jointId(segment.id)); continue; }
     if (Number(segment.transparency) >= 255 && !segment.gradient) continue;
     if (segment.width <= 0 && !isStkFilledCircleSegment(artwork, segment)) continue;
     ids.add(jointId(segment.parent)); ids.add(jointId(segment.id));
