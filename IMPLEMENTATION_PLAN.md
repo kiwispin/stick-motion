@@ -443,6 +443,11 @@ Ideas from the SketchMotion redesign, brought across where they suit a stick-fig
   - Returning students see a dot on Help until they've read a short note of the changes. A first visit gets the welcome guide instead.
   - Bump `WHATS_NEW_VERSION` when the notes change. Dialogs taller than the window now scroll.
 - **Tests on separate ports.** `E2E_PORT` lets two checkouts run their browser tests at once.
+- **Speed and easing per keyframe.**
+  - With Smooth on, the frame panel reads as the move to the next frame: "Move to next frame", "2× faster" / "1.5× slower", Faster–Slower. Without Smooth, or on the last frame with Loop off, it is "Hold this frame" as before.
+  - Each frame's move can be Steady, Speed up, Slow down or Both (`frameEases`, `easeProgress` in `src/motion-curve.js`, quadratic like gravity). Thumbnails show an eased move's curve while Smooth is on.
+  - Easing follows its frame through Undo, duplicate, move, copy and paste, and delete. Projects save an `eases` list only when a move eases, so other files are unchanged and older versions just ignore it.
+- **Path starts off.** As in SketchMotion, the motion path is optional: new projects start with Path off, and a project keeps the student's choice.
 
 ### Deferred deliberately
 

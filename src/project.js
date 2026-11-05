@@ -1,5 +1,6 @@
 import { Figure, FigureGroup, Joint, SEGMENT_CIRCLE, SEGMENT_LINE } from './models.js';
 import { MAX_IMPORTED_JOINT_LENGTH, MAX_IMPORTED_JOINTS_PER_FIGURE, settleStkArtwork, stkJoint, stkJointTemplate } from './stk-import.js';
+import { EASES } from './motion-curve.js';
 
 export const MAX_PROJECT_FILE_BYTES = 25 * 1024 * 1024;
 export const MAX_PROJECT_FRAMES = 2000;
@@ -175,6 +176,11 @@ export function normaliseProject(data) {
     const value = Array.isArray(data.delays) ? Number(data.delays[index]) : 1;
     return Number.isFinite(value) ? Math.max(0.1, Math.min(10, value)) : 1;
   });
+  // How each frame's move to the next eases (see motion-curve.js); files from before easing have none.
+  const eases = frames.map((_, index) => {
+    const value = Array.isArray(data.eases) ? data.eases[index] : 'even';
+    return EASES.includes(value) ? value : 'even';
+  });
   const index = Math.max(0, Math.min(Number.isInteger(data.currentFrameIndex) ? data.currentFrameIndex : 0, frames.length - 1));
   if (Array.isArray(data.groups) && data.groups.length > MAX_PROJECT_GROUPS) throw new Error(`Projects can contain at most ${MAX_PROJECT_GROUPS} groups.`);
   const groups = Array.isArray(data.groups) ? data.groups.map((group, groupIndex) => {
@@ -187,7 +193,7 @@ export function normaliseProject(data) {
   const settings = isPlainObject(data.settings) ? data.settings : {};
   const name = safeText(data.name, 'Untitled animation', 80, 'project name').trim() || 'Untitled animation';
   const backgroundData = typeof data.backgroundData === 'string' && data.backgroundData.length <= MAX_BACKGROUND_DATA_LENGTH && /^data:image\/(png|jpeg|gif|webp);base64,/i.test(data.backgroundData) ? data.backgroundData : null;
-  return { name, width, height, fps: Math.max(1, Math.min(30, parseInt(data.fps, 10) || 12)), frames, delays, index, groups, backgroundData, settings };
+  return { name, width, height, fps: Math.max(1, Math.min(30, parseInt(data.fps, 10) || 12)), frames, delays, eases, index, groups, backgroundData, settings };
 }
 
 // An imported figure is saved as a pose only when its joints are exactly the ones its artwork implies, so
@@ -227,6 +233,10 @@ export function serializeProject(state) {
   return projectData(state, frames, artworkRefs.size ? stkArtworks : null);
 }
 
+function hasEasing(state) {
+  return Array.isArray(state.frameEases) && state.frameEases.some((ease, index) => index < state.frames.length && ease && ease !== 'even');
+}
+
 // The saved project around its frames and artwork table, in the saved key order.
 function projectData(state, frames, stkArtworks) {
   return {
@@ -238,6 +248,8 @@ function projectData(state, frames, stkArtworks) {
     frames,
     ...(stkArtworks ? { stkArtworks } : {}),
     delays: state.frameDelays,
+    // Only a project that eases a move saves its easing, so every other project's file is as before.
+    ...(hasEasing(state) ? { eases: state.frames.map((_, index) => state.frameEases[index] || 'even') } : {}),
     currentFrameIndex: state.currentFrameIndex,
     groups: state.groups,
     backgroundData: state.backgroundData,

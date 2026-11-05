@@ -6,6 +6,7 @@ export function createSnapshot(state) {
   return {
     frames: [...state.frames],
     frameDelays: [...state.frameDelays],
+    frameEases: [...(state.frameEases || [])],
     currentFrameIndex: state.currentFrameIndex,
     figures: cloneFigures(state.figures),
     groups: state.groups.map(group => group.clone())

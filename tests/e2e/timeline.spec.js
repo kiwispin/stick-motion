@@ -123,10 +123,11 @@ const rootPoint = (page, index) => page.evaluate(index => {
   return { r, g, b, x: figure.x, y: figure.y, k, clientX: box.left + (app.stagePadding + figure.x) * scale, clientY: box.top + (app.stagePadding + figure.y) * scale };
 }, index);
 
-// Four frames of an arc, frame 3 showing, the figure selected.
+// Four frames of an arc, frame 3 showing, the figure selected, Path on.
 async function arcProject(page) {
   await page.evaluate(() => {
     app.newProject();
+    if (!app.showPath) app.togglePath(); // the path starts off
     [[200, 300], [300, 220], [400, 200], [500, 220]].forEach(([x, y], i) => {
       if (i) app.addFrame();
       app.figures[0].x = x; app.figures[0].y = y;
@@ -267,6 +268,7 @@ test('the playback bar never overlaps or cuts off a button, from phone to wide s
 test('Hold this frame steps through clear lengths from any value, one Undo at a time', async ({ page }) => {
   await openEditor(page);
   await framesProject(page, 2);
+  await page.evaluate(() => { if (app.isSmooth) app.toggleSmooth(); }); // with Smooth on it reads as a move's speed (easing.spec.js)
   const hold = () => page.evaluate(() => ({ delay: app.frameDelays[app.currentFrameIndex], label: document.getElementById('duration-display').textContent, slider: Number(document.getElementById('frame-duration').value) }));
   await expect(page.locator('#duration-display')).toHaveText('1× normal');
   await page.evaluate(() => app.setFrameDuration(1.3)); // an in-between value from the slider, or an older project
