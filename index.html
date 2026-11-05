@@ -522,6 +522,13 @@
   .onion-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text2); }
   .onion-later-key { display: inline-block; width: 8px; height: 8px; margin-left: 4px; border-radius: 50%; background: #2563eb; vertical-align: middle; }
   .onion-menu-hint { margin: 0; font-size: 11px; line-height: 1.4; color: var(--text3); }
+  .curve-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 3px; border-radius: 8px; background: var(--bg3); }
+  .curve-choice button {
+    min-height: 28px; border: 0; border-radius: 6px; background: transparent; color: var(--text2);
+    font: 500 12px var(--font); cursor: pointer;
+  }
+  .curve-choice button:hover { color: var(--text); }
+  .curve-choice button[aria-checked="true"] { background: var(--accent); color: #fff; }
   .stepper { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 7px; background: var(--bg3); }
   .stepper button {
     width: 26px; height: 24px; border: 0; background: transparent; color: var(--text2);
@@ -1153,10 +1160,23 @@
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline-block;vertical-align:middle;margin-right:3px"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
         Loop
       </button>
-      <button class="pb-tag" id="btn-smooth" onclick="app.toggleSmooth()" title="Smooth interpolation">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline-block;vertical-align:middle;margin-right:3px"><path d="M3 12c0-3 3-6 6-6s6 3 6 6 3 6 6 6"/></svg>
-        Smooth
-      </button>
+      <div class="onion-wrap">
+        <button class="pb-tag" id="btn-smooth" onclick="app.toggleSmooth()" title="Smooth interpolation">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline-block;vertical-align:middle;margin-right:3px"><path d="M3 12c0-3 3-6 6-6s6 3 6 6 3 6 6 6"/></svg>
+          Smooth
+        </button>
+        <button class="onion-more" id="btn-smooth-settings" type="button" aria-label="Smooth settings" aria-expanded="false" aria-controls="smooth-menu" title="Smooth settings" onclick="app.toggleSmoothMenu()">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 15 12 9 18 15"/></svg>
+        </button>
+      </div>
+      <div class="onion-menu" id="smooth-menu" role="group" aria-labelledby="smooth-menu-title">
+        <div class="onion-menu-title" id="smooth-menu-title">Between frames, figures move</div>
+        <div class="curve-choice" role="radiogroup" aria-labelledby="smooth-menu-title">
+          <button type="button" role="radio" id="curve-straight" aria-checked="true" onclick="app.setMotionCurve('straight')">Straight</button>
+          <button type="button" role="radio" id="curve-curved" aria-checked="false" onclick="app.setMotionCurve('curved')">Curved</button>
+        </div>
+        <p class="onion-menu-hint">Curved swings each figure through its poses on a smooth curve, like the arc of a jump. Smooth must be on.</p>
+      </div>
       <div class="onion-wrap">
         <button class="onion-btn" id="btn-onion" onclick="app.toggleOnion()" title="Onion skin">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2C8 2 4 6 4 10c0 4 2 7 8 10 6-3 8-6 8-10 0-4-4-8-8-8z" opacity="0.4"/><path d="M12 6C9 6 7 9 7 11c0 3 2 5 5 6 3-1 5-3 5-6 0-2-2-5-5-5z"/></svg>
@@ -1331,6 +1351,7 @@
       <div class="shortcut-row"><span>Group / ungroup</span><kbd>Ctrl/Cmd + G / Shift + G</kbd></div>
       <div class="shortcut-row"><span>Copy, cut, paste</span><kbd>Ctrl/Cmd + C / X / V</kbd></div>
       <div class="shortcut-row"><span>Delete selected figure(s)</span><kbd>Delete</kbd></div>
+      <div class="shortcut-row"><span>Delete a frame (click it in the timeline first)</span><kbd>Delete</kbd></div>
       <div class="shortcut-row"><span>Clear the current selection</span><kbd>Esc</kbd></div>
       <div class="shortcut-row"><span>This help</span><kbd>?</kbd></div>
     </div>
@@ -1446,6 +1467,7 @@ import { isMeaningfulMarquee } from './src/marquee.js';
 import { beginMarquee, endMarquee, findDragTarget, marqueeCanvasBounds, moveJointDrag, moveRootDrag, showMarqueeElement, updateCursor, updateMarqueeElement } from './src/drag-controller.js';
 import { decodeStk, createFigureFromStk, mirrorStkArtwork, stkDrawnJointIds } from './src/stk-import.js';
 import { drawStkFigure, getStkArtworkBounds } from './src/stk-renderer.js';
+import { curvePoint } from './src/motion-curve.js';
 
 // Color palette
 const PALETTE = ['#000000','#ffffff','#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#6b7280','#0ea5e9','#14b8a6','#84cc16','#f43f5e','#a78bfa'];
@@ -1498,6 +1520,7 @@ const app={
   isLooping:true,isSmooth:true,showOnion:true,showPivots:true,
   onionBefore:1,onionAfter:0, // how many earlier and later frames the onion skin shows
   showPath:true, // the selected figure's path across frames
+  motionCurve:'straight', // how Smooth moves figures between frames: 'straight' or 'curved'
   pathHover:null,pathDrag:null, // the path dot under the pointer, and a dot being dragged
   zoomLevel:1.0,dragTarget:null,isPanning:false,panStart:null,
   activeTool:'select',
@@ -1542,6 +1565,7 @@ const app={
       if(this.handleDialogKeydown(e))return;
       if(e.key==='Escape'&&this.closeExportMenu()){e.preventDefault();return;}
       if(e.key==='Escape'&&this.closeOnionMenu()){e.preventDefault();document.getElementById('btn-onion-settings').focus();return;}
+      if(e.key==='Escape'&&this.closeSmoothMenu()){e.preventDefault();document.getElementById('btn-smooth-settings').focus();return;}
       if(e.key==='Escape'&&this.closeCompactActions()){e.preventDefault();return;}
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
       if(e.code==='Space'){e.preventDefault();if(this.isPlaying)this.stop();else this.addFrame();}
@@ -1565,12 +1589,21 @@ const app={
       if((e.ctrlKey||e.metaKey)&&e.key==='x'){e.preventDefault();this.cutSelected();}
       if((e.ctrlKey||e.metaKey)&&e.key==='v'){e.preventDefault();this.paste();}
       if(e.key==='Escape'){this.selectedFigureIds.clear();this.deselectAll();this.render();}
+      // On a frame in the timeline, Delete removes the frame (or the picked frames) and Backspace does nothing;
+      // elsewhere both delete the selected figures, as before.
+      const onFrame=e.target.closest?.('.frame-thumb');
+      if(onFrame&&(e.key==='Delete'||e.key==='Backspace')){
+        e.preventDefault();
+        if(e.key==='Delete'&&!this.isPlaying){this.deleteFrame();document.querySelector(`.frame-thumb[data-frame-index="${this.currentFrameIndex}"]`)?.focus();}
+        return;
+      }
       if(e.key==='Delete'||e.key==='Backspace'){if(this._getSelectedFigureIds().length)this.deleteSelectedFigure();}
     });
     document.addEventListener('pointerdown',e=>{
       const actions=document.getElementById('compact-actions');if(actions&&!actions.contains(e.target))this.closeCompactActions();
       const exports=document.getElementById('export-menu-wrap');if(exports&&!exports.contains(e.target))this.closeExportMenu();
       if(!e.target.closest?.('#onion-menu,#btn-onion-settings'))this.closeOnionMenu();
+      if(!e.target.closest?.('#smooth-menu,#btn-smooth-settings'))this.closeSmoothMenu();
     });
     this.updateBackgroundControl();
     this.updateZoomDisplay();
@@ -1606,14 +1639,36 @@ const app={
     const menu=document.getElementById('export-menu');if(!menu||!menu.classList.contains('show'))return false;
     menu.classList.remove('show');document.getElementById('btn-export').setAttribute('aria-expanded','false');return true;
   },
-  toggleOnionMenu(){
-    const menu=document.getElementById('onion-menu'),button=document.getElementById('btn-onion-settings');
-    if(this.closeOnionMenu())return;
-    this.updateOnionMenu();menu.classList.add('show');button.setAttribute('aria-expanded','true');
+  // Playback-bar menus open upward from their button, placed by script so a scrolling bar can't clip them.
+  openPlaybackMenu(menu,button){
+    menu.classList.add('show');button.setAttribute('aria-expanded','true');
     const box=button.getBoundingClientRect();
     menu.style.left=`${Math.max(8,Math.min(window.innerWidth-menu.offsetWidth-8,box.left+box.width/2-menu.offsetWidth/2))}px`;
     menu.style.bottom=`${window.innerHeight-box.top+8}px`;
+  },
+  toggleOnionMenu(){
+    const menu=document.getElementById('onion-menu'),button=document.getElementById('btn-onion-settings');
+    if(this.closeOnionMenu())return;
+    this.updateOnionMenu();this.openPlaybackMenu(menu,button);
     menu.querySelector('button:not(:disabled)')?.focus();
+  },
+  toggleSmoothMenu(){
+    const menu=document.getElementById('smooth-menu'),button=document.getElementById('btn-smooth-settings');
+    if(this.closeSmoothMenu())return;
+    this.updateSmoothMenu();this.openPlaybackMenu(menu,button);
+    menu.querySelector('[aria-checked="true"]')?.focus();
+  },
+  closeSmoothMenu(){
+    const menu=document.getElementById('smooth-menu');if(!menu||!menu.classList.contains('show'))return false;
+    menu.classList.remove('show');document.getElementById('btn-smooth-settings').setAttribute('aria-expanded','false');return true;
+  },
+  updateSmoothMenu(){
+    document.getElementById('curve-straight').setAttribute('aria-checked',String(this.motionCurve!=='curved'));
+    document.getElementById('curve-curved').setAttribute('aria-checked',String(this.motionCurve==='curved'));
+  },
+  setMotionCurve(value){
+    this.motionCurve=value==='curved'?'curved':'straight';
+    this.updateSmoothMenu();this.render();this.saveLocal();
   },
   closeOnionMenu(){
     const menu=document.getElementById('onion-menu');if(!menu||!menu.classList.contains('show'))return false;
@@ -1712,6 +1767,7 @@ const app={
     this.showOnion=d.settings.showOnion!==undefined?!!d.settings.showOnion:true;
     this.showPivots=d.settings.showPivots!==undefined?!!d.settings.showPivots:true;
     this.showPath=d.settings.showPath!==undefined?!!d.settings.showPath:true;
+    this.motionCurve=d.settings.motionCurve==='curved'?'curved':'straight';
     const onionCount=(value,fallback)=>Number.isInteger(value)&&value>=0&&value<=3?value:fallback;
     this.onionBefore=onionCount(d.settings.onionBefore,1);this.onionAfter=onionCount(d.settings.onionAfter,0);
     this.fileSaved=d.settings.fileSaved===true;
@@ -2806,13 +2862,26 @@ const app={
     else{if(this.frames[this.currentFrameIndex]){this.figures=this.frames[this.currentFrameIndex].map(f=>f.clone());this.render();}}
     requestAnimationFrame(t=>this.playTick(t));
   },
+  // The frames on either side of the pair being tweened, for curved motion. The first and last frames are
+  // ends (their missing neighbour is themselves); the loop's last-to-first step uses its real neighbours.
+  curveNeighbours(fA,fB){
+    const iA=this.frames.indexOf(fA),iB=this.frames.indexOf(fB);
+    if(this.motionCurve!=='curved'||iA<0||iB<0)return null;
+    return {before:this.frames[iA-1]||null,after:this.frames[iB+1]||null};
+  },
   renderInterpolated(fA,fB,t,draw=true){
     if(!fA||!fB)return;const interp=[];
+    const neighbours=this.curveNeighbours(fA,fB);
     fA.forEach(figA=>{
       const figB=fB.find(f=>f.id===figA.id);
       if(figB){
         figA.updatePositions();figB.updatePositions();
         const nF=figA.clone();nF.x=figA.x+(figB.x-figA.x)*t;nF.y=figA.y+(figB.y-figA.y)*t;nF.scale=figA.scale+(figB.scale-figA.scale)*t;
+        if(neighbours){
+          // Curved: the figure passes through each frame's position on a smooth curve.
+          const before=neighbours.before?.find(f=>f.id===figA.id)||figA,after=neighbours.after?.find(f=>f.id===figA.id)||figB;
+          const point=curvePoint(before,figA,figB,after,t);nF.x=point.x;nF.y=point.y;
+        }
         if(figA.stkArtwork&&figB.stkArtwork){
           // Flipping an imported figure changes signed bends.  Interpolation
           // must carry that metadata along too, otherwise t=1 would retain
@@ -3253,8 +3322,21 @@ const app={
     const ctx=this.ctx,current=this.currentFrameIndex,k=this.pathScale(),blue='#3478F6';
     const active=this.pathDrag?.moved?this.pathDrag:this.pathHover;
     ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+    // With Smooth and Curved on, the line follows the curve the figure will take between its frames.
+    const curved=this.isSmooth&&this.motionCurve==='curved';
+    const neighbour=(points,index)=>points[index]||null;
     paths.forEach(({id,points})=>{
-      const trace=()=>{ctx.beginPath();let open=false;points.forEach(p=>{if(!p){open=false;return;}if(open)ctx.lineTo(p.x,p.y);else{ctx.moveTo(p.x,p.y);open=true;}});};
+      const trace=()=>{
+        ctx.beginPath();let open=false;
+        points.forEach((p,index)=>{
+          if(!p){open=false;return;}
+          if(!open){ctx.moveTo(p.x,p.y);open=true;return;}
+          const a=points[index-1];
+          if(!curved){ctx.lineTo(p.x,p.y);return;}
+          const before=neighbour(points,index-2)||a,after=neighbour(points,index+1)||p;
+          for(let step=1;step<=12;step+=1){const q=curvePoint(before,a,p,after,step/12);ctx.lineTo(q.x,q.y);}
+        });
+      };
       // A pale edge keeps the line readable over any drawing.
       trace();ctx.lineWidth=6*k;ctx.strokeStyle='rgba(255,255,255,0.75)';ctx.stroke();
       trace();ctx.lineWidth=3*k;ctx.strokeStyle=blue;ctx.stroke();

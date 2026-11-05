@@ -305,3 +305,26 @@ test('Undo keeps 100 steps', async ({ page }) => {
   });
   expect(steps).toBe(100);
 });
+
+test('Delete on a clicked frame removes that frame; Backspace there does nothing; figures still delete as before', async ({ page }) => {
+  await openEditor(page);
+  await framesProject(page, 4);
+  await page.locator('.frame-thumb').nth(1).click();
+  await page.keyboard.press('Backspace');
+  expect(await page.evaluate(() => ({ frames: app.frames.length, figures: app.figures.length }))).toEqual({ frames: 4, figures: 1 });
+  await page.keyboard.press('Delete');
+  expect(await page.evaluate(() => app.frames.map(frame => Math.round(frame[0].x)))).toEqual([400, 460, 490]);
+  // Focus moves to the frame now in its place, so Delete can be pressed again.
+  await expect(page.locator('.frame-thumb').nth(1)).toBeFocused();
+  await page.evaluate(() => app.undo());
+  expect(await page.evaluate(() => app.frames.length)).toBe(4);
+  // Picked frames go together.
+  await page.locator('.frame-thumb').nth(1).click();
+  await page.locator('.frame-thumb').nth(2).click({ modifiers: ['Shift'] });
+  await page.keyboard.press('Delete');
+  expect(await page.evaluate(() => app.frames.length)).toBe(2);
+  // On the stage, Delete still removes the selected figure, not the frame.
+  await page.evaluate(() => { app.selectFigure(app.figures[0]); document.activeElement?.blur(); });
+  await page.keyboard.press('Delete');
+  expect(await page.evaluate(() => ({ frames: app.frames.length, figures: app.figures.length }))).toEqual({ frames: 2, figures: 0 });
+});

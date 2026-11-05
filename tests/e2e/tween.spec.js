@@ -71,3 +71,62 @@ test('a joint turns the shorter way round, even across the half-turn mark', asyn
   // From 3.0 to -3.0 rad is 0.28 rad the short way, past π; the long way would pass through 0.
   expect(Math.cos(angle)).toBeLessThan(-0.99);
 });
+
+// A jump made of five poses: rising, peak, falling.
+async function jumpProject(page) {
+  await page.evaluate(() => {
+    app.newProject();
+    [[100, 300], [200, 200], [300, 150], [400, 200], [500, 300]].forEach(([x, y], i) => {
+      if (i) app.addFrame();
+      app.figures[0].x = x; app.figures[0].y = y;
+      app.frames[app.currentFrameIndex] = app.figures.map(figure => figure.clone());
+    });
+    app.loadFrame(0, false);
+  });
+}
+const rootBetween = (page, from, t) => page.evaluate(({ from, t }) => {
+  app.renderInterpolated(app.frames[from], app.frames[from + 1], t, false);
+  const point = { x: app.figures[0].x, y: app.figures[0].y };
+  app.loadFrame(app.currentFrameIndex, false); // put the frame back on the stage, as stopping playback does
+  return point;
+}, { from, t });
+
+test('Curved Smooth swings the figure through its poses on a curve; Straight stays the default', async ({ page }) => {
+  await openEditor(page);
+  await jumpProject(page);
+  expect(await page.evaluate(() => app.motionCurve)).toBe('straight');
+  expect(await rootBetween(page, 1, 0.5)).toEqual({ x: 250, y: 175 }); // straight: the midpoint
+
+  await page.locator('#btn-smooth-settings').click();
+  await expect(page.locator('#smooth-menu')).toBeVisible();
+  await page.getByRole('radio', { name: 'Curved' }).click();
+  await expect(page.getByRole('radio', { name: 'Curved' })).toHaveAttribute('aria-checked', 'true');
+  const curved = await rootBetween(page, 1, 0.5);
+  expect(curved.x).toBeCloseTo(250, 6);
+  expect(curved.y).toBeLessThan(170); // above the straight line, on the arc
+  // Each pose is still reached exactly.
+  expect(await rootBetween(page, 1, 1)).toEqual({ x: 300, y: 150 });
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#smooth-menu')).toBeHidden();
+  await expect(page.locator('#btn-smooth-settings')).toBeFocused();
+
+  // Saved with the project.
+  await page.evaluate(() => app.localSaveQueue);
+  await page.reload();
+  await page.waitForFunction(() => window.app?.frames?.length > 0);
+  expect(await page.evaluate(() => app.motionCurve)).toBe('curved');
+});
+
+test('Curved treats the first and last frames as ends, and curves the loop back to the start', async ({ page }) => {
+  await openEditor(page);
+  await jumpProject(page);
+  await page.evaluate(() => app.setMotionCurve('curved'));
+  // The first stretch starts on the line towards frame 2, with no hook back towards the last frame.
+  const early = await rootBetween(page, 0, 0.1);
+  expect(early.x).toBeGreaterThan(100);
+  expect(early.y).toBeLessThan(300);
+  // Looping from the last frame back to the first still tweens, and passes between them.
+  const wrap = await page.evaluate(() => { app.renderInterpolated(app.frames[4], app.frames[0], 0.5, false); return app.figures[0].x; });
+  expect(wrap).toBeGreaterThan(100);
+  expect(wrap).toBeLessThan(500);
+});
