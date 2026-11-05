@@ -15,7 +15,7 @@
   --text2:    #B9B4AE;
   --text3:    #9A958F;
   --accent:   #2F6BDB;
-  --accent2:  #3D79E8;
+  --accent2:  #2558BC; /* hover: darker, so white words stay readable (6.6:1) */
   --pencil:   #6EA2FF;
   --pencil-soft: #1E2C47;
 }
@@ -61,6 +61,15 @@ input[type=range]::-webkit-slider-thumb {
 #welcome-start, #help-modal .modal-btn.confirm { background: var(--accent); }
 #welcome-start:hover, #help-modal .modal-btn.confirm:hover { background: var(--accent2); }
 .frame-playhead { background: var(--accent); }
+/* A deeper red keeps white words readable on confirm buttons (4.8:1; the built-in red was 3.8:1). */
+.modal-btn.confirm { background: #DC2626; }
+.modal-btn.confirm:hover { background: #B91C1C; }
+
+/* The chosen colour swatch gets a ring; a border can't show, as each swatch sets its own inline. */
+.color-swatch.active { box-shadow: 0 0 0 2px var(--bg2), 0 0 0 4px var(--pencil); }
+
+/* The figure designer's "Designer mode" label, readable on its grey canvas (6.1:1; was 1.8:1). */
+#builder-canvas + div { color: #555 !important; }
 
 /* Every tool gets its name under the icon where the screen is tall enough to fit them; shorter or
    narrower screens keep icons with hover tips, as before. */
