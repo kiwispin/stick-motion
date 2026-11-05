@@ -193,6 +193,26 @@ test('the playback bar never overlaps or cuts off a button, from phone to wide s
   }
 });
 
+test('Hold this frame steps through clear lengths from any value, one Undo at a time', async ({ page }) => {
+  await openEditor(page);
+  await framesProject(page, 2);
+  const hold = () => page.evaluate(() => ({ delay: app.frameDelays[app.currentFrameIndex], label: document.getElementById('duration-display').textContent, slider: Number(document.getElementById('frame-duration').value) }));
+  await expect(page.locator('#duration-display')).toHaveText('1× normal');
+  await page.evaluate(() => app.setFrameDuration(1.3)); // an in-between value from the slider, or an older project
+  await page.getByRole('button', { name: 'Show this frame for longer' }).click();
+  expect(await hold()).toEqual({ delay: 1.5, label: '1.5× longer', slider: 1.5 });
+  await page.getByRole('button', { name: 'Show this frame for longer' }).click();
+  expect(await hold()).toEqual({ delay: 2, label: '2× longer', slider: 2 });
+  await expect(page.locator('.frame-thumb').nth(0).locator('.frame-delay')).toHaveText('2.0×');
+  await page.evaluate(() => app.undo());
+  expect(await hold()).toEqual({ delay: 1.5, label: '1.5× longer', slider: 1.5 });
+  for (let i = 0; i < 3; i += 1) await page.getByRole('button', { name: 'Show this frame for less time' }).click();
+  expect(await hold()).toEqual({ delay: 0.2, label: '0.2× shorter', slider: 0.2 }); // 1.5 → 1 → 0.5 → 0.2
+  await page.getByRole('button', { name: 'Show this frame for less time' }).click();
+  await page.getByRole('button', { name: 'Show this frame for less time' }).click();
+  expect((await hold()).delay).toBe(0.1); // the shortest; another step does nothing
+});
+
 test('Undo keeps 100 steps', async ({ page }) => {
   await openEditor(page);
   const steps = await page.evaluate(() => {
