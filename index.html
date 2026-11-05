@@ -404,7 +404,8 @@
   /* Playback bar */
   #playback-bar {
     height: 56px; display: grid;
-    grid-template-columns: minmax(88px, 1fr) auto minmax(300px, 1fr);
+    /* Each side gets at least its own width, so the middle stays centred when there's room and never overlaps. */
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
     align-items: center; gap: 12px; padding: 0 16px;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
@@ -476,6 +477,7 @@
     cursor: pointer; transition: background 0.15s, color 0.15s;
   }
   .pb-frame-btn:hover { background: var(--border2); color: var(--text); }
+  .pb-frame-btn:disabled { opacity: .4; cursor: default; background: var(--bg4); color: var(--text2); }
   .pb-danger-btn {
     color: var(--red);
     background: rgba(239,68,68,0.08);
@@ -491,6 +493,7 @@
     cursor: pointer; transition: background 0.15s;
   }
   .add-frame-btn:hover { background: var(--accent2); }
+  .add-frame-btn { white-space: nowrap; }
 
   /* Onion toggle in playback */
   .onion-btn {
@@ -739,19 +742,18 @@
   @media (max-width: 1100px) {
     #right-panel { width: 220px; }
     .panel-section { padding: 12px; }
-    #playback-bar { grid-template-columns: minmax(88px,auto) auto minmax(200px,auto); gap: 8px; padding: 0 10px; }
+    #playback-bar { gap: 8px; padding: 0 10px; }
     #pb-center { gap: 5px; }
     .pb-sep { margin: 0 4px; }
   }
 
   /* Narrow windows: the playback switches fold to their icons (their words stay for screen readers),
      so nothing in the bar is cut off. Below 781px the bar scrolls instead. */
-  @media (min-width: 781px) and (max-width: 1040px) {
+  @media (min-width: 781px) and (max-width: 1240px) {
     .pb-tag, .onion-btn { font-size: 0; padding: 5px 7px; }
     .pb-tag svg { margin-right: 0 !important; }
-    .add-frame-btn { white-space: nowrap; }
   }
-  @media (min-width: 781px) and (max-width: 900px) {
+  @media (min-width: 781px) and (max-width: 1000px) {
     #playback-bar { display: flex; align-items: center; overflow-x: auto; gap: 8px; padding: 0 10px; scrollbar-width: thin; }
     #frame-counter-wrap, #pb-center, #pb-right { flex-shrink: 0; }
   }
@@ -1190,6 +1192,12 @@
       <button class="pb-frame-btn" aria-label="Duplicate frame" onclick="app.duplicateCurrentFrame()" title="Duplicate frame">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
       </button>
+      <button class="pb-frame-btn" id="btn-copy-frames" aria-label="Copy frames" onclick="app.copyFrames()" title="Copy frames (Shift-click thumbnails to pick several)">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><path d="M9 12h6M9 16h4"/></svg>
+      </button>
+      <button class="pb-frame-btn" id="btn-paste-frames" aria-label="Paste frames" onclick="app.pasteFrames()" title="Paste frames after this one" disabled>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><path d="M12 10v7M9 14l3 3 3-3"/></svg>
+      </button>
       <button class="add-frame-btn" aria-label="Add frame" onclick="app.addFrame()" title="Add frame (Space)">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         Add Frame
@@ -1493,6 +1501,7 @@ const app={
   backgroundLoadToken:0,
   localSaveRunning:false,pendingLocalSave:null,localSaveRevision:0,localSaveErrorRevision:0,localSaveQueue:Promise.resolve(),
   clipboard:[], // ← array of cloned Figure objects
+  frameClipboard:null, // copied frames: {frames, delays}
   isEditingText:false,isEditingFrameDuration:false,
   fileSaved:false, // whether the animation, as it is now, is saved in a project file
   asyncExport:null,
@@ -2683,6 +2692,28 @@ const app={
     this.updateTimeline();this.render();this.scrollToFrame(this.currentFrameIndex);this.saveLocal();
   },
   duplicateCurrentFrame(){if(this.frames.length===0)return;this.duplicateFrameAtIndex(this.currentFrameIndex);},
+  // Copy the selected frames (or the current one); Paste puts them after the current frame, keeping each
+  // figure's identity so Smooth still tweens into and out of them, as for repeating a walk cycle.
+  copyFrames(){
+    if(this.frames.length===0)return;
+    this.commitActiveFrame();
+    const picked=Array.from(this.selectedFrames).filter(i=>Number.isInteger(i)&&i>=0&&i<this.frames.length).sort((a,b)=>a-b);
+    const indexes=picked.length?picked:[this.currentFrameIndex];
+    this.frameClipboard={frames:indexes.map(i=>this.frames[i].map(f=>f.clone())),delays:indexes.map(i=>this.frameDelays[i]||1)};
+    document.getElementById('btn-paste-frames').disabled=false;
+    this.showToast(indexes.length===1?`Copied frame ${indexes[0]+1}`:`Copied ${indexes.length} frames`);
+  },
+  pasteFrames(){
+    const clip=this.frameClipboard;if(!clip||!clip.frames.length||this.frames.length===0)return;
+    if(this.frames.length+clip.frames.length>MAX_PROJECT_FRAMES){this.showToast(`Pasting would pass the ${MAX_PROJECT_FRAMES.toLocaleString()}-frame limit.`,'error');return;}
+    this.commitActiveFrame();this.saveState();
+    const at=this.currentFrameIndex+1;
+    this.frames.splice(at,0,...clip.frames.map(frame=>frame.map(f=>f.clone())));
+    this.frameDelays.splice(at,0,...clip.delays);
+    this.selectedFrames.clear();clip.frames.forEach((_,k)=>this.selectedFrames.add(at+k));
+    this.updateTimeline();this.loadFrame(at,false);this.scrollToFrame(at);this.saveLocal();
+    this.showToast(clip.frames.length===1?`Pasted a frame as frame ${at+1}`:`Pasted ${clip.frames.length} frames as frames ${at+1}–${at+clip.frames.length}`);
+  },
   duplicateFrameAtIndex(idx){
     if(idx<0||idx>=this.frames.length||!this.hasFrameCapacity())return;this.saveState();
     const snap=this.frames[idx].map(f=>f.clone());const d=this.frameDelays[idx];

@@ -150,6 +150,49 @@ test('the selected figure shows its path across frames, and clicking a dot goes 
   expect(blank(await rootPoint(page, 3))).toBe(true);
 });
 
+test('copied frames paste after the current frame as one Undo step, keeping each figure for tweening', async ({ page }) => {
+  await openEditor(page);
+  await framesProject(page, 4);
+  await expect(page.getByRole('button', { name: 'Paste frames' })).toBeDisabled();
+  await page.locator('.frame-thumb').nth(1).click();
+  await page.locator('.frame-thumb').nth(2).click({ modifiers: ['Shift'] });
+  await page.getByRole('button', { name: 'Copy frames' }).click();
+  await expect(page.locator('#sm-toast')).toContainText('Copied 2 frames');
+  await page.locator('.frame-thumb').nth(3).click();
+  await page.getByRole('button', { name: 'Paste frames' }).click();
+  await expect(page.locator('#sm-toast')).toContainText('Pasted 2 frames as frames 5–6');
+  const after = await page.evaluate(() => ({
+    xs: app.frames.map(frame => Math.round(frame[0].x)),
+    sameFigure: new Set(app.frames.map(frame => frame[0].id)).size === 1,
+    current: app.currentFrameIndex, selected: [...app.selectedFrames].sort()
+  }));
+  expect(after).toEqual({ xs: [400, 430, 460, 490, 430, 460], sameFigure: true, current: 4, selected: [4, 5] });
+  // Pasted frames are copies: changing one leaves the originals alone.
+  await page.evaluate(() => { app.frames[4][0].x = 999; });
+  expect(await page.evaluate(() => app.frames[1][0].x)).toBe(430);
+  await page.evaluate(() => app.undo());
+  expect(await page.evaluate(() => app.frames.length)).toBe(4);
+});
+
+test('the playback bar never overlaps or cuts off a button, from phone to wide screens', async ({ page }) => {
+  await openEditor(page);
+  for (const width of [1920, 1440, 1366, 1280, 1100, 1024, 900, 800, 700]) {
+    await page.setViewportSize({ width, height: 800 });
+    const fit = await page.evaluate(() => {
+      const bar = document.getElementById('playback-bar'), box = bar.getBoundingClientRect();
+      const [left, centre, right] = ['frame-counter-wrap', 'pb-center', 'pb-right'].map(id => document.getElementById(id).getBoundingClientRect());
+      const buttons = [...bar.querySelectorAll('button')].filter(button => button.offsetParent);
+      const scrolls = bar.scrollWidth > bar.clientWidth + 1;
+      return {
+        overlap: left.right > centre.left + 1 || centre.right > right.left + 1,
+        cutOff: !scrolls && buttons.some(button => { const b = button.getBoundingClientRect(); return b.left < box.left - 1 || b.right > box.right + 1; }),
+        wrapped: buttons.some(button => button.getBoundingClientRect().height > 40)
+      };
+    });
+    expect(fit, `${width}px wide`).toEqual({ overlap: false, cutOff: false, wrapped: false });
+  }
+});
+
 test('Undo keeps 100 steps', async ({ page }) => {
   await openEditor(page);
   const steps = await page.evaluate(() => {
