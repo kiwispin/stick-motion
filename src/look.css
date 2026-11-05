@@ -81,3 +81,79 @@ input[type=range]::-webkit-slider-thumb {
   #tool-text::after { content: "Text"; }
   #tool-group::after { content: "Group"; }
 }
+
+/* The theme button shows a moon in the Night theme and a sun in the Paper theme. */
+.theme-icon-paper { display: none; }
+[data-theme="light"] .theme-icon-night { display: none; }
+[data-theme="light"] .theme-icon-paper { display: block; }
+
+/* Paper (light), SketchMotion's light palette. Words and blues are a shade darker than SketchMotion's so
+   small text stays readable (WCAG AA) on the white panels and the soft blue "on" fill. The stage paper
+   is drawn on the canvas and stays white in both themes. */
+[data-theme="light"] {
+  --bg:       #ECEEE8;
+  --bg2:      #FFFFFF;
+  --bg3:      #F0F2EE;
+  --bg4:      #E3E6E0;
+  --border:   #D6DAD3;
+  --border2:  #BCC2B9;
+  --text:     #1D2125;
+  --text2:    #4F565D;
+  --text3:    #626970;
+  --accent:   #2563EB;
+  --accent2:  #1D4FD0;
+  --pencil:   #1D4ED8;
+  --pencil-soft: #E4ECFF;
+  --green:    #059669;
+  --red:      #DC2626;
+  --toast-error-text: #B91C1C;
+  --focus-ring: #1D4ED8;
+  --menu-shadow: 0 12px 32px rgba(29, 33, 37, 0.14), 0 1px 3px rgba(29, 33, 37, 0.08);
+}
+
+/* The stage: the dot grid on the paper-grey desk, without the lamp glow. */
+[data-theme="light"] #canvas-area {
+  background-image: radial-gradient(circle, #C9CEC6 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+/* Logo in the Paper colours. */
+[data-theme="light"] .wordmark::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Crect x='10' y='3' width='23' height='23' rx='6' fill='%23E4ECFF'/%3E%3Crect x='5' y='8' width='23' height='23' rx='6' fill='%23FFFFFF' stroke='%232563EB' stroke-width='2.5'/%3E%3Ccircle cx='16.5' cy='14.2' r='2.7' fill='%231D2125'/%3E%3Cpath d='M16.5 16.9v5.9M16.5 18.6l-4.2 2.2M16.5 18.6l4.1-2.4M16.5 22.8l-3 4.3M16.5 22.8l3.1 4.2' stroke='%231D2125' stroke-width='1.9' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='16.5' cy='22.8' r='1.8' fill='%23F97316'/%3E%3C/svg%3E");
+}
+
+/* Focus rings: the pale blue of the dark theme is too faint on white, so they turn deep blue. */
+[data-theme="light"] button:focus-visible, [data-theme="light"] input:focus-visible,
+[data-theme="light"] textarea:focus-visible, [data-theme="light"] [role=button]:focus-visible,
+[data-theme="light"] #frame-scrub:focus-visible { outline-color: var(--focus-ring); }
+
+/* Menus, panels and dialogs: light shadows instead of deep black ones. */
+[data-theme="light"] .export-menu, [data-theme="light"] .compact-actions-menu, [data-theme="light"] .onion-menu { box-shadow: var(--menu-shadow); }
+[data-theme="light"] .modal-overlay { background: rgba(29, 33, 37, 0.38); }
+[data-theme="light"] .modal-box, [data-theme="light"] #builder-modal-inner { box-shadow: 0 24px 64px rgba(29, 33, 37, 0.22), 0 2px 6px rgba(29, 33, 37, 0.08); }
+@media (max-width: 780px) {
+  [data-theme="light"] #right-panel { box-shadow: -12px 0 28px rgba(29, 33, 37, 0.14); }
+}
+[data-theme="light"] .frame-playhead { box-shadow: 0 1px 3px rgba(29, 33, 37, 0.25); }
+[data-theme="light"] .spinner { border-color: rgba(29, 33, 37, 0.12); border-top-color: var(--accent); }
+
+/* Words and marks with fixed colours that are too pale on white. */
+[data-theme="light"] .export-menu-icon { color: var(--pencil); }
+[data-theme="light"] .stk-import-warning { border-color: #E2B04A; background: #FFF6E0; color: #6B4105; }
+[data-theme="light"] #stk-import-warnings { color: #8A5300; }
+[data-theme="light"] #multi-badge { background: var(--pencil-soft); border-color: rgba(29, 78, 216, 0.3); color: var(--pencil); }
+[data-theme="light"] #multi-badge button { color: var(--pencil); }
+[data-theme="light"] .modal-btn.confirm:hover { background: #B91C1C; }
+[data-theme="light"] .modal-btn.alt:hover { background: #1E40AF; }
+[data-theme="light"] .pb-danger-btn { background: rgba(220, 38, 38, 0.07); border-color: rgba(220, 38, 38, 0.35); }
+[data-theme="light"] .pb-danger-btn:hover { background: var(--red); color: #fff; }
+[data-theme="light"] .panel-btn.danger:hover { background: #FDECEC; color: #B91C1C; }
+[data-theme="light"] .toggle { background: var(--border2); }
+[data-theme="light"] .toggle::after { background: #fff; box-shadow: 0 1px 2px rgba(29, 33, 37, 0.3); }
+[data-theme="light"] .toggle.on { background: var(--accent); }
+
+/* Toast: a white card with a soft shadow, so it stands out from the grey desk. */
+[data-theme="light"] #sm-toast { background: var(--bg2) !important; box-shadow: var(--menu-shadow); }
+
+/* The custom colour dot keeps an outline, so a white figure colour still shows. */
+[data-theme="light"] #color-dot { border-color: rgba(29, 33, 37, 0.25) !important; }
