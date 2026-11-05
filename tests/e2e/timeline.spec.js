@@ -115,6 +115,41 @@ test('onion skin shows earlier frames faded and later frames in blue, as set in 
   expect(blank(await torsoPixel(page, 1)) && blank(await torsoPixel(page, 3))).toBe(true);
 });
 
+// The stage pixel and screen position at the root of the figure as it stands in frame `index`.
+const rootPoint = (page, index) => page.evaluate(index => {
+  const figure = app.frames[index][0], box = app.canvas.getBoundingClientRect(), scale = box.width / app.canvas.width;
+  const [r, g, b] = app.ctx.getImageData(app.stagePadding + figure.x, app.stagePadding + figure.y, 1, 1).data;
+  return { r, g, b, clientX: box.left + (app.stagePadding + figure.x) * scale, clientY: box.top + (app.stagePadding + figure.y) * scale };
+}, index);
+const orange = ({ r, g, b }) => r > 200 && g > 80 && g < 160 && b < 80;
+
+test('the selected figure shows its path across frames, and clicking a dot goes to that frame', async ({ page }) => {
+  await openEditor(page);
+  await page.evaluate(() => {
+    app.newProject();
+    [[200, 300], [300, 220], [400, 200], [500, 220]].forEach(([x, y], i) => {
+      if (i) app.addFrame();
+      app.figures[0].x = x; app.figures[0].y = y;
+      app.frames[app.currentFrameIndex] = app.figures.map(figure => figure.clone());
+    });
+    app.loadFrame(2, false); app.selectedFigureIds.clear(); app.selectFigure(app.figures[0]); app.render();
+  });
+  expect(orange(await rootPoint(page, 0))).toBe(true); // earlier frames: orange dots
+  expect(blue(await rootPoint(page, 3))).toBe(true); // later frames: blue dots
+
+  const dot = await rootPoint(page, 0);
+  await page.mouse.click(dot.clientX, dot.clientY);
+  expect(await page.evaluate(() => ({ frame: app.currentFrameIndex, selected: app._getSelectedFigureIds().length }))).toEqual({ frame: 0, selected: 1 });
+
+  // Path off, or nothing selected, hides it.
+  await page.getByRole('button', { name: 'Path' }).click();
+  expect(blank(await rootPoint(page, 3))).toBe(true);
+  await page.getByRole('button', { name: 'Path' }).click();
+  expect(blue(await rootPoint(page, 3))).toBe(true);
+  await page.keyboard.press('Escape');
+  expect(blank(await rootPoint(page, 3))).toBe(true);
+});
+
 test('Undo keeps 100 steps', async ({ page }) => {
   await openEditor(page);
   const steps = await page.evaluate(() => {

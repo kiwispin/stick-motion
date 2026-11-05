@@ -241,6 +241,7 @@ export function serializeProject(state) {
       isSmooth: state.isSmooth,
       showOnion: state.showOnion,
       showPivots: state.showPivots,
+      showPath: state.showPath,
       onionBefore: state.onionBefore,
       onionAfter: state.onionAfter,
       fileSaved: state.fileSaved === true
