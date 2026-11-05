@@ -134,3 +134,34 @@ test('a new or reopened project starts with the path off, as in SketchMotion', a
   await page.evaluate(() => app.newProject());
   expect(await page.evaluate(() => app.showPath)).toBe(false);
 });
+
+test('turning on Path says why when there is no path to draw', async ({ page }) => {
+  await openEditor(page);
+  const toast = page.locator('#sm-toast');
+  const pathOn = async () => {
+    await page.evaluate(() => { if (app.showPath) app.togglePath(); document.getElementById('sm-toast')?.remove(); });
+    await page.getByRole('button', { name: 'Path' }).click();
+  };
+  await page.evaluate(() => { app.newProject(); app.selectFigure(app.figures[0]); app.render(); });
+  await pathOn();
+  await expect(toast).toHaveText('Add another frame to see a path.');
+
+  await page.evaluate(() => { app.addFrame(); app.selectedFigureIds.clear(); app.figures.forEach(f => { f.selected = false; }); app.render(); });
+  await pathOn();
+  await expect(toast).toHaveText('Select a figure to see its path.');
+
+  await page.evaluate(() => { app.selectFigure(app.figures[0]); app.render(); });
+  await pathOn();
+  await expect(toast).toHaveText('This figure is in the same place in every frame. Drag its orange root to move it.');
+
+  // A figure that moves has a path, and no note.
+  await page.evaluate(() => { app.figures[0].x += 100; app.frames[app.currentFrameIndex] = app.figures.map(f => f.clone()); app.render(); });
+  await pathOn();
+  await expect(toast).toHaveCount(0);
+  expect(await page.evaluate(() => app.motionPaths().length)).toBe(1);
+
+  // A figure added in this frame only has no other frame to connect to.
+  await page.evaluate(() => { app.addFigure(); const added = app.figures[app.figures.length - 1]; app.selectedFigureIds.clear(); app.figures.forEach(f => { f.selected = false; }); app.selectFigure(added); app.render(); });
+  await pathOn();
+  await expect(toast).toHaveText('This figure is only in one frame, so it has no path yet.');
+});

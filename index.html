@@ -2839,7 +2839,20 @@ const app={
   toggleSmooth(){this.isSmooth=!this.isSmooth;this.updateToggleControls();this.syncFrameTimingControls();this.refreshFrameBadges();this.saveLocal();},
   toggleOnion(){this.showOnion=!this.showOnion;this.updateToggleControls();this.render();this.saveLocal();},
   togglePivots(){this.showPivots=!this.showPivots;this.updateToggleControls();this.render();this.saveLocal();},
-  togglePath(){this.showPath=!this.showPath;this.updateToggleControls();this.render();this.saveLocal();},
+  togglePath(){
+    this.showPath=!this.showPath;this.updateToggleControls();this.render();this.saveLocal();
+    const hint=this.showPath&&this.pathHint();if(hint)this.showToast(hint);
+  },
+  // Why Path, just turned on, draws nothing, or null when it draws a line, so it never stays silently blank.
+  pathHint(){
+    if(this.isPlaying)return 'Stop playing to see the path.';
+    if(this.frames.length<2)return 'Add another frame to see a path.';
+    if(this._getSelectedFigureIds().length===0)return 'Select a figure to see its path.';
+    const paths=this.motionPaths();
+    if(paths.length===0)return 'This figure is only in one frame, so it has no path yet.';
+    const moves=paths.some(({points})=>{const placed=points.filter(Boolean);return placed.some(p=>Math.hypot(p.x-placed[0].x,p.y-placed[0].y)>0.5);});
+    return moves?null:'This figure is in the same place in every frame. Drag its orange root to move it.';
+  },
 
   // ── Frames ────────────────────────────────────────────────────
   prevFrame(){if(this.frames.length>0&&this.currentFrameIndex>0){this.loadFrame(this.currentFrameIndex-1);this.scrollToFrame(this.currentFrameIndex);}},

@@ -971,7 +971,11 @@ test('stopping playback with the mouse never stores an in-between pose', async (
   await page.waitForTimeout(250); // FPS 2: halfway between the two poses
   await page.click('#btn-stop');
   expect(await storedPoses(page)).toEqual([100, 500]);
-  expect(await page.evaluate(() => app.figures[0].x)).toBe(100);
+  // The stage shows the exact pose of the frame playback stopped on (on a busy machine the click can land
+  // after the half second, on frame 2), never one in between.
+  const shown = await page.evaluate(() => ({ stage: app.figures[0].x, stored: app.frames[app.currentFrameIndex][0].x }));
+  expect(shown.stage).toBe(shown.stored);
+  expect([100, 500]).toContain(shown.stage);
 });
 
 test('choosing a frame or pasting during playback never stores an in-between pose', async ({ page }) => {
