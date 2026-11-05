@@ -1,0 +1,83 @@
+/* StickMotion's look, shared with SketchMotion: warm night colours, one "on" style, readable headings and
+   tool names. Everything lives in this file, linked once from index.html after the built-in styles, so
+   removing that one link returns the previous look. */
+
+/* Night desk colours. Filled buttons use a deeper blue that keeps white words readable; blue words and
+   outlines on the dark panels use the lighter "pencil" blue. */
+:root {
+  --bg:       #17161A;
+  --bg2:      #211F24;
+  --bg3:      #2D2B31;
+  --bg4:      #38353D;
+  --border:   #3A373F;
+  --border2:  #4A4650;
+  --text:     #F1EEEA;
+  --text2:    #B9B4AE;
+  --text3:    #9A958F;
+  --accent:   #2F6BDB;
+  --accent2:  #3D79E8;
+  --pencil:   #6EA2FF;
+  --pencil-soft: #1E2C47;
+}
+
+/* The stage: a soft desk-lamp glow behind the paper, over the dot grid. */
+#canvas-area {
+  background-image:
+    radial-gradient(ellipse 60% 70% at 50% 46%, rgba(255, 206, 140, 0.07), rgba(255, 206, 140, 0) 70%),
+    radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 100% 100%, 24px 24px;
+}
+
+/* Logo: stacked frames with a stick figure, the family mark of SketchMotion's stacked frames and ball. */
+.wordmark svg { display: none; }
+.wordmark::before {
+  content: "";
+  width: 26px; height: 26px; flex: 0 0 26px;
+  background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 36'%3E%3Crect x='10' y='3' width='23' height='23' rx='6' fill='%231E2C47'/%3E%3Crect x='5' y='8' width='23' height='23' rx='6' fill='%23211F24' stroke='%236EA2FF' stroke-width='2.5'/%3E%3Ccircle cx='16.5' cy='14.2' r='2.7' fill='%23F1EEEA'/%3E%3Cpath d='M16.5 16.9v5.9M16.5 18.6l-4.2 2.2M16.5 18.6l4.1-2.4M16.5 22.8l-3 4.3M16.5 22.8l3.1 4.2' stroke='%23F1EEEA' stroke-width='1.9' stroke-linecap='round' fill='none'/%3E%3Ccircle cx='16.5' cy='22.8' r='1.8' fill='%23F97316'/%3E%3C/svg%3E");
+}
+.wordmark { gap: 8px; }
+
+/* Panel headings: readable words, not small capitals. */
+.panel-label, .field-label {
+  font-size: 12.5px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text);
+}
+
+/* One "on" style: a soft blue fill with a blue outline, for the tool in use and every switch that's on. */
+.tool-btn.active, .tool-btn.active:hover {
+  background: var(--pencil-soft); color: var(--pencil); box-shadow: inset 0 0 0 2px var(--pencil);
+}
+.pb-tag.on, .onion-btn.on {
+  background: var(--pencil-soft); border-color: var(--pencil); color: var(--pencil);
+}
+.prop-value { color: var(--pencil); }
+
+/* Sliders: a visible track and a handle outlined in blue. */
+input[type=range] { height: 4px; background: var(--border2); }
+input[type=range]::-webkit-slider-thumb {
+  width: 15px; height: 15px; background: var(--bg2); border: 2px solid var(--pencil); box-shadow: none;
+}
+
+/* Buttons that start something rather than remove it are blue; red stays for replacing or deleting. */
+#welcome-start, #help-modal .modal-btn.confirm { background: var(--accent); }
+#welcome-start:hover, #help-modal .modal-btn.confirm:hover { background: var(--accent2); }
+.frame-playhead { background: var(--accent); }
+
+/* Every tool gets its name under the icon where the screen is tall enough to fit them; shorter or
+   narrower screens keep icons with hover tips, as before. */
+@media (min-width: 781px) and (min-height: 700px) {
+  #left-toolbar { width: 72px; gap: 4px; }
+  .tool-btn { width: 62px; height: 50px; flex-direction: column; gap: 4px; border-radius: 10px; }
+  .tool-btn::after {
+    position: static; transform: none; opacity: 1;
+    background: none; border: 0; padding: 0; border-radius: 0;
+    font-size: 11px; font-weight: 400; line-height: 1.1; color: inherit;
+  }
+  .tool-btn.active::after { font-weight: 500; }
+  .tool-separator { width: 40px; }
+  #tool-select::after { content: "Select"; }
+  #tool-stick::after { content: "Stickman"; }
+  #tool-library::after { content: "Library"; }
+  #tool-builder::after { content: "Designer"; }
+  #tool-text::after { content: "Text"; }
+  #tool-group::after { content: "Group"; }
+}

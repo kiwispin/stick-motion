@@ -213,6 +213,15 @@ test('Hold this frame steps through clear lengths from any value, one Undo at a 
   expect((await hold()).delay).toBe(0.1); // the shortest; another step does nothing
 });
 
+test('tools show their names where the screen is tall enough, and hover tips where it is not', async ({ page }) => {
+  await openEditor(page);
+  const stickman = () => page.evaluate(() => { const style = getComputedStyle(document.getElementById('tool-stick'), '::after'); return { content: style.content, opacity: style.opacity, position: style.position }; });
+  await page.setViewportSize({ width: 1366, height: 768 });
+  expect(await stickman()).toEqual({ content: '"Stickman"', opacity: '1', position: 'static' });
+  await page.setViewportSize({ width: 1280, height: 650 });
+  expect(await stickman()).toEqual({ content: '"Add Stickman"', opacity: '0', position: 'absolute' }); // the hover tip
+});
+
 test('Undo keeps 100 steps', async ({ page }) => {
   await openEditor(page);
   const steps = await page.evaluate(() => {
