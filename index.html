@@ -633,6 +633,8 @@
   .modal-btn.cancel:hover { background: var(--border2); color: var(--text); }
   .modal-btn.confirm { background: var(--red); color: #fff; }
   .modal-btn.confirm:hover { background: #dc2626; }
+  .modal-btn.alt { background: var(--accent2); color: #fff; }
+  .modal-btn.alt:hover { background: #1d4ed8; }
   .shortcut-list { display:grid; gap:8px; margin:16px 0; }
   .shortcut-row { display:flex; align-items:center; justify-content:space-between; gap:16px; color:var(--text2); font-size:12px; }
   .shortcut-row kbd { flex-shrink:0; border:1px solid var(--border2); border-bottom-width:2px; border-radius:5px; padding:2px 6px; background:var(--bg3); color:var(--text); font:600 11px var(--mono); white-space:nowrap; }
@@ -1167,6 +1169,7 @@
     <div class="modal-msg" id="confirm-msg">Are you sure?</div>
     <div class="modal-btns">
       <button class="modal-btn cancel" id="confirm-cancel" onclick="app.closeModal()">Cancel</button>
+      <button class="modal-btn alt" id="confirm-alt" style="display:none" onclick="app.executeConfirmAlt()"></button>
       <button class="modal-btn confirm" id="confirm-ok" onclick="app.executeConfirm()">Confirm</button>
     </div>
   </div>
@@ -1436,6 +1439,7 @@ const app={
   localSaveRunning:false,pendingLocalSave:null,localSaveRevision:0,localSaveErrorRevision:0,localSaveQueue:Promise.resolve(),
   clipboard:[], // ← array of cloned Figure objects
   isEditingText:false,isEditingFrameDuration:false,
+  fileSaved:false, // whether the animation, as it is now, is saved in a project file
   asyncExport:null,
   pendingStkImport:null,stkImportToken:0,
   marquee:{active:false,startX:0,startY:0,endX:0,endY:0},
@@ -1601,6 +1605,7 @@ const app={
     this.isSmooth=d.settings.isSmooth!==undefined?!!d.settings.isSmooth:true;
     this.showOnion=d.settings.showOnion!==undefined?!!d.settings.showOnion:true;
     this.showPivots=d.settings.showPivots!==undefined?!!d.settings.showPivots:true;
+    this.fileSaved=d.settings.fileSaved===true;
     this.figures=this.cloneFigures(this.frames[this.currentFrameIndex]);
     this.selectedFigureIds=new Set(this.figures.filter(f=>f.selected).map(f=>f.id));
     this.restoreBackground(d.backgroundData);
@@ -1798,7 +1803,7 @@ const app={
     this.invalidateStkImport(true);this.showToast(`Imported ${pending.fileName||'STK figure'} into frame ${this.currentFrameIndex+1}`);
   },
   setProjectName(value){
-    this.projectName=String(value).replace(/[\u0000-\u001F]/g,'').slice(0,80);
+    this.projectName=String(value).replace(/[\u0000-\u001F]/g,'').slice(0,80);this.fileSaved=false;
     const input=document.getElementById('project-name');if(input&&input.value!==this.projectName)input.value=this.projectName;
     this.saveLocal();
   },
@@ -1810,7 +1815,7 @@ const app={
   },
 
   // ── Undo/Redo ─────────────────────────────────────────────────
-  saveState(){this.history.capture(this);},
+  saveState(){this.history.capture(this);this.fileSaved=false;},
   undo(){const snapshot=this.history.undo(this);if(snapshot)this.restoreState(snapshot);},
   redo(){const snapshot=this.history.redo(this);if(snapshot)this.restoreState(snapshot);},
   restoreState(s){this.frames=[...s.frames];this.frameDelays=[...s.frameDelays];this.currentFrameIndex=s.currentFrameIndex;this.selectedFrames.clear();this.selectedFrames.add(this.currentFrameIndex);this.figures=s.figures.map(f=>f.clone());if(s.groups)this.groups=s.groups.map(g=>g.clone());const d=this.frameDelays[this.currentFrameIndex]||1.0;document.getElementById('frame-duration').value=d;document.getElementById('duration-display').innerText=d.toFixed(1)+'×';this.render();this.updateTimeline();this.updateGroupsPanel();this.saveLocal();},
@@ -1835,9 +1840,15 @@ const app={
     }
     return true;
   },
-  showModal(t,m,a,labels={}){document.getElementById('confirm-title').innerText=t;document.getElementById('confirm-msg').innerText=m;document.getElementById('confirm-ok').innerText=labels.confirm||'Confirm';document.getElementById('confirm-cancel').innerText=labels.cancel||'Cancel';this.pendingAction=a;this.openDialog('confirm-modal','#confirm-cancel');},
-  closeModal(){this.closeDialog('confirm-modal');this.pendingAction=null;},
+  // labels.alt and labels.altAction add a second, recommended choice beside Confirm.
+  showModal(t,m,a,labels={}){
+    document.getElementById('confirm-title').innerText=t;document.getElementById('confirm-msg').innerText=m;document.getElementById('confirm-ok').innerText=labels.confirm||'Confirm';document.getElementById('confirm-cancel').innerText=labels.cancel||'Cancel';
+    const alt=document.getElementById('confirm-alt');alt.innerText=labels.alt||'';alt.style.display=labels.alt?'':'none';
+    this.pendingAction=a;this.pendingAltAction=labels.alt?labels.altAction:null;this.openDialog('confirm-modal','#confirm-cancel');
+  },
+  closeModal(){this.closeDialog('confirm-modal');this.pendingAction=null;this.pendingAltAction=null;},
   executeConfirm(){if(this.pendingAction)this.pendingAction();this.closeModal();},
+  executeConfirmAlt(){if(this.pendingAltAction)this.pendingAltAction();this.closeModal();},
   shouldWarnForGif(){return this.frames.length>GIF_WARNING_FRAME_COUNT;},
   videoExportSupported(){
     const canvas=document.createElement('canvas');
@@ -1867,7 +1878,12 @@ const app={
   reopenWelcome(){this.closeHelp();this.openWelcome();},
   closeWelcome(){this.closeDialog('welcome-modal');},
   confirmClearStage(){this.showModal('Clear Stage?','Remove all figures from the current frame? You can Undo this.',()=>{this.saveState();this.figures=[];this.render();this.saveLocal();this.showToast('Stage cleared. Add a figure to continue.');});},
-  confirmNewProject(){this.showModal('New Project?','Start over with a new animation? Your current local draft will be replaced.',()=>{this.saveState();this.newProject();this.showToast('New project started');});},
+  // New replaces the only copy in this browser, so it offers to save a project file first when there isn't one.
+  confirmNewProject(){
+    const start=()=>{this.newProject();this.showToast('New project started');};
+    if(this.fileSaved){this.showModal('New project?',`Start a blank animation? "${this.projectName}" is saved as a file, so you can open it again later.`,start,{confirm:'Start new'});return;}
+    this.showModal('Save your animation first?',`"${this.projectName}" isn't saved as a project file yet. Starting a new animation replaces it in this browser, and Undo can't bring it back.`,start,{confirm:'Start new anyway',alt:'Save file first',altAction:()=>this.saveProject()});
+  },
 
   newProject(){
     this.invalidateStkImport();
@@ -1876,7 +1892,9 @@ const app={
     this.currentFrameIndex=0;this.backgroundLoadToken+=1;this.bgImage=null;this.backgroundData=null;this.updateBackgroundControl();this.history.clear();
     this.selectedFigureIds.clear();
     document.getElementById('canvas-w').value=800;document.getElementById('canvas-h').value=500;
-    this.setCanvasSize();this.addFigure();this.render();this.updateTimeline();this.updateGroupsPanel();this.centerStage();this.saveLocal();
+    this.setCanvasSize();this.addFigure();this.render();this.updateTimeline();this.updateGroupsPanel();this.centerStage();
+    this.fileSaved=true; // a blank animation has nothing to lose
+    this.saveLocal();
   },
 
   // ── Zoom ──────────────────────────────────────────────────────
@@ -1965,7 +1983,7 @@ const app={
     const w=this.clampDimension(document.getElementById('canvas-w').value,800);
     const h=this.clampDimension(document.getElementById('canvas-h').value,500);
     document.getElementById('canvas-w').value=w;document.getElementById('canvas-h').value=h;
-    this.applyCanvasSize(w,h);
+    this.applyCanvasSize(w,h);this.fileSaved=false;
     this.render();this.saveLocal();
   },
   applyCanvasSize(w,h){
@@ -1980,7 +1998,7 @@ const app={
     document.getElementById('bg-input').click();
   },
   clearBackgroundImage(){
-    this.backgroundLoadToken+=1;this.bgImage=null;this.backgroundData=null;this.updateBackgroundControl();
+    this.backgroundLoadToken+=1;this.bgImage=null;this.backgroundData=null;this.updateBackgroundControl();this.fileSaved=false;
     this.render();this.updateTimeline();this.saveLocal();this.showToast('Background cleared');
   },
   loadBackground(i){
@@ -2685,13 +2703,15 @@ const app={
     });
     this.figures=interp;if(draw)this.render();
   },
-  updateFps(v){this.fps=parseInt(v);document.getElementById('fps-val').innerText=v;this.saveLocal();},
+  updateFps(v){this.fps=parseInt(v);document.getElementById('fps-val').innerText=v;this.fileSaved=false;this.saveLocal();},
   projectFilename(){return this.projectName.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'stickmotion-project';},
   saveProject(){
+    this.commitActiveFrame();this.fileSaved=true;
     const b=new Blob([JSON.stringify(this.serializeProject())],{type:'application/json'});
     const filename=this.projectFilename()+'.json';
     const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download=filename;a.click();
     setTimeout(()=>URL.revokeObjectURL(u),1000);this.showToast(`Saved ${filename}`);
+    this.saveLocal(); // remember, across reloads, that this version is saved as a file
   },
   loadProject(i){
     if(!i.files||!i.files[0])return;
@@ -2704,13 +2724,14 @@ const app={
       try{data=JSON.parse(e.target.result);incoming=this.normaliseProject(data).name;}
       catch(err){console.error(err);this.showToast('This project file could not be opened.','error');return;}
       finally{i.value='';}
-      this.showModal('Open project?',`Opening "${incoming}" replaces "${this.projectName}". Download a copy of your current animation first if you want to keep it.`,()=>this.openProjectData(data),{confirm:'Open project',cancel:'Cancel'});
+      if(this.fileSaved){this.showModal('Open project?',`Opening "${incoming}" replaces "${this.projectName}" in this browser. "${this.projectName}" is saved as a file, so you can open it again later.`,()=>this.openProjectData(data),{confirm:'Open project',cancel:'Cancel'});return;}
+      this.showModal('Open project?',`Opening "${incoming}" replaces "${this.projectName}", which isn't saved as a project file yet.`,()=>this.openProjectData(data),{confirm:'Open without saving',cancel:'Cancel',alt:'Save mine, then open',altAction:()=>{this.saveProject();this.openProjectData(data);}});
     };
     r.onerror=()=>{this.showToast('This project file could not be read.','error');i.value='';};r.readAsText(file);
   },
   openProjectData(data){
     this.invalidateStkImport();this.stop();
-    try{this.applyProjectData(data);this.history.clear();this.saveLocal();this.showToast(`Opened ${this.projectName}`);}
+    try{this.applyProjectData(data);this.history.clear();this.fileSaved=true;this.saveLocal();this.showToast(`Opened ${this.projectName}`);}
     catch(err){console.error(err);this.showToast('This project file could not be opened.','error');}
   },
 

@@ -240,7 +240,8 @@ export function serializeProject(state) {
       isLooping: state.isLooping,
       isSmooth: state.isSmooth,
       showOnion: state.showOnion,
-      showPivots: state.showPivots
+      showPivots: state.showPivots,
+      fileSaved: state.fileSaved === true
     }
   };
 }
