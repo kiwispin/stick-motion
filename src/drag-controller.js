@@ -1,5 +1,5 @@
 import { marqueeBounds } from './marquee.js';
-import { isStkFilledCircleSegment } from './stk-import.js';
+import { isStkFilledCircleSegment, isStkPictureSegment } from './stk-import.js';
 
 function isStkConstruction(figure, joint) {
   if (!figure?.stkArtwork || joint.parentId === null) return false;
@@ -17,7 +17,8 @@ function isStkNonPaintedSegment(figure, joint) {
   if (!match) return false;
   const segment = figure.stkArtwork.segments[Number(match[1]) - 1];
   const filledCircle = isStkFilledCircleSegment(figure.stkArtwork, segment);
-  return Boolean(segment && Number(segment.width) <= 0 && !filledCircle);
+  // A picture's segment can be clicked to pick the figure up, whatever the segment's width.
+  return Boolean(segment && Number(segment.width) <= 0 && !filledCircle && !isStkPictureSegment(figure.stkArtwork, segment));
 }
 
 export function updateCursor(canvas, figures, position, handleRadius) {

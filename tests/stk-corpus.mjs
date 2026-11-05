@@ -8,8 +8,14 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { createFigureFromStk, decodeStk } from '../src/stk-import.js';
-import { drawStkFigure, getStkArtworkBounds } from '../src/stk-renderer.js';
+import { drawStkFigure, getStkArtworkBounds, loadStkPictures } from '../src/stk-renderer.js';
 import { normaliseProject } from '../src/project.js';
+
+// Node cannot decode images.  This stand-in reads each picture's size from its PNG header, so pictures
+// are drawn (as recorded drawImage calls) once loadStkPictures has finished.
+if (typeof globalThis.createImageBitmap !== 'function') {
+  globalThis.createImageBitmap = async blob => { const header = new DataView(await blob.arrayBuffer()); return { width: header.getUint32(16), height: header.getUint32(20) }; };
+}
 
 const folder = new URL('../stk/library/', import.meta.url);
 if (!fs.existsSync(new URL('catalogue.json', folder))) {
@@ -48,10 +54,11 @@ for (const entry of catalogue) {
     const decoded = await decodeStk(new Uint8Array(bytes));
     const figure = createFigureFromStk(decoded, { x: 400, y: 300, id: 'corpus' });
     const { context, calls } = recordingContext();
+    await loadStkPictures(figure.stkArtwork);
     drawStkFigure({ context, figure });
     const bounds = getStkArtworkBounds(figure);
     normaliseProject(JSON.parse(JSON.stringify({ version: 5, name: 'Corpus', width: 800, height: 500, fps: 12, frames: [[figure]], delays: [1], currentFrameIndex: 0, groups: [], settings: {} })));
-    const painted = calls.some(call => call[0] === 'stroke' || call[0] === 'fill');
+    const painted = calls.some(call => call[0] === 'stroke' || call[0] === 'fill' || call[0] === 'drawImage');
     const invalid = calls.some(call => call.some(value => typeof value === 'number' && !Number.isFinite(value)));
     result.outcome = !painted ? 'suspicious: paints nothing' : invalid ? 'suspicious: invalid coordinates' : !bounds ? 'suspicious: no bounds' : 'imports';
     result.decoded = hash(decoded);

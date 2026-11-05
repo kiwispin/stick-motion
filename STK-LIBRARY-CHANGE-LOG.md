@@ -1,10 +1,10 @@
 # Pivot STK library coverage — change log
 
-Checkpoints: 2026-10-28 and 2026-10-29. The importer was tested against every `.stk` figure in the
-public [Pivot STK library](https://pivotanimator.net/stk-library/) and extended until **1,111 of its
-1,125 figures (98.8%) import**, up from 379 (34%), including figures of up to 9,000 parts. Figures
-that import are also drawn the way their library thumbnails show them. The 14 still unsupported all
-embed pictures.
+Checkpoints: 2026-10-28, 2026-10-29 and 2026-11-05. The importer was tested against every `.stk`
+figure in the public [Pivot STK library](https://pivotanimator.net/stk-library/) and extended until
+**1,124 of its 1,125 figures (99.9%) import**, up from 379 (34%), including figures of up to 9,000
+parts and figures made of pictures. Figures that import are also drawn the way their library
+thumbnails show them. The one still unsupported is a Pivot 3 picture figure.
 
 ## Test set and harness
 
@@ -24,8 +24,8 @@ embed pictures.
 | 2 | 0 / 448 | **448 / 448** |
 | 3 | 19 / 20 | 19 / 20 |
 | 4 | 1 / 41 | **41 / 41** |
-| 5 | 359 / 616 | **603 / 616** |
-| **All** | **379 / 1,125** | **1,111 / 1,125** |
+| 5 | 359 / 616 | **616 / 616** |
+| **All** | **379 / 1,125** | **1,124 / 1,125** |
 
 ## Format findings
 
@@ -158,16 +158,82 @@ its library thumbnail and matched.
   AK 47's slide and the bell's clapper move in straight lines when posed, and each figure, grouped,
   saved and reopened.
 
-## Still unsupported (14 figures)
+## Pictures (2026-11-05)
 
-All 14 embed pictures, mostly game sprites ("Horse_Sprites", "Truck_sprites", "baby (sprites)").
+The last 13 Pivot 5 figures that did not import are made wholly or partly of pictures: game sprites
+("Horse_Sprites", "Truck_sprites", "baby (sprites)"), photo cut-outs, a tank, a car, wristbands on a
+stick fighter. All 13 now import and draw like their library previews, and flip correctly.
 
-- **Pivot 5 (13 figures).** A segment of type 2 carries a 4-byte image number, and the file holds PNG
-  pictures.
-- **Pivot 3 (1 figure, Hummer Sprite).** It does the same with a raw bitmap after the segment
-  records.
-- **What it would take.** Supporting them is a new feature, not a limit change:
-  - Read the image table.
-  - Establish how Pivot places and scales a picture on its segment.
-  - Decode pictures before drawing.
-  - Save pictures in projects and include them in GIF export.
+### Format
+
+A segment of **type 2** is a picture. Its record is the normal record for its header byte plus 4
+bytes after the gradient fields: the image index (u16, from 0), a zero byte and a mirror flag (0 or 1).
+Only figures with a type-2 segment have an **image table**, between the curves and the polygons:
+
+```text
+[image count u16], then per image:
+[x1 i32][y1 i32][x2 i32][y2 i32][end offset u64][a complete PNG file, running to the end offset]
+```
+
+The end offset counts from the start of the decompressed payload. All 13 files account for every byte
+under this layout, and all 71 PNGs end exactly at their stored offset.
+
+### Drawing
+
+- **Placement.** Image pixel (x1, y1) goes on the segment's start and (x2, y2) on its end: a uniform
+  scale (segment chord ÷ anchor distance), a rotation, and, when the mirror flag is set, a reflection
+  across the segment line. Stretching along the segment only, or scaling by the width, fails visibly on
+  several figures; ignoring the mirror flag breaks the KGF hero's left arm.
+- **Draw order.** Pictures take their place in the draw ranks like any other part (the stick fighter's
+  wristbands over his arms, the griffin's hand over the axe handle).
+- **No line.** A picture segment's width, colour, transparency and gradient have no visible effect, and
+  zero-width pictures still draw. The figure outline (header bit `0x40`) is not traced around pictures.
+- **Pixels.** Transparency comes from the PNG. Pictures enlarged on screen are drawn with hard pixel
+  edges, as Pivot does (the robot's 19 by 20 screen); shrunk ones are smoothed.
+- **Flip.** Flipping a figure toggles each picture's mirror flag, which together with the mirrored
+  segment flips the picture with the figure.
+- **Not curved.** No library picture is curved, so a curved picture is rejected rather than guessed.
+
+### Safety
+
+- **Checked before decoding.** Each PNG must be whole: its signature, an `IHDR` first, image data, and
+  chunks running without gaps to an `IEND` exactly at its end offset. Its declared size is checked
+  against the limits from the header alone, so a tiny file claiming a huge image is refused before
+  anything is decoded.
+- **Limits.** At most 256 images and 8 MB of PNG data per figure; each image at most 4,096 pixels on a
+  side and 4.2 million pixels; at most 16.8 million pixels per figure. The library's largest picture
+  figure has 565 KB of PNG data and 1.75 million pixels, its largest image 606 by 1192.
+- **Projects.** Each artwork's PNGs are saved once, as base64, in the project's `stkArtworks` (about a
+  third larger than the PNG; the KGF hero adds about 750 KB). Reopening a project checks them exactly
+  as an import does. A flipped figure is a second artwork and so saves its pictures a second time.
+
+### In the app
+
+- **Decoding.** Drawing is synchronous, so each figure's pictures are decoded in the background when it
+  is first drawn (import preview, insert, project load). Until then they are left out; then the stage,
+  the frame thumbnails and the import preview are drawn again. Decoded images are shared by every
+  frame, Undo step and flipped copy of the figure.
+- **Exports.** PNG frame, PNG ZIP, GIF and WebM exports wait until every picture in the project has
+  been decoded. Projects without pictures export exactly as before.
+- **Selecting.** A zero-width picture's segment can be clicked to pick the figure up.
+
+### Checks
+
+- **Library.** `npm run test:stk-corpus`: 13 newly importing; none of the 1,111 that already imported
+  changed in decoded data or drawing calls. Each of the 13 was drawn with the app's renderer, normal and
+  flipped, next to its library preview, and matched.
+- **Malformed files.** 7,410 corrupted versions of the 13 picture files (byte flips, truncations,
+  trailing bytes) either imported, drawing with finite numbers and surviving a project round trip, or
+  were cleanly rejected. None crashed.
+- **Tests.** 86 unit tests (synthetic picture figures, malformed and oversized images, tampered
+  projects, and the 13 library figures when present) and 95 browser tests pass. A browser test imports a
+  synthetic picture figure, checks the preview, stage and thumbnail show it, saves, reloads, and exports a
+  GIF straight after reopening; every exported frame shows the picture.
+
+## Still unsupported (1 figure)
+
+- **Hummer Sprite (Pivot 3).** One type-2 segment followed by a raw bitmap: an 11-byte header (width
+  447, height 176, white as the transparent colour) and 24-bit pixels stored column by column. The pixels
+  can be read, but where Pivot 3 places the picture relative to its segment is unknown: the image width
+  matches the segment length, but its vertical position does not follow from the file. It stays
+  rejected rather than drawn in a guessed place.

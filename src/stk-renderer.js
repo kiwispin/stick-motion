@@ -1,6 +1,82 @@
-import { getStkNodes, isStkCircleSegment, isStkFilledCircleSegment, orderedStkDrawItems, pointOnStkSegment, validateStkArtwork } from './stk-import.js';
+import { getStkNodes, isStkCircleSegment, isStkFilledCircleSegment, isStkPictureSegment, orderedStkDrawItems, pointOnStkSegment, stkImageBytes, validateStkArtwork } from './stk-import.js';
 
 const EPSILON = 1e-8;
+
+// ── Pictures ─────────────────────────────────────────────────────
+// Drawing is synchronous but decoding a PNG is not, so each picture table is decoded in the background the
+// first time its figure is drawn (or when loadStkPictures asks).  Until then its pictures are left out;
+// once every decode in progress has finished, the listeners are told so they can draw again.
+const decodedImages = new WeakMap(); // image entry -> { bitmap } or { failed: true }
+const imageLoads = new WeakMap(); // picture table -> Promise
+const readyListeners = new Set();
+let loadsInProgress = 0;
+
+export function onStkPicturesReady(listener) {
+  readyListeners.add(listener);
+  return () => readyListeners.delete(listener);
+}
+
+async function decodeImage(image) {
+  try {
+    if (typeof globalThis.createImageBitmap !== 'function' || typeof Blob !== 'function') throw new Error('Image decoding is unavailable.');
+    const bitmap = await globalThis.createImageBitmap(new Blob([stkImageBytes(image)], { type: 'image/png' }));
+    if (bitmap.width !== image.width || bitmap.height !== image.height) throw new Error('The decoded picture does not match its recorded size.');
+    decodedImages.set(image, { bitmap });
+  } catch {
+    // An image the browser cannot decode is left out, like one still decoding.
+    decodedImages.set(image, { failed: true });
+  }
+}
+
+function loadImages(images) {
+  if (!imageLoads.has(images)) {
+    loadsInProgress += 1;
+    imageLoads.set(images, Promise.all(images.map(decodeImage)).then(() => {
+      loadsInProgress -= 1;
+      if (loadsInProgress === 0) for (const listener of readyListeners) { try { listener(); } catch (error) { console.error(error); } }
+    }));
+  }
+  return imageLoads.get(images);
+}
+
+// Resolves once every picture of the given artworks has been decoded (or found undecodable); exports wait
+// on this so no frame is drawn without its pictures.
+export function loadStkPictures(artworks) {
+  const list = Array.isArray(artworks) ? artworks : [artworks];
+  return Promise.all(list.map(artwork => Array.isArray(artwork?.images) && artwork.images.length ? loadImages(artwork.images) : null)).then(() => undefined);
+}
+
+// The canvas transform that draws a picture on its segment: a similarity that puts image pixel (x1, y1)
+// on the segment's start and (x2, y2) on its end, reflected across the segment when mirrored.  Returns
+// null when the segment has no length, as nothing then shows.
+export function stkPictureTransform(start, end, image, mirrored) {
+  const chord = Math.hypot(end.x - start.x, end.y - start.y);
+  const span = Math.hypot(image.x2 - image.x1, image.y2 - image.y1);
+  if (!(chord > EPSILON) || !(span > 0)) return null;
+  const scale = chord / span;
+  const theta = Math.atan2(end.y - start.y, end.x - start.x), alpha = Math.atan2(image.y2 - image.y1, image.x2 - image.x1);
+  const flip = mirrored ? -1 : 1;
+  const [ct, st, ca, sa] = [Math.cos(theta), Math.sin(theta), Math.cos(alpha), Math.sin(alpha)];
+  const a = scale * (ct * ca + flip * st * sa), c = scale * (ct * sa - flip * st * ca);
+  const b = scale * (st * ca - flip * ct * sa), d = scale * (st * sa + flip * ct * ca);
+  return { a, b, c, d, e: start.x - (a * image.x1 + c * image.y1), f: start.y - (b * image.x1 + d * image.y1), scale };
+}
+
+function drawPicture(context, artwork, segment, node) {
+  const image = artwork.images?.[segment.image];
+  const bitmap = image && decodedImages.get(image)?.bitmap;
+  if (!bitmap || typeof context.drawImage !== 'function') return;
+  const transform = stkPictureTransform(node.start, node.end, image, segment.imageMirror === 1);
+  if (!transform) return;
+  context.save();
+  context.transform(transform.a, transform.b, transform.c, transform.d, transform.e, transform.f);
+  // Pivot enlarges pictures with hard pixel edges; the scale on screen includes the view's own zoom.
+  const screen = typeof context.getTransform === 'function' ? context.getTransform() : null;
+  const screenScale = Number.isFinite(screen?.a) ? Math.sqrt(Math.abs(screen.a * screen.d - screen.b * screen.c)) : transform.scale;
+  context.imageSmoothingEnabled = !(screenScale > 1);
+  context.drawImage(bitmap, 0, 0);
+  context.restore();
+}
 
 function rgbColor(color, fallback = '#000000') {
   return Array.isArray(color) ? `rgb(${color[0]},${color[1]},${color[2]})` : fallback;
@@ -40,6 +116,8 @@ function drawStkOutline(context, artwork, figure, nodes, outline) {
       const segment = artwork.segments[item];
       const node = nodes[segment.id];
       const circle = isStkCircleSegment(artwork, segment);
+      // Pivot does not trace the outline around pictures.
+      if (isStkPictureSegment(artwork, segment)) continue;
       if (!node || (segment.width <= 0 && !isStkFilledCircleSegment(artwork, segment)) || (Number(segment.transparency) >= 255 && !segment.gradient)) continue;
       const width = (Number(segment.width) || 0) * figure.scale;
       if (circle) {
@@ -149,12 +227,15 @@ export function drawStkFigure({ context, figure, showHandles = false, handleRadi
   const nodes = getStkNodes(figure);
   const joints = new Map(figure.joints.map(joint => [joint.id, joint]));
   context.lineCap = 'round'; context.lineJoin = 'round';
+  if (artwork.images) loadStkPictures(artwork);
   const outline = figureOutline(artwork);
   if (outline) drawStkOutline(context, artwork, figure, nodes, outline);
   for (const item of orderedStkDrawItems(artwork)) {
     if (item < artwork.segments.length) {
       const segment = artwork.segments[item];
       const node = nodes[segment.id];
+      // Pictures take their place in the draw order like any other part.
+      if (node && isStkPictureSegment(artwork, segment)) { drawPicture(context, artwork, segment, node); continue; }
       if (!node || (segment.width <= 0 && !isStkFilledCircleSegment(artwork, segment))) continue;
       context.save();
       const gradient = segmentGradient(context, segment, node);
@@ -216,6 +297,14 @@ export function getStkArtworkBounds(figure, includeHandles = false) {
     }
   }
   for (const segment of figure.stkArtwork.segments) {
+    // A picture covers its whole image, placed on the segment; its size is known before it is decoded.
+    if (isStkPictureSegment(figure.stkArtwork, segment)) {
+      const image = figure.stkArtwork.images[segment.image];
+      const node = nodes[segment.id];
+      const transform = stkPictureTransform(node.start, node.end, image, segment.imageMirror === 1);
+      if (transform) for (const [x, y] of [[0, 0], [image.width, 0], [0, image.height], [image.width, image.height]]) add({ x: transform.a * x + transform.c * y + transform.e, y: transform.b * x + transform.d * y + transform.f });
+      continue;
+    }
     const fullyTransparent = Number(segment.transparency) >= 255 && !(Array.isArray(segment.gradient) && segment.gradient[3] < 255);
     // A transparent construction segment can still be the curved boundary of
     // an opaque polygon. Keep its path for the polygon's fit envelope, but do
