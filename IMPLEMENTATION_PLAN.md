@@ -387,7 +387,12 @@ Ideas from the SketchMotion redesign, brought across where they suit a stick-fig
   - The default is unchanged: one earlier frame.
 - **Motion path.**
   - **Path** shows the selected figure's root in every other frame as dots on a line: close together means slow, far apart means fast.
-  - Earlier frames are orange and later ones blue. Clicking a dot goes to that frame.
+  - Drawn the SketchMotion way (reworked the same day):
+    - A blue line with a pale halo, and white dots with a blue rim, the same size on screen at any zoom.
+    - Hovering a dot shows "Frame N · drag to move" and a ghost of the figure there.
+    - Dragging a dot moves the figure in that frame, as one Undo step; clicking it goes to that frame.
+    - The figure on the current frame always wins over a dot beneath it.
+- **SketchMotion's frame keys:** A adds a frame (as Space does), D duplicates this one, and ← → step through frames, as , and . still do. They're ignored while playing or typing.
 - **Copy and paste whole frames,** for repeating cycles. Figures keep their identity, so Smooth still tweens. Buttons only: Ctrl+C/V still copy figures.
 - **Hold this frame.**
   - Was "Frame Duration / Speed multiplier", where a higher number meant slower.

@@ -115,16 +115,16 @@ test('onion skin shows earlier frames faded and later frames in blue, as set in 
   expect(blank(await torsoPixel(page, 1)) && blank(await torsoPixel(page, 3))).toBe(true);
 });
 
-// The stage pixel and screen position at the root of the figure as it stands in frame `index`.
+// Where the figure stands in frame `index`: its root on screen, the stage pixel on its path dot's blue rim,
+// and the stage's units per screen pixel.
 const rootPoint = (page, index) => page.evaluate(index => {
-  const figure = app.frames[index][0], box = app.canvas.getBoundingClientRect(), scale = box.width / app.canvas.width;
-  const [r, g, b] = app.ctx.getImageData(app.stagePadding + figure.x, app.stagePadding + figure.y, 1, 1).data;
-  return { r, g, b, clientX: box.left + (app.stagePadding + figure.x) * scale, clientY: box.top + (app.stagePadding + figure.y) * scale };
+  const figure = app.frames[index][0], box = app.canvas.getBoundingClientRect(), scale = box.width / app.canvas.width, k = app.pathScale();
+  const [r, g, b] = app.ctx.getImageData(Math.floor(app.stagePadding + figure.x + 5 * k), Math.floor(app.stagePadding + figure.y), 1, 1).data;
+  return { r, g, b, x: figure.x, y: figure.y, k, clientX: box.left + (app.stagePadding + figure.x) * scale, clientY: box.top + (app.stagePadding + figure.y) * scale };
 }, index);
-const orange = ({ r, g, b }) => r > 200 && g > 80 && g < 160 && b < 80;
 
-test('the selected figure shows its path across frames, and clicking a dot goes to that frame', async ({ page }) => {
-  await openEditor(page);
+// Four frames of an arc, frame 3 showing, the figure selected.
+async function arcProject(page) {
   await page.evaluate(() => {
     app.newProject();
     [[200, 300], [300, 220], [400, 200], [500, 220]].forEach(([x, y], i) => {
@@ -134,11 +134,19 @@ test('the selected figure shows its path across frames, and clicking a dot goes 
     });
     app.loadFrame(2, false); app.selectedFigureIds.clear(); app.selectFigure(app.figures[0]); app.render();
   });
-  expect(orange(await rootPoint(page, 0))).toBe(true); // earlier frames: orange dots
-  expect(blue(await rootPoint(page, 3))).toBe(true); // later frames: blue dots
+}
 
+test('the selected figure shows its path across frames, and clicking a dot goes to that frame', async ({ page }) => {
+  await openEditor(page);
+  await arcProject(page);
+  expect(blue(await rootPoint(page, 0))).toBe(true); // every other frame has a dot with a blue rim
+  expect(blue(await rootPoint(page, 3))).toBe(true);
+
+  // Hovering a dot names its frame.
   const dot = await rootPoint(page, 0);
-  await page.mouse.click(dot.clientX, dot.clientY);
+  await page.mouse.move(dot.clientX, dot.clientY);
+  expect(await page.evaluate(() => app.pathHover?.index)).toBe(0);
+  await page.mouse.down(); await page.mouse.up();
   expect(await page.evaluate(() => ({ frame: app.currentFrameIndex, selected: app._getSelectedFigureIds().length }))).toEqual({ frame: 0, selected: 1 });
 
   // Path off, or nothing selected, hides it.
@@ -148,6 +156,57 @@ test('the selected figure shows its path across frames, and clicking a dot goes 
   expect(blue(await rootPoint(page, 3))).toBe(true);
   await page.keyboard.press('Escape');
   expect(blank(await rootPoint(page, 3))).toBe(true);
+});
+
+test('dragging a path dot moves the figure in that frame, as one Undo step', async ({ page }) => {
+  await openEditor(page);
+  await arcProject(page);
+  const dot = await rootPoint(page, 3);
+  await page.mouse.move(dot.clientX, dot.clientY);
+  await page.mouse.down();
+  await page.mouse.move(dot.clientX + 30, dot.clientY + 20, { steps: 5 });
+  await page.mouse.up();
+  const moved = await page.evaluate(() => ({ frame: app.currentFrameIndex, x: app.frames[3][0].x, y: app.frames[3][0].y, here: app.frames[2][0].x }));
+  expect(moved.frame).toBe(2); // a drag stays on this frame
+  expect(moved.x).toBeCloseTo(dot.x + 30 * dot.k, 0);
+  expect(moved.y).toBeCloseTo(dot.y + 20 * dot.k, 0);
+  expect(moved.here).toBe(400); // the current frame is untouched
+  await page.evaluate(() => app.undo());
+  expect(await page.evaluate(() => [app.frames[3][0].x, app.frames[3][0].y])).toEqual([500, 220]);
+});
+
+test('the path keeps its size on screen at any zoom', async ({ page }) => {
+  await openEditor(page);
+  await arcProject(page);
+  const atZoom = async zoom => { await page.evaluate(zoom => { app.zoomLevel = zoom; app.updateCanvasLayout(); app.render(); }, zoom); return rootPoint(page, 3); };
+  for (const zoom of [0.5, 1, 2]) {
+    const point = await atZoom(zoom);
+    expect(point.k).toBeCloseTo(1 / zoom, 2);
+    expect(blue(point), `rim at zoom ${zoom}`).toBe(true);
+  }
+});
+
+test('D duplicates the frame, A adds one, and the arrow keys step through frames', async ({ page }) => {
+  await openEditor(page);
+  await framesProject(page, 2);
+  await page.locator('#main-canvas').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('d');
+  expect(await page.evaluate(() => ({ count: app.frames.length, frame: app.currentFrameIndex, same: app.frames[1][0].x === app.frames[0][0].x }))).toEqual({ count: 3, frame: 1, same: true });
+  await page.keyboard.press('a');
+  expect(await page.evaluate(() => ({ count: app.frames.length, frame: app.currentFrameIndex }))).toEqual({ count: 4, frame: 2 });
+  await page.keyboard.press('ArrowLeft');
+  expect(await frameIndex(page)).toBe(1);
+  await page.keyboard.press('ArrowRight');
+  expect(await frameIndex(page)).toBe(2);
+  // Typing in the project name never adds or duplicates frames.
+  await page.locator('#project-name').fill('Dad');
+  await page.locator('#project-name').press('a');
+  expect(await page.evaluate(() => app.frames.length)).toBe(4);
+  // While playing, the keys do nothing.
+  await page.locator('#main-canvas').click({ position: { x: 5, y: 5 } });
+  await page.evaluate(() => app.play());
+  await page.keyboard.press('d');
+  expect(await page.evaluate(() => { const count = app.frames.length; app.stop(); return count; })).toBe(4);
 });
 
 test('copied frames paste after the current frame as one Undo step, keeping each figure for tweening', async ({ page }) => {

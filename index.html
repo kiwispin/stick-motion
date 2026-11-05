@@ -1323,7 +1323,9 @@
     </div>
     <div class="shortcut-list" aria-label="Keyboard shortcuts">
       <div class="shortcut-row"><span>Add a frame / stop playback</span><kbd>Space</kbd></div>
-      <div class="shortcut-row"><span>Previous / next frame</span><kbd>, &nbsp; .</kbd></div>
+      <div class="shortcut-row"><span>Add a frame</span><kbd>A</kbd></div>
+      <div class="shortcut-row"><span>Duplicate this frame</span><kbd>D</kbd></div>
+      <div class="shortcut-row"><span>Previous / next frame</span><kbd>← → &nbsp;or&nbsp; , .</kbd></div>
       <div class="shortcut-row"><span>First / last frame</span><kbd>Home / End</kbd></div>
       <div class="shortcut-row"><span>Undo / redo</span><kbd>Ctrl/Cmd + Z / Y</kbd></div>
       <div class="shortcut-row"><span>Group / ungroup</span><kbd>Ctrl/Cmd + G / Shift + G</kbd></div>
@@ -1496,6 +1498,7 @@ const app={
   isLooping:true,isSmooth:true,showOnion:true,showPivots:true,
   onionBefore:1,onionAfter:0, // how many earlier and later frames the onion skin shows
   showPath:true, // the selected figure's path across frames
+  pathHover:null,pathDrag:null, // the path dot under the pointer, and a dot being dragged
   zoomLevel:1.0,dragTarget:null,isPanning:false,panStart:null,
   activeTool:'select',
   selectedFigureIds:new Set(),
@@ -1544,6 +1547,14 @@ const app={
       if(e.code==='Space'){e.preventDefault();if(this.isPlaying)this.stop();else this.addFrame();}
       if(e.key===','||e.key==='<')this.prevFrame();
       if(e.key==='.'||e.key==='>')this.nextFrame();
+      // SketchMotion's frame keys: A adds a frame (as Space does), D duplicates this one, ← → step.
+      if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&!this.isPlaying){
+        const key=e.key.length===1?e.key.toLowerCase():e.key;
+        if(key==='a'){e.preventDefault();this.addFrame();}
+        if(key==='d'){e.preventDefault();this.duplicateCurrentFrame();this.scrollToFrame(this.currentFrameIndex);}
+        if(key==='ArrowLeft'){e.preventDefault();this.prevFrame();}
+        if(key==='ArrowRight'){e.preventDefault();this.nextFrame();}
+      }
       if(e.key==='Home'&&!this.isPlaying){e.preventDefault();this.goToFirstFrame();}
       if(e.key==='End'&&!this.isPlaying){e.preventDefault();this.goToLastFrame();}
       if(e.key==='?'){e.preventDefault();this.openHelp();}
@@ -3100,9 +3111,10 @@ const app={
       }else{this.dragTarget=target;if(!isCtrl){this.selectedFigureIds.clear();this.selectFigure(target.figure);}}
       this.syncSelectionUI();this.render();return;
     }
-    // A dot on the selected figure's path goes to that frame, keeping the figure selected.
-    const pathFrame=this.pathDotAt(pos);
-    if(pathFrame!==null){this.loadFrame(pathFrame);this.scrollToFrame(pathFrame);return;}
+    // A dot on the selected figure's path: drag it to move the figure in that frame, or click to go there.
+    // The figure on this frame is checked first, so it can always be dragged even with a dot under it.
+    const pathDot=this.pathHit(pos);
+    if(pathDot){this.pathDrag={...pathDot,start:pos,moved:false};return;}
     // Miss — marquee or deselect
     if(!isCtrl){this.selectedFigureIds.clear();this.deselectAll();}
     const wpos=this.getWrapperPos(e,isTouch);
@@ -3112,9 +3124,12 @@ const app={
   },
   handleMove(e,isTouch){
     const pos=this.getPos(e,isTouch);
+    if(this.pathDrag){if(isTouch&&e.cancelable)e.preventDefault();this.dragPathDot(pos);return;}
     if(!isTouch&&!this.dragTarget&&!this.isPlaying){
       updateCursor(this.canvas,this.figures,pos,this.handleRadius);
-      if(this.canvas.style.cursor!=='pointer'&&!this.marquee.active&&this.pathDotAt(pos)!==null)this.canvas.style.cursor='pointer';
+      const hover=this.canvas.style.cursor!=='pointer'&&!this.marquee.active?this.pathHit(pos):null;
+      if(hover)this.canvas.style.cursor='grab';
+      if((hover?.id??null)!==(this.pathHover?.id??null)||(hover?.index??null)!==(this.pathHover?.index??null)){this.pathHover=hover;this.render();}
     }
     if(this.marquee.active&&!this.dragTarget){
       if(isTouch&&e.cancelable)e.preventDefault();
@@ -3128,6 +3143,7 @@ const app={
     this.render();
   },
   handleEnd(e){
+    if(this.pathDrag){this.finishPathDrag();return;}
     if(this.marquee.active){
       const ca=this.canvas;const cr=ca.getBoundingClientRect();const wa=document.getElementById('canvas-area');const wr=wa.getBoundingClientRect();
       const bounds=marqueeCanvasBounds({marquee:this.marquee,canvasRect:cr,wrapperRect:wr,scrollLeft:wa.scrollLeft,scrollTop:wa.scrollTop,canvasWidth:this.canvas.width,canvasHeight:this.canvas.height,stagePadding:this.stagePadding});
@@ -3223,29 +3239,78 @@ const app={
   // Where each selected figure's root is in every frame it appears in (the current frame's from the stage).
   motionPaths(){
     if(!this.showPath||this.isPlaying||this.frames.length<2)return [];
-    return this._getSelectedFigureIds().map(id=>this.frames.map((frame,index)=>{
+    return this._getSelectedFigureIds().map(id=>({id,points:this.frames.map((frame,index)=>{
       const figure=(index===this.currentFrameIndex?this.figures:frame).find(f=>f.id===id);
       return figure?{index,x:figure.x,y:figure.y}:null;
-    })).filter(points=>points.filter(Boolean).length>1);
+    })})).filter(path=>path.points.filter(Boolean).length>1);
   },
+  // Stage units per screen pixel, so the path's lines, dots and labels keep their size at any zoom.
+  pathScale(){const width=this.canvas.getBoundingClientRect().width;return width?this.canvas.width/width:1;},
   // A line through the root's place in each frame, with a dot per frame: close together is slow, far apart fast.
-  // Earlier frames are orange like the root, later ones blue like the onion skin.
+  // Hovering a dot names its frame and shows a ghost of the figure there; dragging it moves the figure in that frame.
   drawMotionPaths(){
     const paths=this.motionPaths();if(!paths.length)return;
-    const ctx=this.ctx,current=this.currentFrameIndex;
-    ctx.save();ctx.lineCap='round';
-    paths.forEach(points=>{
-      ctx.lineWidth=1.5;
-      for(let i=1;i<points.length;i+=1){const a=points[i-1],b=points[i];if(!a||!b)continue;ctx.strokeStyle=b.index<=current?'rgba(249,115,22,0.55)':'rgba(37,99,235,0.55)';ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
-      points.forEach(p=>{if(!p||p.index===current)return;ctx.beginPath();ctx.arc(p.x,p.y,3.5,0,Math.PI*2);ctx.fillStyle=p.index<current?'#f97316':'#2563eb';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1.5;ctx.stroke();});
+    const ctx=this.ctx,current=this.currentFrameIndex,k=this.pathScale(),blue='#3478F6';
+    const active=this.pathDrag?.moved?this.pathDrag:this.pathHover;
+    ctx.save();ctx.lineCap='round';ctx.lineJoin='round';
+    paths.forEach(({id,points})=>{
+      const trace=()=>{ctx.beginPath();let open=false;points.forEach(p=>{if(!p){open=false;return;}if(open)ctx.lineTo(p.x,p.y);else{ctx.moveTo(p.x,p.y);open=true;}});};
+      // A pale edge keeps the line readable over any drawing.
+      trace();ctx.lineWidth=6*k;ctx.strokeStyle='rgba(255,255,255,0.75)';ctx.stroke();
+      trace();ctx.lineWidth=3*k;ctx.strokeStyle=blue;ctx.stroke();
+      if(active&&active.id===id){
+        const ghost=this.frames[active.index]?.find(f=>f.id===id);
+        if(ghost){ctx.globalAlpha=0.35;ghost.updatePositions();this.drawFigure(ghost,false);ctx.globalAlpha=1;}
+      }
+      points.forEach(p=>{
+        if(!p||p.index===current)return;
+        const here=active&&active.id===id&&active.index===p.index;
+        ctx.beginPath();ctx.arc(p.x,p.y,(here?6.5:5)*k,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.lineWidth=2.5*k;ctx.strokeStyle=blue;ctx.stroke();
+      });
+      const labelled=active&&active.id===id&&points[active.index];
+      if(labelled)this.drawPathLabel(`Frame ${active.index+1} · drag to move`,labelled,k);
     });
     ctx.restore();
   },
-  // The frame whose path dot is under a stage point, or null.
-  pathDotAt(pos){
-    let hit=null,best=8;
-    this.motionPaths().forEach(points=>points.forEach(p=>{if(!p||p.index===this.currentFrameIndex)return;const d=Math.hypot(pos.x-p.x,pos.y-p.y);if(d<=best){best=d;hit=p.index;}}));
-    return hit;
+  drawPathLabel(text,point,k){
+    const ctx=this.ctx;ctx.save();
+    ctx.font=`600 ${11*k}px system-ui, 'Segoe UI', sans-serif`;
+    const width=ctx.measureText(text).width+10*k,height=17*k;
+    let x=point.x+13*k;if(x+width>this.docWidth)x=point.x-13*k-width;
+    const y=Math.max(height/2,point.y-13*k);
+    ctx.beginPath();if(ctx.roundRect)ctx.roundRect(x,y-height/2,width,height,6*k);else ctx.rect(x,y-height/2,width,height);
+    ctx.fillStyle='rgba(29,27,32,0.86)';ctx.fill();
+    ctx.fillStyle='#fff';ctx.textBaseline='middle';ctx.fillText(text,x+5*k,y+0.5*k);
+    ctx.restore();
+  },
+  // The path dot nearest a stage point, within reach: {id, index} or null. Fingers get a bigger target.
+  pathHit(pos){
+    const reach=(window.matchMedia?.('(pointer: coarse)').matches?22:14)*this.pathScale();
+    let best=null;
+    this.motionPaths().forEach(({id,points})=>points.forEach(p=>{
+      if(!p||p.index===this.currentFrameIndex)return;
+      const distance=Math.hypot(pos.x-p.x,pos.y-p.y);
+      if(distance<=reach&&(!best||distance<best.distance))best={id,index:p.index,distance};
+    }));
+    return best?{id:best.id,index:best.index}:null;
+  },
+  // Dragging a dot moves the figure in that frame. Stored frames are shared with Undo, so the moved
+  // figure goes into a new frame array rather than being changed in place.
+  dragPathDot(pos){
+    const drag=this.pathDrag,dx=pos.x-drag.start.x,dy=pos.y-drag.start.y;
+    if(!drag.moved){
+      if(Math.hypot(dx,dy)<3*this.pathScale())return;
+      const figure=this.frames[drag.index]?.find(f=>f.id===drag.id);if(!figure)return;
+      this.saveState();drag.moved=true;drag.origin={x:figure.x,y:figure.y};
+    }
+    this.frames[drag.index]=this.frames[drag.index].map(f=>{if(f.id!==drag.id)return f;const moved=f.clone();moved.x=drag.origin.x+dx;moved.y=drag.origin.y+dy;return moved;});
+    this.canvas.style.cursor='grabbing';this.render();
+  },
+  // A drag moves the dot; a click on it goes to its frame.
+  finishPathDrag(){
+    const drag=this.pathDrag;this.pathDrag=null;this.canvas.style.cursor='';
+    if(!drag.moved){this.pathHover=null;this.loadFrame(drag.index);this.scrollToFrame(drag.index);return;}
+    this.updateTimeline();this.render();this.saveLocal();
   },
   // Earlier frames in their own colours, fading the further back they are; later frames tinted blue.
   drawOnionSkins(){
