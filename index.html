@@ -2818,22 +2818,20 @@ const app={
             nF.stkArtwork={...source,segments,...(source.parameters?{parameters:source.parameters.map(parameter=>segments[parameter.index]?{...parameter,value:segments[parameter.index].bend}:parameter)}:{})};
           }
         }
-        const mapA={},mapB={},nextPos={};
+        // Each joint swings round its parent the shorter way while its length changes evenly, so a limb keeps
+        // its length through a turn. (Sliding each joint in a straight line shortened turning limbs: halfway
+        // through a quarter turn a limb was 30% shorter.)
+        const mapA={},mapB={},lerp=(a,b)=>a+(b-a)*t;
         figA.joints.forEach(j=>mapA[j.id]=j);figB.joints.forEach(j=>mapB[j.id]=j);
-        const calc=(j)=>{
+        nF.joints.forEach(j=>{
           const jA=mapA[j.id],jB=mapB[j.id];
           if(!jA||!jB)return;
-          if(j.parentId===null){nextPos[j.id]={x:nF.x,y:nF.y};return;}
-          if(!nextPos[j.parentId]){const p=nF.joints.find(x=>x.id===j.parentId);if(p)calc(p);}
-          const p=nextPos[j.parentId];if(!p)return;
-          const tx=jA.x+(jB.x-jA.x)*t,ty=jA.y+(jB.y-jA.y)*t;
-          j.angle=Math.atan2(ty-p.y,tx-p.x);
-          j.length=Math.hypot(tx-p.x,ty-p.y)/Math.max(0.0001,nF.scale);
-          j.radius=(jA.radius||0)+((jB.radius||0)-(jA.radius||0))*t;
-          j.thickness=(jA.thickness||0)+((jB.thickness||0)-(jA.thickness||0))*t;
-          nextPos[j.id]={x:tx,y:ty};
-        };
-        nF.joints.forEach(calc);
+          j.angle=jA.angle+Math.atan2(Math.sin(jB.angle-jA.angle),Math.cos(jB.angle-jA.angle))*t;
+          j.length=lerp(jA.length,jB.length);
+          j.radius=lerp(jA.radius||0,jB.radius||0);
+          j.thickness=lerp(jA.thickness||0,jB.thickness||0);
+        });
+        nF.updatePositions();
         interp.push(nF);
       }else interp.push(figA.clone());
     });

@@ -408,6 +408,12 @@ Ideas from the SketchMotion redesign, brought across where they suit a stick-fig
   - Hide panels and the phone and tablet layouts: StickMotion has its own tablet drawer.
   - Drawing tools, and the Inter font, which would need bundling for offline use.
 
+### Fixed — Smooth tweening keeps limbs their length (2026-11-05)
+
+- Smooth used to slide each joint in a straight line from one pose to the next. That shortened every turning limb mid-tween: 30% shorter halfway through a quarter turn, and half its length through a 120° swing.
+- Each joint now swings round its parent the shorter way while its length changes evenly, so limbs keep their length. The first and last in-between poses are exactly the two frames.
+- Playback and GIF/video export share the fix. The old recursive parent lookup is gone too, which helps very detailed figures.
+
 ### Deferred deliberately
 
 - **Faster autosave on very large projects**: `JSON.stringify` of the whole project runs on each save (≈20 ms for a typical project, ≈185 ms for 300 frames × 15 figures at 4× CPU slowdown). A per-frame serialisation cache would fix it but changes the save path, so it waits until large projects are common.
