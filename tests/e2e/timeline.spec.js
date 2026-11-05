@@ -219,7 +219,8 @@ test('tools show their names where the screen is tall enough, and hover tips whe
   await page.setViewportSize({ width: 1366, height: 768 });
   expect(await stickman()).toEqual({ content: '"Stickman"', opacity: '1', position: 'static' });
   await page.setViewportSize({ width: 1280, height: 650 });
-  expect(await stickman()).toEqual({ content: '"Add Stickman"', opacity: '0', position: 'absolute' }); // the hover tip
+  // The hover tip, once its 0.15 s fade has run.
+  await expect.poll(stickman).toEqual({ content: '"Add Stickman"', opacity: '0', position: 'absolute' });
 });
 
 test('Undo keeps 100 steps', async ({ page }) => {
