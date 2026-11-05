@@ -426,6 +426,24 @@ Ideas from the SketchMotion redesign, brought across where they suit a stick-fig
 - The saved text is exactly what it was, byte for byte, for autosave and downloaded project files alike. Tests compare the two after hundreds of edits (`tests/fast-save.test.mjs`, `tests/e2e/fast-save.spec.js`).
 - This relies on stored frames never being changed in place: every edit puts a new frame array in its place, as Undo already requires. Code that changes a stored frame or figure in place would leave its saved text stale.
 
+### Completed — More from SketchMotion (2026-11-05, second batch)
+
+- **Curved Smooth.** A menu beside Smooth chooses how figures move between frames.
+  - Curved passes each figure through its frames' positions on a smooth curve (a Catmull-Rom spline, `src/motion-curve.js`), so a jump of a few poses plays as an arc. The path draws the same curve.
+  - The first and last frames are ends; the loop's step back to the start uses its real neighbours. Straight stays the default.
+- **Delete on a frame.** With a frame clicked in the timeline, Delete removes it (or the picked frames) and focus moves to the frame now in its place. Backspace there does nothing. On the stage, both still delete figures.
+- **Light Paper theme.**
+  - A sun/moon button in the top bar, and an item in the compact menu. The choice is remembered in the browser and applied before first paint.
+  - Night stays the default. Every visible text in Paper meets WCAG AA, and the rules live in `src/look.css`.
+- **Top bar on narrow windows.** From 781 to 1000 px, New, Save, Open and Import STK fold to icons; the bar was cut off there by up to 160 px.
+- **Contrast fixes in Night.**
+  - The hover blue is darker (white words 6.6:1), and confirm buttons use a deeper red (4.8:1).
+  - The designer's label is readable, and the chosen colour swatch finally shows a ring.
+- **What's new.**
+  - Returning students see a dot on Help until they've read a short note of the changes. A first visit gets the welcome guide instead.
+  - Bump `WHATS_NEW_VERSION` when the notes change. Dialogs taller than the window now scroll.
+- **Tests on separate ports.** `E2E_PORT` lets two checkouts run their browser tests at once.
+
 ### Deferred deliberately
 
 - **Writing very large autosaves**: the browser still copies the whole project text into IndexedDB on each save (≈30 ms for a 10 MB project, ≈60 ms for the dinosaur project, at 4× slowdown). Saving frames as separate records would avoid it but changes the storage format.
