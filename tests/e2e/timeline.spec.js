@@ -73,6 +73,48 @@ test('? opens Help, which lists the new keys', async ({ page }) => {
   await expect(page.locator('#help-modal')).toContainText('Home / End');
 });
 
+// The stage pixel on the torso of the figure as it stands in frame `index` (just above its root).
+const torsoPixel = (page, index) => page.evaluate(index => {
+  const figure = app.frames[index][0];
+  const [r, g, b] = app.ctx.getImageData(app.stagePadding + figure.x, app.stagePadding + figure.y - 12, 1, 1).data;
+  return { r, g, b };
+}, index);
+const blank = ({ r, g, b }) => r > 250 && g > 250 && b > 250;
+const grey = ({ r, g, b }) => r < 240 && Math.abs(r - b) < 6;
+const blue = ({ r, b }) => b > r + 20;
+
+test('onion skin shows earlier frames faded and later frames in blue, as set in its menu', async ({ page }) => {
+  await openEditor(page);
+  await framesProject(page, 5);
+  await page.evaluate(() => app.loadFrame(2, false));
+  // By default only the frame before shows.
+  expect(blank(await torsoPixel(page, 0))).toBe(true);
+  expect(grey(await torsoPixel(page, 1))).toBe(true);
+  expect(blank(await torsoPixel(page, 3))).toBe(true);
+
+  await page.locator('#btn-onion-settings').click();
+  await expect(page.locator('#onion-menu')).toBeVisible();
+  await page.getByRole('button', { name: 'Show more earlier frames' }).click();
+  await page.getByRole('button', { name: 'Show more later frames' }).click();
+  await expect(page.locator('#onion-before-val')).toHaveText('2');
+  await expect(page.locator('#onion-after-val')).toHaveText('1');
+  const twoBack = await torsoPixel(page, 0), oneBack = await torsoPixel(page, 1);
+  expect(grey(twoBack) && grey(oneBack) && twoBack.r > oneBack.r).toBe(true); // further back is fainter
+  expect(blue(await torsoPixel(page, 3))).toBe(true);
+  expect(blank(await torsoPixel(page, 4))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#onion-menu')).toBeHidden();
+  await expect(page.locator('#btn-onion-settings')).toBeFocused();
+
+  // The counts are saved with the project, and switching Onion off hides it all.
+  await page.evaluate(() => app.localSaveQueue);
+  await page.reload();
+  await page.waitForFunction(() => window.app?.frames?.length > 0);
+  expect(await page.evaluate(() => [app.onionBefore, app.onionAfter])).toEqual([2, 1]);
+  await page.evaluate(() => { app.loadFrame(2, false); app.toggleOnion(); });
+  expect(blank(await torsoPixel(page, 1)) && blank(await torsoPixel(page, 3))).toBe(true);
+});
+
 test('Undo keeps 100 steps', async ({ page }) => {
   await openEditor(page);
   const steps = await page.evaluate(() => {

@@ -501,6 +501,32 @@
     cursor: pointer; transition: all 0.15s;
   }
   .onion-btn.on { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: var(--amber); }
+  .onion-wrap { display: flex; align-items: center; gap: 2px; }
+  .onion-more {
+    width: 20px; height: 24px; padding: 0; border: 1px solid var(--border); border-radius: 6px;
+    background: transparent; color: var(--text3); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .onion-more:hover, .onion-more[aria-expanded="true"] { border-color: var(--border2); color: var(--text); }
+  /* Onion skin settings: opens upward from the playback bar, placed by script so a scrolling bar can't clip it. */
+  .onion-menu {
+    display: none; position: fixed; z-index: 240; width: 236px; padding: 12px;
+    border: 1px solid var(--border2); border-radius: 12px; background: var(--bg2);
+    box-shadow: 0 16px 36px rgba(0,0,0,0.48);
+  }
+  .onion-menu.show { display: grid; gap: 10px; }
+  .onion-menu-title { font-size: 13px; font-weight: 600; color: var(--text); }
+  .onion-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text2); }
+  .onion-later-key { display: inline-block; width: 8px; height: 8px; margin-left: 4px; border-radius: 50%; background: #2563eb; vertical-align: middle; }
+  .onion-menu-hint { margin: 0; font-size: 11px; line-height: 1.4; color: var(--text3); }
+  .stepper { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 7px; background: var(--bg3); }
+  .stepper button {
+    width: 26px; height: 24px; border: 0; background: transparent; color: var(--text2);
+    font: 600 14px var(--font); cursor: pointer; border-radius: 6px;
+  }
+  .stepper button:hover:not(:disabled) { background: var(--bg4); color: var(--text); }
+  .stepper button:disabled { opacity: .35; cursor: default; }
+  .stepper output { min-width: 26px; text-align: center; font: 600 12px var(--mono); color: var(--text); }
 
   /* ── Timeline track ─────────────────────────── */
   #timeline-track {
@@ -1113,10 +1139,21 @@
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline-block;vertical-align:middle;margin-right:3px"><path d="M3 12c0-3 3-6 6-6s6 3 6 6 3 6 6 6"/></svg>
         Smooth
       </button>
-      <button class="onion-btn" id="btn-onion" onclick="app.toggleOnion()" title="Onion skin">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2C8 2 4 6 4 10c0 4 2 7 8 10 6-3 8-6 8-10 0-4-4-8-8-8z" opacity="0.4"/><path d="M12 6C9 6 7 9 7 11c0 3 2 5 5 6 3-1 5-3 5-6 0-2-2-5-5-5z"/></svg>
-        Onion
-      </button>
+      <div class="onion-wrap">
+        <button class="onion-btn" id="btn-onion" onclick="app.toggleOnion()" title="Onion skin">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 2C8 2 4 6 4 10c0 4 2 7 8 10 6-3 8-6 8-10 0-4-4-8-8-8z" opacity="0.4"/><path d="M12 6C9 6 7 9 7 11c0 3 2 5 5 6 3-1 5-3 5-6 0-2-2-5-5-5z"/></svg>
+          Onion
+        </button>
+        <button class="onion-more" id="btn-onion-settings" type="button" aria-label="Onion skin settings" aria-expanded="false" aria-controls="onion-menu" title="Onion skin settings" onclick="app.toggleOnionMenu()">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 15 12 9 18 15"/></svg>
+        </button>
+      </div>
+      <div class="onion-menu" id="onion-menu" role="group" aria-labelledby="onion-menu-title">
+        <div class="onion-menu-title" id="onion-menu-title">Onion skin</div>
+        <div class="onion-row"><span>Earlier frames</span><div class="stepper"><button type="button" id="onion-before-less" aria-label="Show fewer earlier frames" onclick="app.stepOnion('before',-1)">−</button><output id="onion-before-val" aria-live="polite">1</output><button type="button" id="onion-before-more" aria-label="Show more earlier frames" onclick="app.stepOnion('before',1)">+</button></div></div>
+        <div class="onion-row"><span>Later frames<span class="onion-later-key" aria-hidden="true"></span></span><div class="stepper"><button type="button" id="onion-after-less" aria-label="Show fewer later frames" onclick="app.stepOnion('after',-1)">−</button><output id="onion-after-val" aria-live="polite">0</output><button type="button" id="onion-after-more" aria-label="Show more later frames" onclick="app.stepOnion('after',1)">+</button></div></div>
+        <p class="onion-menu-hint">Earlier frames fade the further back they are. Later frames show in blue.</p>
+      </div>
       <button class="pb-tag" id="btn-pivots" onclick="app.togglePivots()" title="Show or hide pivot handles">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="display:inline-block;vertical-align:middle;margin-right:3px"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
         Pivots
@@ -1429,6 +1466,7 @@ const app={
   projectName:'Untitled animation',
   fps:12,isPlaying:false,lastTime:0,playbackAccumulator:0,
   isLooping:true,isSmooth:true,showOnion:true,showPivots:true,
+  onionBefore:1,onionAfter:0, // how many earlier and later frames the onion skin shows
   zoomLevel:1.0,dragTarget:null,isPanning:false,panStart:null,
   activeTool:'select',
   selectedFigureIds:new Set(),
@@ -1470,6 +1508,7 @@ const app={
     window.addEventListener('keydown',e=>{
       if(this.handleDialogKeydown(e))return;
       if(e.key==='Escape'&&this.closeExportMenu()){e.preventDefault();return;}
+      if(e.key==='Escape'&&this.closeOnionMenu()){e.preventDefault();document.getElementById('btn-onion-settings').focus();return;}
       if(e.key==='Escape'&&this.closeCompactActions()){e.preventDefault();return;}
       if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
       if(e.code==='Space'){e.preventDefault();if(this.isPlaying)this.stop();else this.addFrame();}
@@ -1490,6 +1529,7 @@ const app={
     document.addEventListener('pointerdown',e=>{
       const actions=document.getElementById('compact-actions');if(actions&&!actions.contains(e.target))this.closeCompactActions();
       const exports=document.getElementById('export-menu-wrap');if(exports&&!exports.contains(e.target))this.closeExportMenu();
+      if(!e.target.closest?.('#onion-menu,#btn-onion-settings'))this.closeOnionMenu();
     });
     this.updateBackgroundControl();
     this.updateZoomDisplay();
@@ -1524,6 +1564,31 @@ const app={
   closeExportMenu(){
     const menu=document.getElementById('export-menu');if(!menu||!menu.classList.contains('show'))return false;
     menu.classList.remove('show');document.getElementById('btn-export').setAttribute('aria-expanded','false');return true;
+  },
+  toggleOnionMenu(){
+    const menu=document.getElementById('onion-menu'),button=document.getElementById('btn-onion-settings');
+    if(this.closeOnionMenu())return;
+    this.updateOnionMenu();menu.classList.add('show');button.setAttribute('aria-expanded','true');
+    const box=button.getBoundingClientRect();
+    menu.style.left=`${Math.max(8,Math.min(window.innerWidth-menu.offsetWidth-8,box.left+box.width/2-menu.offsetWidth/2))}px`;
+    menu.style.bottom=`${window.innerHeight-box.top+8}px`;
+    menu.querySelector('button:not(:disabled)')?.focus();
+  },
+  closeOnionMenu(){
+    const menu=document.getElementById('onion-menu');if(!menu||!menu.classList.contains('show'))return false;
+    menu.classList.remove('show');document.getElementById('btn-onion-settings').setAttribute('aria-expanded','false');return true;
+  },
+  updateOnionMenu(){
+    [['before',this.onionBefore],['after',this.onionAfter]].forEach(([which,count])=>{
+      document.getElementById(`onion-${which}-val`).textContent=String(count);
+      document.getElementById(`onion-${which}-less`).disabled=count<=0;
+      document.getElementById(`onion-${which}-more`).disabled=count>=3;
+    });
+  },
+  stepOnion(which,delta){
+    const key=which==='before'?'onionBefore':'onionAfter';
+    this[key]=Math.max(0,Math.min(3,this[key]+delta));
+    this.updateOnionMenu();this.render();this.saveLocal();
   },
   runExportAction(action){
     this.closeExportMenu();
@@ -1605,6 +1670,8 @@ const app={
     this.isSmooth=d.settings.isSmooth!==undefined?!!d.settings.isSmooth:true;
     this.showOnion=d.settings.showOnion!==undefined?!!d.settings.showOnion:true;
     this.showPivots=d.settings.showPivots!==undefined?!!d.settings.showPivots:true;
+    const onionCount=(value,fallback)=>Number.isInteger(value)&&value>=0&&value<=3?value:fallback;
+    this.onionBefore=onionCount(d.settings.onionBefore,1);this.onionAfter=onionCount(d.settings.onionAfter,0);
     this.fileSaved=d.settings.fileSaved===true;
     this.figures=this.cloneFigures(this.frames[this.currentFrameIndex]);
     this.selectedFigureIds=new Set(this.figures.filter(f=>f.selected).map(f=>f.id));
@@ -3071,16 +3138,31 @@ const app={
     this.ctx.fillStyle='#ffffff';this.ctx.fillRect(this.stagePadding,this.stagePadding,this.docWidth,this.docHeight);
     if(this.bgImage)this.ctx.drawImage(this.bgImage,this.stagePadding,this.stagePadding,this.docWidth,this.docHeight);
     this.ctx.save();this.ctx.translate(this.stagePadding,this.stagePadding);
-    if(this.showOnion&&!this.isPlaying&&this.currentFrameIndex>0){
-      const previousFrame=this.frames[this.currentFrameIndex-1];
-      if(previousFrame){this.ctx.globalAlpha=0.25;previousFrame.forEach(f=>{f.updatePositions();this.drawFigure(f,false);});this.ctx.globalAlpha=1.0;}
-    }
+    if(this.showOnion&&!this.isPlaying)this.drawOnionSkins();
     const showEditing=this.showPivots&&!this.isPlaying;
     this.figures.forEach(f=>{f.updatePositions();this.drawFigure(f,showEditing);});
     if(showEditing)this.drawGroupBounds();
     this.ctx.restore();
     this.ctx.strokeStyle='rgba(255,255,255,0.25)';this.ctx.lineWidth=1;this.ctx.strokeRect(this.stagePadding-0.5,this.stagePadding-0.5,this.docWidth+1,this.docHeight+1);
     this.scheduleActiveThumbnailRefresh();
+  },
+  // Earlier frames in their own colours, fading the further back they are; later frames tinted blue.
+  drawOnionSkins(){
+    const fades=[0.25,0.14,0.08];
+    for(let k=Math.min(3,this.onionBefore);k>=1;k-=1){const frame=this.frames[this.currentFrameIndex-k];if(frame)this.drawOnionFrame(frame,fades[k-1],null);}
+    for(let k=Math.min(3,this.onionAfter);k>=1;k-=1){const frame=this.frames[this.currentFrameIndex+k];if(frame)this.drawOnionFrame(frame,fades[k-1]+0.07,'#2563eb');}
+  },
+  drawOnionFrame(frame,alpha,tint){
+    if(!tint){this.ctx.globalAlpha=alpha;frame.forEach(f=>{f.updatePositions();this.drawFigure(f,false);});this.ctx.globalAlpha=1.0;return;}
+    // A tint needs the frame on its own: draw it on a spare canvas, colour everything drawn, then lay that over.
+    const layer=this.onionLayer||(this.onionLayer=document.createElement('canvas'));
+    if(layer.width!==this.canvas.width||layer.height!==this.canvas.height){layer.width=this.canvas.width;layer.height=this.canvas.height;}
+    const context=layer.getContext('2d'),main=this.ctx;
+    context.setTransform(1,0,0,1,0,0);context.clearRect(0,0,layer.width,layer.height);context.translate(this.stagePadding,this.stagePadding);
+    this.ctx=context; // drawFigure draws on this.ctx
+    try{frame.forEach(f=>{f.updatePositions();this.drawFigure(f,false);});}finally{this.ctx=main;}
+    context.setTransform(1,0,0,1,0,0);context.globalCompositeOperation='source-in';context.fillStyle=tint;context.fillRect(0,0,layer.width,layer.height);context.globalCompositeOperation='source-over';
+    main.save();main.setTransform(1,0,0,1,0,0);main.globalAlpha=alpha;main.drawImage(layer,0,0);main.restore();
   },
   drawGroupBounds(){
     this.groups.forEach(g=>{
